@@ -11,7 +11,9 @@ copy .env.example .env
 npm run dev
 ```
 
-Ouvrir http://localhost:5173 — compte avec `is_admin=true`.
+Ouvrir http://127.0.0.1:5173 — compte avec `is_admin=true`.
+
+En dev, Vite proxy `/api` → `http://127.0.0.1:8000` (évite les soucis CORS `localhost` vs `127.0.0.1`).
 
 ## Fonctionnalités
 
@@ -25,4 +27,4 @@ Ouvrir http://localhost:5173 — compte avec `is_admin=true`.
 
 - React + Vite + react-router-dom
 - Tokens `#2F8AF2`
-- API : `VITE_API_BASE_URL` (défaut `http://localhost:8000/api/v1`)
+- API : `VITE_API_BASE_URL` (défaut `/api/v1` via proxy Vite)

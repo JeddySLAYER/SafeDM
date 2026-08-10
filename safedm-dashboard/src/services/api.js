@@ -45,8 +45,7 @@ export async function apiRequest(path, { method = "GET", body, auth = true } = {
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const base =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+  const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
   const res = await fetch(`${base}${path}`, {
     method,
     headers,
