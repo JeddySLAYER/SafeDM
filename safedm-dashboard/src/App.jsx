@@ -1,36 +1,41 @@
-import SafeDMLogo from "./components/SafeDMLogo";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import AdminLayout from "./components/AdminLayout";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import GuidePage from "./pages/GuidePage";
+import LoginPage from "./pages/LoginPage";
+import StatsPage from "./pages/StatsPage";
+import ThreatsPage from "./pages/ThreatsPage";
+import UsersPage from "./pages/UsersPage";
 import "./App.css";
 
-function App() {
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <SafeDMLogo size={36} />
-          <span className="brand-text">
-            <span className="brand-safe">Safe</span>
-            <span className="brand-dm">DM</span>
-          </span>
-        </div>
-        <span className="badge">Admin</span>
-      </header>
-
-      <main className="app-main">
-        <h1>Dashboard administrateur</h1>
-        <p className="subtitle">
-          Projet initialisé (Sprint 0). Les écrans stats, utilisateurs, menaces
-          et guide arriveront au Sprint 8.
-        </p>
-        <div className="card">
-          <h2>Prochaine étape</h2>
-          <p>
-            Connecter l&apos;API FastAPI (
-            <code>VITE_API_BASE_URL</code>) une fois le backend démarré.
-          </p>
-        </div>
-      </main>
-    </div>
-  );
+function Protected({ children }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <Protected>
+                <AdminLayout />
+              </Protected>
+            }
+          >
+            <Route index element={<StatsPage />} />
+            <Route path="threats" element={<ThreatsPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="guide" element={<GuidePage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

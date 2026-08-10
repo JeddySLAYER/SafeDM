@@ -62,3 +62,20 @@ class ThreatListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class UserReportItem(BaseModel):
+    id: int
+    threat_id: int
+    source: ReportSource
+    status: ReportStatus
+    created_at: datetime
+    withdrawn_at: Optional[datetime] = None
+    severity: ThreatSeverity
+    threat_preview: str
+    report_count: int
+
+
+class UserReportListResponse(BaseModel):
+    items: list[UserReportItem]
+    total: int

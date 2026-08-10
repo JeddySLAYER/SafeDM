@@ -139,9 +139,13 @@ def test_withdraw_and_reactivate(user_auth):
     assert withdrawn.status_code == 200
     assert withdrawn.json()["status"] == "WITHDRAWN"
 
-    community = client.get("/api/v1/threats/community", headers=user_auth["headers"])
-    threat = next(i for i in community.json()["items"] if i["id"] == threat_id)
-    assert threat["report_count"] == 0
+    from app.utils.hashing import compute_normalized_hash
+
+    hashed = compute_normalized_hash(content)
+    detail = client.get(f"/api/v1/threats/{hashed}", headers=user_auth["headers"])
+    assert detail.status_code == 200
+    assert detail.json()["id"] == threat_id
+    assert detail.json()["report_count"] == 0
 
     reactivated = client.post(
         "/api/v1/reports",
@@ -172,6 +176,21 @@ def test_second_user_increments_report_count(user_auth, second_user_auth):
     community = client.get("/api/v1/threats/community", headers=user_auth["headers"])
     threat = next(i for i in community.json()["items"] if i["id"] == first.json()["threat_id"])
     assert threat["report_count"] == 2
+
+
+def test_list_my_reports(user_auth):
+    content = f"List my report {uuid.uuid4().hex} https://evil.example/x"
+    created = client.post(
+        "/api/v1/reports",
+        headers=user_auth["headers"],
+        json={"content": content, "source": "DIRECT_REPORT", "severity": "HIGH"},
+    )
+    assert created.status_code == 201
+    listed = client.get("/api/v1/reports", headers=user_auth["headers"])
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["total"] >= 1
+    assert any(item["threat_preview"] for item in body["items"])
 
 
 def test_guide_public_endpoints():
@@ -212,6 +231,13 @@ def test_admin_stats_and_threat_moderation(user_auth, admin_auth):
     assert body["users_count"] >= 1
     assert body["threats_active_count"] >= 1
     assert "gemini_configured" in body
+
+    users = client.get("/api/v1/admin/users", headers=admin_auth["headers"])
+    assert users.status_code == 200
+    assert users.json()["total"] >= 1
+
+    guide_admin = client.get("/api/v1/admin/guide/categories", headers=admin_auth["headers"])
+    assert guide_admin.status_code == 200
 
     dismissed = client.put(
         f"/api/v1/admin/threats/{threat_id}/status",

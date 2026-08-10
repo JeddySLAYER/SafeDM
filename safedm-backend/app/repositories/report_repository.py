@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import CommunityReport
 from app.models.enums import ReportSource, ReportStatus
@@ -21,6 +21,28 @@ class ReportRepository:
                 CommunityReport.threat_id == threat_id,
             )
         )
+
+    def list_for_user(
+        self,
+        user_id: int,
+        *,
+        active_only: bool = True,
+    ) -> list[CommunityReport]:
+        stmt = (
+            select(CommunityReport)
+            .options(joinedload(CommunityReport.threat))
+            .where(CommunityReport.user_id == user_id)
+            .order_by(CommunityReport.created_at.desc())
+        )
+        if active_only:
+            stmt = stmt.where(CommunityReport.status == ReportStatus.ACTIVE)
+        return list(self.db.scalars(stmt).unique().all())
+
+    def count_for_user(self, user_id: int, *, active_only: bool = True) -> int:
+        stmt = select(func.count(CommunityReport.id)).where(CommunityReport.user_id == user_id)
+        if active_only:
+            stmt = stmt.where(CommunityReport.status == ReportStatus.ACTIVE)
+        return int(self.db.scalar(stmt) or 0)
 
     def create(
         self,

@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "../config";
+
 export const colors = {
   blue50: "#EAF3FE",
   blueSoft: "#F0F7FF",
@@ -40,7 +42,12 @@ export const spacing = {
 export const typography = {
   brand: { fontSize: 28, fontWeight: "700" },
   title: { fontSize: 28, fontWeight: "700", color: colors.textPrimary },
-  subtitle: { fontSize: 15, fontWeight: "400", color: colors.textSecondary, lineHeight: 22 },
+  subtitle: {
+    fontSize: 15,
+    fontWeight: "400",
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
   section: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
   body: { fontSize: 15, fontWeight: "400", color: colors.textPrimary },
   label: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
@@ -58,10 +65,6 @@ export const monitoredPackages = {
   Email: ["com.google.android.gm", "com.microsoft.office.outlook"],
 };
 
-export const apiBaseUrl =
-  (typeof process !== "undefined" &&
-    process.env &&
-    process.env.API_BASE_URL) ||
-  "http://10.0.2.2:8000/api/v1";
+export const apiBaseUrl = API_BASE_URL;
 
 export const appVersion = "1.0.0";

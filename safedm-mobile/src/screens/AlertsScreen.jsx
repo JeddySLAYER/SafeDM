@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { IconBadge } from "../components/Icons";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
@@ -8,6 +8,7 @@ import { listAlerts } from "../services/alertsStore";
 import { colors, radii } from "../theme/tokens";
 
 export default function AlertsScreen() {
+  const navigation = useNavigation();
   const [alerts, setAlerts] = useState([]);
 
   useFocusEffect(
@@ -28,7 +29,11 @@ export default function AlertsScreen() {
         </View>
       ) : (
         alerts.map((alert) => (
-          <View key={alert.id} style={styles.card}>
+          <Pressable
+            key={alert.id}
+            style={styles.card}
+            onPress={() => navigation.navigate("AlertDetail", { alertId: alert.id })}
+          >
             <IconBadge
               name={
                 alert.source === "SMS"
@@ -44,12 +49,15 @@ export default function AlertsScreen() {
                 <Text style={styles.source}>{alert.source}</Text>
                 <RiskBadge level={alert.level || "unknown"} />
               </View>
-              <Text style={styles.preview}>{alert.preview}</Text>
+              <Text style={styles.preview} numberOfLines={2}>
+                {alert.preview}
+              </Text>
               <Text style={styles.meta}>
                 {new Date(alert.createdAt).toLocaleString("fr-FR")}
+                {alert.analyzed ? " · Analysé" : ""}
               </Text>
             </View>
-          </View>
+          </Pressable>
         ))
       )}
     </Screen>
@@ -79,6 +87,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: 14,
     marginBottom: 10,
+    backgroundColor: colors.white,
   },
   row: {
     flexDirection: "row",

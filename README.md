@@ -10,37 +10,40 @@ Application Android de cybersécurité qui détecte préventivement les messages
 | [`safedm-mobile`](./safedm-mobile) | React Native + Kotlin (NLS) | **JavaScript** |
 | [`safedm-dashboard`](./safedm-dashboard) | React + Vite | **JavaScript** |
 
-**Pas de Docker.** PostgreSQL s’installe en local. Fronts en JavaScript (pas TypeScript).
+**Pas de Docker.** PostgreSQL local. Fronts en JavaScript.
 
-## Prérequis globaux
+## Docs
 
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL local
-- Android Studio (pour le mobile)
+- [Intégration API](./docs/INTEGRATION.md)
+- [Sécurité](./docs/SECURITY.md)
+- [QA Sprint 9](./docs/QA.md)
+
+## Avancement sprints
+
+| Sprint | Statut | Contenu |
+|--------|--------|---------|
+| S0–S3 | FAIT | Fondations, DB, auth, pipeline analyse |
+| S4 | FAIT | Reports, threats, guide, admin API |
+| S5–S6 | FAIT | Mobile auth/UI + NotificationListener |
+| S7 | FAIT | Analyse, résultat, communauté, guide, signalements |
+| S8 | FAIT | Dashboard admin |
+| S9 | FAIT* | QA + docs + hardening (**APK non généré**) |
 
 ## Démarrage rapide
 
-### 1. Base de données
-
-```sql
-CREATE USER safedm WITH PASSWORD 'safedm';
-CREATE DATABASE safedm OWNER safedm;
-```
-
-### 2. Backend
+### Backend
 
 ```bash
 cd safedm-backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1   # Windows
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 3. Dashboard admin
+### Dashboard
 
 ```bash
 cd safedm-dashboard
@@ -49,33 +52,25 @@ copy .env.example .env
 npm run dev
 ```
 
-### 4. Mobile
+### Mobile
 
 ```bash
 cd safedm-mobile
 npm install
+copy .env.example .env
 npm start
 npm run android
 ```
 
-## Design system
+Admin dashboard : `python -m scripts.promote_admin <username>` depuis `safedm-backend`.
+
+## Design
 
 - Bleu primaire : `#2F8AF2`
-- Neutres : `#FFFFFF`, `#F7F9FC`, `#101828`
-- Risque : Faible / Moyen / Élevé / Inconnu (voir tokens dans chaque front)
-
-## Avancement sprints
-
-| Sprint | Statut | Contenu |
-|--------|--------|---------|
-| S0–S3 | FAIT | Fondations, DB, auth JWT, pipeline analyse |
-| S4 | FAIT | Reports, threats, guide, admin API |
-| S5 | FAIT | Mobile : auth, nav, onboarding, monitoring |
-| S6 | FAIT | NLS Android + bridge + UI charte maquettes |
-| S7–S9 | À faire | Features mobile, dashboard, QA |
+- Badges risque : Élevé = noir, Moyen = bleu
 
 ## Confidentialité
 
 - Messages analysés **non stockés** sauf signalement explicite
-- Clés Gemini / VirusTotal **uniquement** dans le backend
+- Clés Gemini / VirusTotal **uniquement** backend
 - API indisponible → `UNKNOWN` / `PARTIAL`, jamais `SAFE` par défaut

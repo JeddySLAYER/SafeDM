@@ -4,10 +4,15 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { IconGlyph } from "../components/Icons";
 import { useAuth } from "../context/AuthContext";
 import AlertsScreen from "../screens/AlertsScreen";
+import AnalysisResultScreen from "../screens/AnalysisResultScreen";
 import AppsScreen from "../screens/AppsScreen";
+import CommunityScreen from "../screens/CommunityScreen";
+import GuideArticleScreen from "../screens/GuideArticleScreen";
+import GuideScreen from "../screens/GuideScreen";
 import HomeScreen from "../screens/HomeScreen";
+import ManualAnalysisScreen from "../screens/ManualAnalysisScreen";
+import AlertDetailScreen from "../screens/AlertDetailScreen";
 import PermissionsScreen from "../screens/PermissionsScreen";
-import PlaceholderScreen from "../screens/PlaceholderScreen";
 import ReportsScreen from "../screens/ReportsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import { colors } from "../theme/tokens";
@@ -95,30 +100,12 @@ export default function AppStack() {
         component={PermissionsScreen}
         initialParams={{ onboarding: needsSetup }}
       />
-      <Stack.Screen
-        name="ManualAnalysis"
-        component={PlaceholderScreen}
-        initialParams={{
-          title: "Analyse manuelle",
-          body: "Écran prévu Sprint 7 — collage d’un message et appel POST /analysis.",
-        }}
-      />
-      <Stack.Screen
-        name="Community"
-        component={PlaceholderScreen}
-        initialParams={{
-          title: "Menaces communautaires",
-          body: "Écran prévu Sprint 7 — GET /threats/community.",
-        }}
-      />
-      <Stack.Screen
-        name="Guide"
-        component={PlaceholderScreen}
-        initialParams={{
-          title: "Guide",
-          body: "Écran prévu Sprint 7 — GET /guide/categories.",
-        }}
-      />
+      <Stack.Screen name="ManualAnalysis" component={ManualAnalysisScreen} />
+      <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />
+      <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />
+      <Stack.Screen name="Community" component={CommunityScreen} />
+      <Stack.Screen name="Guide" component={GuideScreen} />
+      <Stack.Screen name="GuideArticle" component={GuideArticleScreen} />
     </Stack.Navigator>
   );
 }

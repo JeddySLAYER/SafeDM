@@ -2,13 +2,15 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models import User
-from app.models.enums import ReportStatus
+from app.models.enums import ReportStatus, ThreatSeverity
 from app.repositories.report_repository import ReportRepository
 from app.repositories.threat_repository import ThreatRepository
 from app.schemas.report import (
     ReportCreateRequest,
     ReportCreateResponse,
     ReportResponse,
+    UserReportItem,
+    UserReportListResponse,
 )
 
 
@@ -17,6 +19,27 @@ class ReportService:
         self.db = db
         self.reports = ReportRepository(db)
         self.threats = ThreatRepository(db)
+
+    def list_mine(self, user: User, *, active_only: bool = True) -> UserReportListResponse:
+        items = self.reports.list_for_user(user.id, active_only=active_only)
+        mapped: list[UserReportItem] = []
+        for report in items:
+            threat = report.threat
+            preview = (threat.content if threat else "")[:160]
+            mapped.append(
+                UserReportItem(
+                    id=report.id,
+                    threat_id=report.threat_id,
+                    source=report.source,
+                    status=report.status,
+                    created_at=report.created_at,
+                    withdrawn_at=report.withdrawn_at,
+                    severity=threat.severity if threat else ThreatSeverity.MEDIUM,
+                    threat_preview=preview,
+                    report_count=threat.report_count if threat else 0,
+                )
+            )
+        return UserReportListResponse(items=mapped, total=len(mapped))
 
     def create(self, user: User, payload: ReportCreateRequest) -> ReportCreateResponse:
         content = payload.content.strip()

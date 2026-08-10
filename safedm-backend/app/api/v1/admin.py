@@ -5,7 +5,12 @@ from app.core.database import get_db
 from app.core.deps import get_current_admin
 from app.models import User
 from app.models.enums import ThreatStatus
-from app.schemas.admin import AdminStatsResponse, AdminThreatListResponse, ThreatStatusUpdateRequest
+from app.schemas.admin import (
+    AdminStatsResponse,
+    AdminThreatListResponse,
+    AdminUserListResponse,
+    ThreatStatusUpdateRequest,
+)
 from app.schemas.guide import (
     GuideArticleCreateRequest,
     GuideArticleResponse,
@@ -28,6 +33,26 @@ def admin_stats(
 ):
     _ = current_admin
     return AdminService(db).stats()
+
+
+@router.get("/users", response_model=AdminUserListResponse)
+def admin_list_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).list_users(page=page, page_size=page_size)
+
+
+@router.get("/guide/categories", response_model=list[GuideCategoryResponse])
+def admin_list_guide_categories(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return GuideService(db).list_categories(published_only=False)
 
 
 @router.get("/threats", response_model=AdminThreatListResponse)

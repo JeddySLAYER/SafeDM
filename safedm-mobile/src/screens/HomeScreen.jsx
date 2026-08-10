@@ -135,7 +135,13 @@ export default function HomeScreen({ navigation }) {
         </View>
       ) : (
         alerts.map((alert) => (
-          <View key={alert.id} style={styles.alertCard}>
+          <Pressable
+            key={alert.id}
+            style={styles.alertCard}
+            onPress={() =>
+              navigation.navigate("AlertDetail", { alertId: alert.id })
+            }
+          >
             <IconBadge
               name={
                 alert.source === "SMS"
@@ -156,7 +162,7 @@ export default function HomeScreen({ navigation }) {
               </Text>
               <Text style={styles.alertWhen}>{formatWhen(alert.createdAt)}</Text>
             </View>
-          </View>
+          </Pressable>
         ))
       )}
 

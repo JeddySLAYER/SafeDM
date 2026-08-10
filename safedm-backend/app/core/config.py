@@ -21,7 +21,10 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg2://safedm:safedm@localhost:5432/safedm"
 
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:3000,http://127.0.0.1:3000"
+    )
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"

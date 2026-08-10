@@ -29,3 +29,19 @@ class AdminThreatListResponse(BaseModel):
     page: int
     page_size: int
     status_filter: Optional[ThreatStatus] = None
+
+
+class AdminUserItem(BaseModel):
+    id: int
+    username: str
+    is_admin: bool
+    created_at: str
+    devices_count: int = 0
+    reports_count: int = 0
+
+
+class AdminUserListResponse(BaseModel):
+    items: list[AdminUserItem]
+    total: int
+    page: int
+    page_size: int

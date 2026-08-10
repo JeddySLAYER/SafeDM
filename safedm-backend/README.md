@@ -117,6 +117,7 @@ python scripts/smoke_analysis.py
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
+| GET | `/api/v1/reports` | Mes signalements (JWT) |
 | POST | `/api/v1/reports` | Signaler un message (contenu alors conservé) |
 | DELETE | `/api/v1/reports/{id}` | Retirer son signalement |
 | GET | `/api/v1/threats/community` | Menaces communautaires actives |
@@ -124,8 +125,10 @@ python scripts/smoke_analysis.py
 | GET | `/api/v1/guide/categories` | Catégories + articles publiés |
 | GET | `/api/v1/guide/articles/{id}` | Article publié |
 | GET | `/api/v1/admin/stats` | Stats admin (JWT admin) |
+| GET | `/api/v1/admin/users` | Liste utilisateurs |
 | GET | `/api/v1/admin/threats` | Liste menaces admin |
 | PUT | `/api/v1/admin/threats/{id}/status` | Modérer une menace |
+| GET | `/api/v1/admin/guide/categories` | Guide admin (incl. brouillons) |
 | PUT/DELETE | `/api/v1/admin/guide/...` | CMS guide (catégories + articles) |
 
 

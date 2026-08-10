@@ -7,7 +7,12 @@ from app.models import CommunityReport, SupportedApplication, Threat, User
 from app.models.enums import ReportStatus, ThreatStatus
 from app.repositories.guide_repository import GuideRepository
 from app.repositories.threat_repository import ThreatRepository
-from app.schemas.admin import AdminStatsResponse, AdminThreatListResponse
+from app.schemas.admin import (
+    AdminStatsResponse,
+    AdminThreatListResponse,
+    AdminUserItem,
+    AdminUserListResponse,
+)
 from app.schemas.report import ThreatResponse, ThreatUrlResponse
 
 
@@ -61,6 +66,39 @@ class AdminService:
             gemini_configured=bool(settings.gemini_api_key),
             virustotal_configured=bool(settings.virustotal_api_key),
             analysis_demo_mode=settings.analysis_demo_mode,
+        )
+
+    def list_users(self, *, page: int = 1, page_size: int = 20) -> AdminUserListResponse:
+        page = max(1, page)
+        page_size = min(100, max(1, page_size))
+        total = int(self.db.scalar(select(func.count(User.id))) or 0)
+        users = list(
+            self.db.scalars(
+                select(User)
+                .order_by(User.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            ).all()
+        )
+        items: list[AdminUserItem] = []
+        for user in users:
+            devices_count = len(user.devices or [])
+            reports_count = len(user.community_reports or [])
+            items.append(
+                AdminUserItem(
+                    id=user.id,
+                    username=user.username,
+                    is_admin=user.is_admin,
+                    created_at=user.created_at.isoformat() if user.created_at else "",
+                    devices_count=devices_count,
+                    reports_count=reports_count,
+                )
+            )
+        return AdminUserListResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
         )
 
     def list_threats(

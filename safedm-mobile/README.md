@@ -23,7 +23,17 @@ npm start
 npm run android
 ```
 
-Backend requis : `http://10.0.2.2:8000/api/v1` (émulateur).
+Backend requis : configurer `.env` (`API_BASE_URL`) puis démarrer l’API sur `0.0.0.0:8000`.
+
+Voir aussi : [`docs/INTEGRATION.md`](../docs/INTEGRATION.md).
+
+## Sprint 7 — features MVP
+
+- Analyse manuelle (maquette 07) + résultat (maquette 08)
+- Signaler → `POST /reports`
+- Menaces communautaires, Guide (catégories / articles)
+- Onglet Signalements (liste + retrait)
+- Alertes NLS enrichies via `POST /analysis` (best-effort)
 
 ## Sprint 6 — NotificationListener
 
@@ -54,4 +64,4 @@ android/.../notifications/   # NLS + bridge
 
 - Clés Gemini / VirusTotal : **jamais** dans l’app
 - NLS ne bloque / ne modifie aucun message
-- Analyse manuelle UI + guide + signalements API : Sprint 7
+- Analyse manuelle UI + guide + signalements API : Sprint 7 (FAIT).
