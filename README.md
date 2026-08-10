@@ -10,7 +10,7 @@ Application Android de cybersécurité qui détecte préventivement les messages
 | [`safedm-mobile`](./safedm-mobile) | React Native + Kotlin (NLS) | **JavaScript** |
 | [`safedm-dashboard`](./safedm-dashboard) | React + Vite | **JavaScript** |
 
-**Pas de Docker.** PostgreSQL s’installe en local.
+**Pas de Docker.** PostgreSQL s’installe en local. Fronts en JavaScript (pas TypeScript).
 
 ## Prérequis globaux
 
@@ -36,6 +36,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1   # Windows
 pip install -r requirements.txt
 copy .env.example .env
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -63,12 +64,18 @@ npm run android
 - Neutres : `#FFFFFF`, `#F7F9FC`, `#101828`
 - Risque : Faible / Moyen / Élevé / Inconnu (voir tokens dans chaque front)
 
+## Avancement sprints
+
+| Sprint | Statut | Contenu |
+|--------|--------|---------|
+| S0–S3 | FAIT | Fondations, DB, auth JWT, pipeline analyse |
+| S4 | FAIT | Reports, threats, guide, admin API |
+| S5 | FAIT | Mobile : auth, nav, onboarding, monitoring |
+| S6 | FAIT | NLS Android + bridge + UI charte maquettes |
+| S7–S9 | À faire | Features mobile, dashboard, QA |
+
 ## Confidentialité
 
 - Messages analysés **non stockés** sauf signalement explicite
 - Clés Gemini / VirusTotal **uniquement** dans le backend
 - API indisponible → `UNKNOWN` / `PARTIAL`, jamais `SAFE` par défaut
-
-## Sprints
-
-Voir le plan de sprints dans Cursor (canvas SafeDM Sprints). Sprint 0 = fondations (ce dépôt).

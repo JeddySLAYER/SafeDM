@@ -1,62 +1,86 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { colors } from "../theme/tokens";
 
-/** Logo icône SafeDM — cercle + 3 segments (signal) */
-export default function SafeDMLogo({ size = 40, color = colors.bluePrimary }) {
-  const unit = size / 64;
+/**
+ * Logo maquette SafeDM — loupe noire, lentille bleue, 3 segments signal.
+ */
+export default function SafeDMLogo({ size = 40 }) {
+  const u = size / 64;
   return (
     <View style={{ width: size, height: size }}>
       <View
         style={[
-          styles.dot,
+          styles.signal,
           {
-            width: 24 * unit,
-            height: 24 * unit,
-            borderRadius: 12 * unit,
-            backgroundColor: color,
-            top: 24 * unit,
-            left: 20 * unit,
+            width: 7 * u,
+            height: 7 * u,
+            borderRadius: 1.5 * u,
+            top: 4 * u,
+            left: 28 * u,
           },
         ]}
       />
       <View
         style={[
-          styles.bar,
+          styles.signal,
           {
-            width: 8 * unit,
-            height: 12 * unit,
-            borderRadius: 2 * unit,
-            backgroundColor: color,
-            top: 6 * unit,
-            left: 28 * unit,
+            width: 7 * u,
+            height: 7 * u,
+            borderRadius: 1.5 * u,
+            top: 10 * u,
+            left: 14 * u,
+            transform: [{ rotate: "-28deg" }],
           },
         ]}
       />
       <View
         style={[
-          styles.bar,
+          styles.signal,
           {
-            width: 8 * unit,
-            height: 12 * unit,
-            borderRadius: 2 * unit,
-            backgroundColor: color,
-            top: 10 * unit,
-            left: 10 * unit,
-            transform: [{ rotate: "-40deg" }],
+            width: 7 * u,
+            height: 7 * u,
+            borderRadius: 1.5 * u,
+            top: 10 * u,
+            left: 42 * u,
+            transform: [{ rotate: "28deg" }],
           },
         ]}
       />
       <View
         style={[
-          styles.bar,
+          styles.ring,
           {
-            width: 8 * unit,
-            height: 12 * unit,
-            borderRadius: 2 * unit,
-            backgroundColor: color,
-            top: 10 * unit,
-            left: 46 * unit,
+            width: 34 * u,
+            height: 34 * u,
+            borderRadius: 17 * u,
+            borderWidth: 4 * u,
+            top: 16 * u,
+            left: 10 * u,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.lens,
+          {
+            width: 18 * u,
+            height: 18 * u,
+            borderRadius: 9 * u,
+            top: 24 * u,
+            left: 18 * u,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.handle,
+          {
+            width: 6 * u,
+            height: 18 * u,
+            borderRadius: 3 * u,
+            top: 44 * u,
+            left: 42 * u,
             transform: [{ rotate: "40deg" }],
           },
         ]}
@@ -66,10 +90,21 @@ export default function SafeDMLogo({ size = 40, color = colors.bluePrimary }) {
 }
 
 const styles = StyleSheet.create({
-  dot: {
+  signal: {
     position: "absolute",
+    backgroundColor: colors.bluePrimary,
   },
-  bar: {
+  ring: {
     position: "absolute",
+    borderColor: colors.black,
+    backgroundColor: "transparent",
+  },
+  lens: {
+    position: "absolute",
+    backgroundColor: colors.bluePrimary,
+  },
+  handle: {
+    position: "absolute",
+    backgroundColor: colors.black,
   },
 });

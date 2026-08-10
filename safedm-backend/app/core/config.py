@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     virustotal_base_url: str = "https://www.virustotal.com/api/v3"
     virustotal_timeout_seconds: int = 30
 
+    # Mode demo local (sans cles API) — ne pas utiliser en production
+    analysis_demo_mode: bool = False
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
