@@ -7,7 +7,7 @@ Application Android de cybersécurité qui détecte préventivement les messages
 | Projet | Techno | Langage |
 |--------|--------|---------|
 | [`safedm-backend`](./safedm-backend) | FastAPI + PostgreSQL + Alembic | Python |
-| [`safedm-mobile`](./safedm-mobile) | React Native + Kotlin (NLS) | **JavaScript** |
+| [`safedm-mobile`](./safedm-mobile) | Expo (SDK 52) + Kotlin NLS | **JavaScript** |
 | [`safedm-dashboard`](./safedm-dashboard) | React + Vite | **JavaScript** |
 
 **Pas de Docker.** PostgreSQL local. Fronts en JavaScript.
@@ -58,8 +58,9 @@ npm run dev
 cd safedm-mobile
 npm install
 copy .env.example .env
-npm start
-npm run android
+npx expo start
+# Dev client requis pour le NotificationListener :
+npx expo run:android
 ```
 
 Admin dashboard : `python -m scripts.promote_admin <username>` depuis `safedm-backend`.

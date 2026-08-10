@@ -1,15 +1,15 @@
-# SafeDM Mobile
+# SafeDM Mobile (Expo)
 
-Application Android React Native (**JavaScript**) — charte UI maquettes SafeDM + NotificationListenerService (Sprint 6).
+Application Android SafeDM — **Expo SDK 52** + React Navigation (écrans Sprint 5–7) + NotificationListenerService via config plugin.
 
-## Charte graphique (maquettes)
+> Le module NLS nécessite un **development build** (`expo run:android`). Expo Go ne suffit pas.
+
+## Charte graphique
 
 | Token | Valeur |
 |-------|--------|
 | Fond | `#FFFFFF` |
 | Primaire | `#2F8AF2` |
-| Texte | `#111111` / `#666666` |
-| Boutons | pill (`borderRadius: 999`) |
 | Badges risque | Élevé = noir, Moyen = bleu |
 | Tabs | Accueil · Alertes · Signalements · Paramètres |
 
@@ -19,49 +19,43 @@ Application Android React Native (**JavaScript**) — charte UI maquettes SafeDM
 cd safedm-mobile
 npm install
 copy .env.example .env
-npm start
-npm run android
+npx expo start
 ```
 
-Backend requis : configurer `.env` (`API_BASE_URL`) puis démarrer l’API sur `0.0.0.0:8000`.
+Build natif (émulateur / device) :
 
-Voir aussi : [`docs/INTEGRATION.md`](../docs/INTEGRATION.md).
+```bash
+npx expo prebuild --platform android
+npx expo run:android
+```
 
-## Sprint 7 — features MVP
+Backend : `API_BASE_URL` dans `.env` (lu par `app.config.js`) puis API sur `:8000`.
 
-- Analyse manuelle (maquette 07) + résultat (maquette 08)
-- Signaler → `POST /reports`
-- Menaces communautaires, Guide (catégories / articles)
-- Onglet Signalements (liste + retrait)
-- Alertes NLS enrichies via `POST /analysis` (best-effort)
+Émulateur → `http://10.0.2.2:8000/api/v1`  
+Device physique → IP LAN du PC.
 
-## Sprint 6 — NotificationListener
+## NotificationListener
 
-1. Paramètres → **Accès notifications** → Autoriser SafeDM dans les réglages Android
-2. Choisir WhatsApp / SMS / Email
-3. Les notifications capturées alimentent l’historique local **7 jours** (Alertes)
+1. Paramètres → **Accès notifications** → autoriser SafeDM  
+2. Sources WhatsApp / SMS / Email  
+3. Historique local 7 jours (Alertes)
 
-### Natif Android
-
-- `SafeDMNotificationListenerService` (Kotlin)
-- Module RN `SafeDMNotifications` : statut accès, ouverture settings, packages surveillés, events `SafeDMNotification`
+Sources natives (prébuild) : `plugins/safedm-nls/` + `plugins/withSafeDMNotifications.js`.
 
 ## Structure
 
 ```text
-src/
-├── api/
-├── components/   # BrandMark, Button pill, TextField icônes, SettingRow…
-├── context/
-├── navigation/   # Auth + tabs maquette
-├── screens/
-├── services/     # notificationBridge, alertsStore
-└── theme/tokens.js
-android/.../notifications/   # NLS + bridge
+App.jsx / index.js          # entrée Expo
+src/screens/                # écrans conservés
+src/navigation/
+src/api/ src/services/
+plugins/safedm-nls/         # Kotlin NLS + network security
+plugins/withSafeDMNotifications.js
+app.config.js
 ```
 
 ## Notes
 
-- Clés Gemini / VirusTotal : **jamais** dans l’app
-- NLS ne bloque / ne modifie aucun message
-- Analyse manuelle UI + guide + signalements API : Sprint 7 (FAIT).
+- Clés Gemini / VirusTotal : jamais dans l’app  
+- NLS ne bloque / ne modifie aucun message  
+- Voir [`docs/INTEGRATION.md`](../docs/INTEGRATION.md)

@@ -6,7 +6,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme/tokens";
 
-function App() {
+export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
@@ -18,5 +18,3 @@ function App() {
     </SafeAreaProvider>
   );
 }
-
-export default App;

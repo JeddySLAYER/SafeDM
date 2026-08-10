@@ -6,10 +6,6 @@ import React, { act } from "react";
 import { it } from "@jest/globals";
 import renderer from "react-test-renderer";
 
-jest.mock("@env", () => ({
-  API_BASE_URL: "http://127.0.0.1:8000/api/v1",
-}));
-
 jest.mock("@react-native-async-storage/async-storage", () => ({
   setItem: jest.fn(() => Promise.resolve()),
   getItem: jest.fn(() => Promise.resolve(null)),

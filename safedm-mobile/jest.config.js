@@ -1,13 +1,9 @@
 module.exports = {
-  preset: "react-native",
-  moduleFileExtensions: ["js", "jsx", "json", "ts", "tsx"],
-  transform: {
-    "^.+\\.(js|jsx|ts|tsx)$": "babel-jest",
-  },
+  preset: "jest-expo",
   transformIgnorePatterns: [
-    "node_modules/(?!(react-native|@react-native|@react-navigation|@react-native-async-storage|react-native-safe-area-context|react-native-screens)/)",
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@react-native-async-storage/.*|react-native-safe-area-context|react-native-screens)",
   ],
   moduleNameMapper: {
-    "^@env$": "<rootDir>/__mocks__/env.js",
+    "^expo-constants$": "<rootDir>/__mocks__/expo-constants.js",
   },
 };

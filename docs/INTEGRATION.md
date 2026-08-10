@@ -56,13 +56,14 @@ API_BASE_URL=http://10.0.2.2:8000/api/v1
 # API_BASE_URL=http://192.168.1.20:8000/api/v1
 ```
 
-Le backend doit écouter `0.0.0.0:8000`. Cleartext HTTP autorisé en dev (`network_security_config.xml`).
+Le backend doit écouter `0.0.0.0:8000`. Cleartext HTTP autorisé en dev (config plugin NLS + network security).
 
 ```bash
 cd safedm-mobile
 npm install
-npm start
-npm run android
+npx expo start
+# Build natif (dev client, requis pour NLS) :
+npx expo run:android
 ```
 
 ## 4. Endpoints utilisés

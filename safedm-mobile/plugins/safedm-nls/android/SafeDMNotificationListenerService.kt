@@ -1,8 +1,8 @@
 package com.safedmmobile.notifications
 
+import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.app.Notification
 
 /**
  * Capture les notifications des packages surveillés (WhatsApp / SMS / Email).
@@ -29,7 +29,6 @@ class SafeDMNotificationListenerService : NotificationListenerService() {
       return
     }
 
-    // Ignore nos propres notifications éventuelles
     if (packageName == applicationContext.packageName) return
 
     val extras = sbn.notification?.extras ?: return
