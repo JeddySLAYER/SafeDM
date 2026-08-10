@@ -1,0 +1,85 @@
+.app-shell {
+  min-height: 100vh;
+  background: var(--section);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-text {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brand-safe {
+  color: var(--text-primary);
+}
+
+.brand-dm {
+  color: var(--blue-primary);
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue-800);
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.app-main {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.app-main h1 {
+  margin: 0 0 8px;
+  font-size: 1.75rem;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0 0 24px;
+  color: var(--text-secondary);
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.card p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.card code {
+  font-size: 0.9em;
+  color: var(--blue-800);
+  background: var(--blue-50);
+  padding: 1px 6px;
+  border-radius: 4px;
+}

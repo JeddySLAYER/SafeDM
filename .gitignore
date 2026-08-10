@@ -1,0 +1,7 @@
+# Root — each project has its own .gitignore
+.DS_Store
+Thumbs.db
+*.log
+.env
+.venv/
+node_modules/
