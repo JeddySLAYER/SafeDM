@@ -51,11 +51,14 @@ export async function apiRequest(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    response = await fetch(
+      `${apiBaseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`,
+      {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      },
+    );
   } catch {
     throw new ApiError(
       "Impossible de joindre le serveur. Vérifiez que l’API tourne.",
