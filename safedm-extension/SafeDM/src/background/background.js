@@ -1,76 +1,157 @@
-
 // HMR-START
 import handleReload from "./handleReload.js";
-handleReload()
+handleReload();
 // HMR-END
 
-// Background service worker for Chrome Extension
+import {
+  analyzeContent,
+  ApiError,
+  normalizeResult,
+} from "../shared/api.js";
+import { getToken } from "../shared/storage.js";
 
-// Listen for extension installation
-chrome.runtime.onInstalled.addListener((details) => {
-  
-  console.log('Extension installed:', details.reason);
-  
-  // Initialize storage with default values
-  chrome.storage.sync.set({
-    count: 0,
-    enabled: true
+const MENU_LINK = "safedm-check-link";
+const MENU_SELECTION = "safedm-check-selection";
+
+function createMenus() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_LINK,
+      title: "Vérifier avec SafeDM",
+      contexts: ["link"],
+    });
+    chrome.contextMenus.create({
+      id: MENU_SELECTION,
+      title: "Vérifier avec SafeDM",
+      contexts: ["selection"],
+    });
   });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  createMenus();
 });
 
-// Listen for messages from content scripts or popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Message received in background:', request);
-  
-  if (request.action === 'getTabInfo') {
-    // Get active tab information
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        sendResponse({
-          url: tabs[0].url,
-          title: tabs[0].title,
-          id: tabs[0].id
-        });
-      }
-    });
-    return true; // Keep message channel open for async response
+chrome.runtime.onStartup?.addListener?.(() => {
+  createMenus();
+});
+
+createMenus();
+
+async function ensureAuth() {
+  const token = await getToken();
+  if (!token) {
+    throw new ApiError(
+      "Connectez-vous via le popup SafeDM pour analyser.",
+      401,
+      null,
+    );
   }
-  
-  if (request.action === 'incrementCount') {
-    // Increment counter in storage
-    chrome.storage.sync.get(['count'], (result) => {
-      const newCount = (result.count || 0) + 1;
-      chrome.storage.sync.set({ count: newCount }, () => {
-        sendResponse({ count: newCount });
-      });
+}
+
+async function runAnalysis(text) {
+  await ensureAuth();
+  return analyzeContent(text);
+}
+
+async function pushBannerToTab(tabId, payload) {
+  if (!tabId) return;
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      action: "safedmShowResult",
+      payload,
+    });
+  } catch {
+    // Page may block content scripts (chrome://, Web Store, etc.)
+  }
+}
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  const tabId = tab?.id;
+  let text = "";
+
+  if (info.menuItemId === MENU_LINK) {
+    text = info.linkUrl || "";
+  } else if (info.menuItemId === MENU_SELECTION) {
+    text = info.selectionText || "";
+  } else {
+    return;
+  }
+
+  if (!text.trim()) {
+    await pushBannerToTab(tabId, {
+      decision: "WARN",
+      headline: "Rien à analyser",
+      summary: "Aucun lien ou texte sélectionné.",
+      can_open: true,
+    });
+    return;
+  }
+
+  await pushBannerToTab(tabId, {
+    decision: "PENDING",
+    headline: "Analyse SafeDM en cours…",
+    summary: text.slice(0, 120),
+    can_open: true,
+  });
+
+  try {
+    const result = await runAnalysis(text);
+    await pushBannerToTab(tabId, result);
+  } catch (err) {
+    await pushBannerToTab(tabId, {
+      decision: "WARN",
+      headline: err?.message || "Échec de l’analyse",
+      summary: err?.status === 401 ? "Ouvrez le popup pour vous connecter." : null,
+      can_open: true,
+      error: true,
+    });
+  }
+});
+
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  if (request?.action === "getTabInfo") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const t = tabs[0];
+      if (t) {
+        sendResponse({ url: t.url, title: t.title, id: t.id });
+      } else {
+        sendResponse(null);
+      }
     });
     return true;
   }
-  
-  if (request.action === 'notify') {
-    // Send notification to all tabs
-    chrome.tabs.query({}, (tabs) => {
-      tabs.forEach(tab => {
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'showNotification',
-          message: request.message
-        }).catch(() => {
-          // Ignore errors for tabs that don't have content script
+
+  if (request?.action === "analyze") {
+    (async () => {
+      try {
+        const text = request.text || "";
+        const result = await runAnalysis(text);
+        sendResponse({ ok: true, result });
+
+        if (request.showOnPage && request.tabId) {
+          await pushBannerToTab(request.tabId, result);
+        }
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err?.message || "Erreur d’analyse",
+          status: err?.status,
         });
-      });
-    });
-    sendResponse({ success: true });
+      }
+    })();
+    return true;
   }
-});
 
-// Listen for tab updates
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete') {
-    console.log('Tab loaded:', tab.url);
+  if (request?.action === "showResultOnPage") {
+    (async () => {
+      const tabId = request.tabId;
+      const payload = normalizeResult(request.result, request.text || "");
+      await pushBannerToTab(tabId, payload);
+      sendResponse({ ok: true });
+    })();
+    return true;
   }
-});
 
-// Handle keyboard shortcuts (if defined in manifest)
-chrome.commands?.onCommand.addListener((command) => {
-  console.log('Command received:', command);
+  return false;
 });

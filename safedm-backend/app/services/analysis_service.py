@@ -175,7 +175,9 @@ class AnalysisService:
             content_stored=False,
         )
 
-    def analyze_url(self, payload: UrlGateRequest) -> UrlGateResponse:
+    def analyze_url(
+        self, payload: UrlGateRequest, *, user_id: int | None = None
+    ) -> UrlGateResponse:
         """Pipeline Link Gate : VirusTotal obligatoire + communauté + Gemini léger."""
         url = payload.url.strip()
         domain = extract_domain(url)
@@ -228,6 +230,16 @@ class AnalysisService:
             fused["risk_score"],
         )
 
+        self._persist_link_gate_event(
+            user_id=user_id,
+            url=url,
+            domain=domain,
+            decision=decision,
+            risk_score=fused["risk_score"],
+            severity=fused["severity"].value,
+            status=fused["status"].value,
+        )
+
         return UrlGateResponse(
             status=fused["status"],
             risk_score=fused["risk_score"],
@@ -254,3 +266,33 @@ class AnalysisService:
             headline=headline,
             can_open=can_open,
         )
+
+    def _persist_link_gate_event(
+        self,
+        *,
+        user_id: int | None,
+        url: str,
+        domain: str | None,
+        decision: str,
+        risk_score: int,
+        severity: str,
+        status: str,
+    ) -> None:
+        """Journal ops — URL + décision (pas le contenu de page)."""
+        try:
+            from app.models import LinkGateEvent
+
+            event = LinkGateEvent(
+                user_id=user_id,
+                url=url[:4000],
+                domain=(domain or "")[:255] or None,
+                decision=decision,
+                risk_score=risk_score,
+                severity=severity,
+                status=status,
+            )
+            self.db.add(event)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            logger.exception("link_gate_persist_failed")

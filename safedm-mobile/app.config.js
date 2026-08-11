@@ -25,6 +25,13 @@ const API_BASE_URL = (
   process.env.API_BASE_URL || "http://10.0.2.2:8000/api/v1"
 ).replace(/\/+$/, "");
 
+// Release local: $env:APP_ENV="production" puis gradlew assembleRelease
+// (évite d’embarquer expo-dev-client dans l’APK release)
+const isProduction =
+  process.env.APP_ENV === "production" ||
+  process.env.EAS_BUILD_PROFILE === "production" ||
+  process.env.EAS_BUILD_PROFILE === "apk";
+
 module.exports = {
   expo: {
     name: "SafeDM",
@@ -66,7 +73,7 @@ module.exports = {
       ],
     },
     plugins: [
-      "expo-dev-client",
+      ...(isProduction ? [] : ["expo-dev-client"]),
       "expo-asset",
       "expo-font",
       [
@@ -85,6 +92,9 @@ module.exports = {
     extra: {
       apiBaseUrl: API_BASE_URL,
       appVersion: "1.0.0",
+      eas: {
+        projectId: "bc025d6a-0110-4c6c-9ef9-e2a1c3d9a2b2",
+      },
     },
   },
 };

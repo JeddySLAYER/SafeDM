@@ -12,6 +12,7 @@ from app.models.enums import (
 )
 from app.models.guide_article import GuideArticle
 from app.models.guide_category import GuideCategory
+from app.models.link_gate_event import LinkGateEvent
 from app.models.monitoring_preference import MonitoringPreference
 from app.models.supported_application import SupportedApplication
 from app.models.threat import Threat
@@ -30,6 +31,7 @@ __all__ = [
     "VirusTotalScan",
     "GuideCategory",
     "GuideArticle",
+    "LinkGateEvent",
     "ThreatSeverity",
     "ThreatStatus",
     "ReportSource",

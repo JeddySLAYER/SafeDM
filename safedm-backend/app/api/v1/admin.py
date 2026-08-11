@@ -8,8 +8,15 @@ from app.models.enums import ReportStatus, ThreatStatus
 from app.schemas.admin import (
     AdminReportListResponse,
     AdminStatsResponse,
+    AdminThreatDetailResponse,
     AdminThreatListResponse,
+    AdminUserDetailResponse,
     AdminUserListResponse,
+    AdminUserUpdateRequest,
+    ApplicationCreateRequest,
+    ApplicationUpdateRequest,
+    LinkGateEventListResponse,
+    ThreatSeverityUpdateRequest,
     ThreatStatusUpdateRequest,
 )
 from app.schemas.guide import (
@@ -20,6 +27,7 @@ from app.schemas.guide import (
     GuideCategoryResponse,
     GuideCategoryUpdateRequest,
 )
+from app.schemas.monitoring import ApplicationResponse
 from app.schemas.report import ReportResponse, ThreatResponse
 from app.services.admin_service import AdminService
 from app.services.guide_service import GuideService
@@ -45,6 +53,90 @@ def admin_list_users(
 ):
     _ = current_admin
     return AdminService(db).list_users(page=page, page_size=page_size)
+
+
+@router.get("/users/{user_id}", response_model=AdminUserDetailResponse)
+def admin_get_user(
+    user_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).get_user_detail(user_id)
+
+
+@router.put("/users/{user_id}", response_model=AdminUserDetailResponse)
+def admin_update_user(
+    user_id: int,
+    payload: AdminUserUpdateRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).update_user(
+        user_id, is_admin=payload.is_admin, actor=current_admin
+    )
+
+
+@router.get("/applications", response_model=list[ApplicationResponse])
+def admin_list_applications(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).list_applications()
+
+
+@router.post(
+    "/applications",
+    response_model=ApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def admin_create_application(
+    payload: ApplicationCreateRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).create_application(payload)
+
+
+@router.put("/applications/{application_id}", response_model=ApplicationResponse)
+def admin_update_application(
+    application_id: int,
+    payload: ApplicationUpdateRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).update_application(application_id, payload)
+
+
+@router.delete(
+    "/applications/{application_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def admin_delete_application(
+    application_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    AdminService(db).delete_application(application_id)
+    return None
+
+
+@router.get("/link-gate", response_model=LinkGateEventListResponse)
+def admin_list_link_gate(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    decision: str | None = Query(default=None),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).list_link_gate_events(
+        page=page, page_size=page_size, decision=decision
+    )
 
 
 @router.get("/reports", response_model=AdminReportListResponse)
@@ -99,7 +191,19 @@ def admin_list_threats(
     db: Session = Depends(get_db),
 ):
     _ = current_admin
-    return AdminService(db).list_threats(page=page, page_size=page_size, status=status_filter)
+    return AdminService(db).list_threats(
+        page=page, page_size=page_size, status=status_filter
+    )
+
+
+@router.get("/threats/{threat_id}", response_model=AdminThreatDetailResponse)
+def admin_get_threat(
+    threat_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).get_threat_detail(threat_id)
 
 
 @router.put("/threats/{threat_id}/status", response_model=ThreatResponse)
@@ -111,6 +215,17 @@ def admin_update_threat_status(
 ):
     _ = current_admin
     return AdminService(db).update_threat_status(threat_id, payload.status)
+
+
+@router.put("/threats/{threat_id}/severity", response_model=ThreatResponse)
+def admin_update_threat_severity(
+    threat_id: int,
+    payload: ThreatSeverityUpdateRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).update_threat_severity(threat_id, payload.severity)
 
 
 @router.post(

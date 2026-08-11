@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getUsers } from "../services/adminApi";
 import {
   Alert,
@@ -37,7 +38,7 @@ export default function UsersPage() {
     <div>
       <PageHeader
         title="Utilisateurs"
-        subtitle="Comptes inscrits, rôle admin et activité de signalement."
+        subtitle="Comptes, rôle admin, appareils et monitoring — ouvrez une fiche pour gérer."
       />
       <Alert tone="error" onDismiss={() => setError("")}>
         {error}
@@ -64,6 +65,7 @@ export default function UsersPage() {
                     <th>Appareils</th>
                     <th>Signalements</th>
                     <th>Créé</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -82,6 +84,11 @@ export default function UsersPage() {
                         {u.created_at
                           ? new Date(u.created_at).toLocaleString("fr-FR")
                           : "—"}
+                      </td>
+                      <td>
+                        <Link className="btn small" to={`/users/${u.id}`}>
+                          Fiche
+                        </Link>
                       </td>
                     </tr>
                   ))}

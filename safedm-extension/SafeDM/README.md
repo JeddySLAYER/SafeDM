@@ -1,29 +1,52 @@
-# React Browser Extension
+# SafeDM — extension navigateur (MVP)
 
-Develop a browser extension using React, with live reload services to reduce development headaches.
+Extension Chrome MV3 pour analyser des **liens** et **textes** via l’API SafeDM.
 
-## Development
+## Fonctionnalités
 
-1. Run the following command to create a development build with reload services:
+- Popup : connexion (JWT) + analyse URL/texte
+- Menu contextuel : **Vérifier avec SafeDM** (lien ou sélection) → bannière ALLOW / WARN / BLOCK
+- Branding SafeDM (bleu `#1769d4`)
 
-   ```shell
-   npm run dev
-   ```
-2. Load the unpacked folder as `/dev` in Chrome `chrome://extensions/`.
-3. Edit the manifest file under `extension/manifest.json`. You can also place your icons here.
-4. Edit the background script at `src/background.js`.
-5. To edit the content script, modify `src/content.js`.
+## Développement
 
-   > **Note:** Do not edit the code between `HMR-START` and `HMR-END` comments. This section is responsible for updating the extension in real time during development and is automatically removed in the production build.
-6. The extension reloads automatically in the following conditions:
+```shell
+cd safedm-extension/SafeDM
+npm install
+npm run dev
+```
 
-   * Files under `extension/` are modified.
-   * Content scripts are edited.
-   * Background scripts are edited.
+1. Ouvrir `chrome://extensions/`
+2. Activer le mode développeur
+3. **Charger l’extension non empaquetée** → dossier `dev/`
+
+> Ne pas modifier le code entre `HMR-START` et `HMR-END` (rechargé auto en dev, retiré en build prod).
 
 ## Production
-1. Run the following command.
+
 ```shell
 npm run build
 ```
-2. Load the unpacked folder as `/build` in Chrome `chrome://extensions/`.
+
+Charger le dossier `build/` dans Chrome.
+
+## API
+
+Par défaut : `https://safedm-backend.onrender.com/api/v1`
+
+Endpoints utilisés :
+
+- `POST /auth/login`
+- `POST /analysis`
+- `POST /analysis/link` (puis `/analysis/url`, puis fallback message)
+
+Pour un backend local : dans le popup → **API avancée** →  
+`http://127.0.0.1:8000/api/v1`  
+(ou stocker la clé `safedm_api_base` dans `chrome.storage.local`).
+
+## Test rapide
+
+1. Se connecter avec un compte SafeDM
+2. Coller une URL → **Analyser**
+3. Sur une page web : clic droit sur un lien → **Vérifier avec SafeDM**
+4. Vérifier la bannière (vert / ambre / rouge)

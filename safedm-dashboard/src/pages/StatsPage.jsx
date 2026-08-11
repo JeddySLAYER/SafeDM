@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { getStats } from "../services/adminApi";
 import {
   Alert,
@@ -9,16 +8,50 @@ import {
   Spinner,
 } from "../components/ui";
 
-export default function StatsPage() {
-  const [stats, setStats] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+const STATS_CACHE_KEY = "safedm_admin_stats_cache";
+const STATS_TTL_MS = 20_000;
 
-  async function load() {
-    setLoading(true);
+function readStatsCache() {
+  try {
+    const raw = sessionStorage.getItem(STATS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.data || !parsed?.at) return null;
+    if (Date.now() - parsed.at > STATS_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeStatsCache(data) {
+  try {
+    sessionStorage.setItem(
+      STATS_CACHE_KEY,
+      JSON.stringify({ at: Date.now(), data }),
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export default function StatsPage() {
+  const cached = readStatsCache();
+  const [stats, setStats] = useState(cached);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(!cached);
+  const [latencyMs, setLatencyMs] = useState(null);
+
+  async function load({ soft = false } = {}) {
+    if (!soft) setLoading(!stats);
     setError("");
     try {
-      setStats(await getStats());
+      const data = await getStats();
+      setStats(data);
+      writeStatsCache(data);
+      setLatencyMs(
+        typeof window !== "undefined" ? window.__safedmLastApiMs ?? null : null,
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -27,15 +60,16 @@ export default function StatsPage() {
   }
 
   useEffect(() => {
-    load();
+    load({ soft: Boolean(cached) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (error && !stats) {
     return (
       <div>
-        <PageHeader title="Vue d’ensemble" subtitle="Indicateurs SafeDM" />
+        <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
         <Alert tone="error">{error}</Alert>
-        <button type="button" className="btn primary" onClick={load}>
+        <button type="button" className="btn primary" onClick={() => load()}>
           Réessayer
         </button>
       </div>
@@ -45,8 +79,8 @@ export default function StatsPage() {
   if (loading && !stats) {
     return (
       <div>
-        <PageHeader title="Vue d’ensemble" subtitle="Indicateurs SafeDM" />
-        <Spinner label="Chargement des statistiques…" />
+        <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
+        <Spinner label="Chargement…" />
         <SkeletonCards count={8} />
       </div>
     );
@@ -61,6 +95,7 @@ export default function StatsPage() {
     { label: "Menaces rejetées", value: stats.threats_dismissed_count },
     { label: "Articles publiés", value: stats.guide_articles_published },
     { label: "Apps supportées", value: stats.supported_applications },
+    { label: "Link Gate (events)", value: stats.link_gate_events_count ?? 0 },
   ];
 
   const health = stats.provider_health;
@@ -72,15 +107,23 @@ export default function StatsPage() {
   return (
     <div>
       <PageHeader
-        title="Vue d’ensemble"
-        subtitle="Activité communauté, santé des providers et tendances récentes."
+        title="Stats"
+        subtitle="Activité, providers et tendances (7 jours)."
         actions={
-          <button type="button" className="btn ghost" onClick={load} disabled={loading}>
-            {loading ? <span className="btn-spinner" /> : <RefreshCw size={15} />}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => load({ soft: true })}
+            disabled={loading}
+          >
+            {loading ? <span className="btn-spinner" /> : null}
             Actualiser
           </button>
         }
       />
+      {latencyMs != null ? (
+        <p className="req-meta">Dernière requête stats : {latencyMs} ms</p>
+      ) : null}
       <Alert tone="error" onDismiss={() => setError("")}>
         {error}
       </Alert>
@@ -96,13 +139,13 @@ export default function StatsPage() {
 
       <div className="grid-2">
         <div className="panel">
-          <h2>Santé providers</h2>
+          <h2>Providers</h2>
           {health ? (
             <ul className="health-list">
               <li className="health-row">
                 <span>Gemini</span>
                 <span className={`health-badge ${health.gemini_ok ? "ok" : "warn"}`}>
-                  {health.gemini_ok ? "OK" : "À vérifier"}
+                  {health.gemini_ok ? "OK" : "Manquant"}
                 </span>
               </li>
               <li className="health-row">
@@ -110,7 +153,7 @@ export default function StatsPage() {
                 <span
                   className={`health-badge ${health.virustotal_ok ? "ok" : "warn"}`}
                 >
-                  {health.virustotal_ok ? "OK" : "À vérifier"}
+                  {health.virustotal_ok ? "OK" : "Manquant"}
                 </span>
               </li>
               <li className="health-row">
@@ -119,23 +162,17 @@ export default function StatsPage() {
                   {health.analysis_demo_mode ? "Oui" : "Non"}
                 </span>
               </li>
-              <li className="muted" style={{ padding: "0 4px" }}>
-                {health.detail}
-              </li>
             </ul>
           ) : (
             <ul className="plain-list">
-              <li>Gemini : {stats.gemini_configured ? "configuré" : "non configuré"}</li>
-              <li>
-                VirusTotal :{" "}
-                {stats.virustotal_configured ? "configuré" : "non configuré"}
-              </li>
+              <li>Gemini : {stats.gemini_configured ? "oui" : "non"}</li>
+              <li>VirusTotal : {stats.virustotal_configured ? "oui" : "non"}</li>
             </ul>
           )}
         </div>
 
         <div className="panel">
-          <h2>Sévérité (menaces actives)</h2>
+          <h2>Sévérité (actives)</h2>
           {(stats.severity_distribution || []).length === 0 ? (
             <EmptyState title="Aucune menace active" />
           ) : (
@@ -153,10 +190,10 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginTop: 16 }}>
+      <div className="panel" style={{ marginTop: 12 }}>
         <h2>7 derniers jours</h2>
         {(stats.reports_last_7_days || []).length === 0 ? (
-          <EmptyState title="Pas encore de données temporelles" />
+          <EmptyState title="Pas de données" />
         ) : (
           <div className="bars">
             {(stats.reports_last_7_days || []).map((d) => {
@@ -168,7 +205,7 @@ export default function StatsPage() {
                   className="bar-col"
                   title={`${d.day}: ${d.reports} sig. / ${d.threats || 0} menaces`}
                 >
-                  <div className="bar" style={{ height: `${Math.max(4, h)}%` }} />
+                  <div className="bar" style={{ height: `${Math.max(3, h)}%` }} />
                   <span className="bar-label">{d.day.slice(5)}</span>
                 </div>
               );
@@ -177,18 +214,18 @@ export default function StatsPage() {
         )}
       </div>
 
-      <div className="panel" style={{ marginTop: 16 }}>
-        <h2>Top menaces signalées</h2>
+      <div className="panel" style={{ marginTop: 12 }}>
+        <h2>Top menaces</h2>
         {(stats.top_reported_threats || []).length === 0 ? (
           <EmptyState title="Pas encore de menaces" />
         ) : (
-          <div className="table-wrap" style={{ boxShadow: "none", border: "none" }}>
+          <div className="table-wrap" style={{ border: "none" }}>
             <table>
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Sévérité</th>
-                  <th>Signalements</th>
+                  <th>Reports</th>
                   <th>Aperçu</th>
                 </tr>
               </thead>

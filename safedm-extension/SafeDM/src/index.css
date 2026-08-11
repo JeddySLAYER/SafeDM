@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+:root {
+  --safedm-blue: #1769d4;
+  --safedm-blue-hover: #1257b0;
+  --safedm-blue-tint: #e8f1fc;
+  --safedm-ink: #14181f;
+  --safedm-muted: #5c6573;
+  --safedm-line: #d0d5dd;
+  --safedm-bg: #f2f4f7;
+  --safedm-surface: #ffffff;
+  --safedm-ok: #027a48;
+  --safedm-ok-bg: #ecfdf3;
+  --safedm-warn: #b54708;
+  --safedm-warn-bg: #fffaeb;
+  --safedm-danger: #b42318;
+  --safedm-danger-bg: #fef3f2;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-width: 340px;
+  max-width: 380px;
+  background: var(--safedm-bg);
+  color: var(--safedm-ink);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}

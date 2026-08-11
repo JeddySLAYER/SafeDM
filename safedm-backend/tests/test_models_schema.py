@@ -17,12 +17,13 @@ EXPECTED_TABLES = {
     "virustotal_scans",
     "guide_categories",
     "guide_articles",
+    "link_gate_events",
 }
 
 
 def test_all_tables_registered():
     assert EXPECTED_TABLES.issubset(set(Base.metadata.tables.keys()))
-    assert len(EXPECTED_TABLES) == 10
+    assert len(EXPECTED_TABLES) == 11
 
 
 def test_users_username_unique():
@@ -61,7 +62,9 @@ def test_threat_indexes():
     assert ("normalized_hash",) in index_cols
 
 
-def test_no_analysis_history_table():
-    """Les analyses ne sont pas stockées côté serveur par défaut."""
+def test_no_full_message_analysis_history_table():
+    """Pas de table d'historique de messages analysés (contenu non stocké)."""
     assert "analyses" not in Base.metadata.tables
     assert "analysis_history" not in Base.metadata.tables
+    # link_gate_events = journal ops URL/décision uniquement
+    assert "link_gate_events" in Base.metadata.tables

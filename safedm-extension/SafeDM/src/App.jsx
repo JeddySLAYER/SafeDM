@@ -1,158 +1,360 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from "react";
+import {
+  analyzeContent,
+  ApiError,
+  login,
+  logout,
+} from "./shared/api.js";
+import {
+  getApiBase,
+  getToken,
+  getUsername,
+  setApiBase,
+} from "./shared/storage.js";
+import { DEFAULT_API_BASE } from "./shared/config.js";
 
-function App() {
-  const [count, setCount] = useState(0);
-  const [tabInfo, setTabInfo] = useState(null);
-  const [enabled, setEnabled] = useState(true);
-  const [message, setMessage] = useState('');
+const DECISION_STYLES = {
+  ALLOW: {
+    bg: "bg-[var(--safedm-ok-bg)]",
+    text: "text-[var(--safedm-ok)]",
+    label: "Autorisé",
+  },
+  WARN: {
+    bg: "bg-[var(--safedm-warn-bg)]",
+    text: "text-[var(--safedm-warn)]",
+    label: "Attention",
+  },
+  BLOCK: {
+    bg: "bg-[var(--safedm-danger-bg)]",
+    text: "text-[var(--safedm-danger)]",
+    label: "Danger",
+  },
+};
 
-  useEffect(() => {
-    // Load initial data from storage
-    chrome.storage.sync.get(['count', 'enabled'], (result) => {
-      setCount(result.count || 0);
-      setEnabled(result.enabled !== false);
-    });
-
-    // Get current tab info
-    chrome.runtime.sendMessage({ action: 'getTabInfo' }, (response) => {
-      if (response) {
-        setTabInfo(response);
-      }
-    });
-  }, []);
-
-  const handleIncrement = () => {
-    chrome.runtime.sendMessage({ action: 'incrementCount' }, (response) => {
-      if (response) {
-        setCount(response.count);
-      }
-    });
-  };
-
-  const handleToggle = () => {
-    const newEnabled = !enabled;
-    setEnabled(newEnabled);
-    chrome.storage.sync.set({ enabled: newEnabled });
-  };
-
-  const handleSendNotification = () => {
-    if (message.trim()) {
-      chrome.runtime.sendMessage({
-        action: 'notify',
-        message: message
-      }, () => {
-        setMessage('');
-      });
-    }
-  };
-
-  const handleHighlight = () => {
-    if (tabInfo?.id) {
-      chrome.tabs.sendMessage(tabInfo.id, {
-        action: 'highlightText',
-        text: 'sample'
-      });
-    }
-  };
+function ResultCard({ result }) {
+  if (!result) return null;
+  const decision = (result.decision || "WARN").toUpperCase();
+  const style = DECISION_STYLES[decision] || DECISION_STYLES.WARN;
 
   return (
-    <div className="w-96 min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-5 shadow-lg">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-semibold">Chrome Extension</h1>
-          <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full text-sm">
-            <span className={`w-2 h-2 rounded-full ${enabled ? 'bg-green-400 shadow-green-400 shadow-lg' : 'bg-red-400'}`}></span>
-            <span>{enabled ? 'Enabled' : 'Disabled'}</span>
+    <section className={`rounded-lg border border-[var(--safedm-line)] p-3 ${style.bg}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wide ${style.text}`}>
+        {style.label}
+      </p>
+      <p className="mt-1 text-sm font-semibold text-[var(--safedm-ink)]">
+        {result.headline || decision}
+      </p>
+      {result.risk_score != null && (
+        <p className="mt-1 text-xs text-[var(--safedm-muted)]">
+          Score risque : {result.risk_score}
+          {result.severity ? ` · ${result.severity}` : ""}
+        </p>
+      )}
+      {(result.url || result.domain) && (
+        <p className="mt-1 break-all text-xs text-[var(--safedm-muted)]">
+          {result.url || result.domain}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function App() {
+  const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [content, setContent] = useState("");
+  const [tabInfo, setTabInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [apiBase, setApiBaseInput] = useState(DEFAULT_API_BASE);
+
+  useEffect(() => {
+    (async () => {
+      const [token, name, base] = await Promise.all([
+        getToken(),
+        getUsername(),
+        getApiBase(),
+      ]);
+      setAuthed(Boolean(token));
+      setDisplayName(name || "");
+      setApiBaseInput(base || DEFAULT_API_BASE);
+      setReady(true);
+
+      chrome.runtime.sendMessage({ action: "getTabInfo" }, (response) => {
+        if (chrome.runtime.lastError) return;
+        if (response) {
+          setTabInfo(response);
+          if (response.url && /^https?:\/\//i.test(response.url)) {
+            setContent((prev) => prev || response.url);
+          }
+        }
+      });
+    })();
+  }, []);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await setApiBase(
+        apiBase.trim() === DEFAULT_API_BASE ? "" : apiBase.trim(),
+      );
+      await login(username.trim(), password);
+      setAuthed(true);
+      setDisplayName(username.trim());
+      setPassword("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Connexion impossible");
+      setAuthed(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLogout() {
+    await logout();
+    setAuthed(false);
+    setDisplayName("");
+    setResult(null);
+    setError("");
+  }
+
+  async function handleAnalyze(e) {
+    e?.preventDefault?.();
+    setError("");
+    setResult(null);
+    setLoading(true);
+    try {
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            action: "analyze",
+            text: content,
+            showOnPage: true,
+            tabId: tabInfo?.id,
+          },
+          (res) => resolve(res),
+        );
+      });
+
+      if (chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError.message);
+      }
+
+      if (!response?.ok) {
+        throw new ApiError(
+          response?.error || "Échec de l’analyse",
+          response?.status || 0,
+          null,
+        );
+      }
+      setResult(response.result);
+    } catch (err) {
+      // Fallback: call API from popup if background messaging fails
+      try {
+        const direct = await analyzeContent(content);
+        setResult(direct);
+        if (tabInfo?.id) {
+          chrome.runtime.sendMessage({
+            action: "showResultOnPage",
+            tabId: tabInfo.id,
+            result: direct,
+            text: content,
+          });
+        }
+      } catch (inner) {
+        setError(
+          err?.message ||
+            (inner instanceof ApiError ? inner.message : "Analyse impossible"),
+        );
+        if (err?.status === 401 || inner?.status === 401) {
+          setAuthed(false);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function usePageUrl() {
+    if (tabInfo?.url) setContent(tabInfo.url);
+  }
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center text-sm text-[var(--safedm-muted)]">
+        Chargement…
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[420px] bg-[var(--safedm-bg)]">
+      <header className="border-b border-[var(--safedm-line)] bg-[var(--safedm-surface)] px-4 py-3">
+        <div className="flex items-center gap-3">
+          <img
+            src="simplify-logo.png"
+            alt="SafeDM"
+            className="h-9 w-9 rounded-md object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold tracking-tight text-[var(--safedm-ink)]">
+              SafeDM
+            </h1>
+            <p className="text-xs text-[var(--safedm-muted)]">
+              Analyse liens &amp; messages
+            </p>
           </div>
+          {authed && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-xs font-medium text-[var(--safedm-blue)] hover:underline"
+            >
+              Déconnexion
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Content */}
-      <main className="p-4 space-y-4">
-        {/* Counter Card */}
-        <section className="bg-white rounded-xl p-4 shadow-md">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Counter</h2>
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-6 mb-3 text-center">
-            <span className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              {count}
-            </span>
-          </div>
-          <button 
-            onClick={handleIncrement}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-          >
-            Increment Count
-          </button>
-        </section>
-
-        {/* Current Tab Card */}
-        <section className="bg-white rounded-xl p-4 shadow-md">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Current Tab</h2>
-          {tabInfo ? (
-            <div className="space-y-2">
-              <p className="font-medium text-gray-800 text-sm">{tabInfo.title}</p>
-              <p className="text-xs text-gray-500 break-all">{tabInfo.url}</p>
-              <button 
-                onClick={handleHighlight}
-                className="w-full mt-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium py-2 px-4 rounded-lg transition-colors duration-200"
-              >
-                Highlight "sample" on page
-              </button>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm">Loading...</p>
-          )}
-        </section>
-
-        {/* Send Notification Card */}
-        <section className="bg-white rounded-xl p-4 shadow-md">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Send Notification</h2>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Enter message..."
-              className="flex-1 px-3 py-2 border-2 border-indigo-200 rounded-lg text-sm outline-none focus:border-indigo-500 transition-colors"
-              onKeyPress={(e) => e.key === 'Enter' && handleSendNotification()}
-            />
-            <button 
-              onClick={handleSendNotification}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200"
-            >
-              Send
-            </button>
-          </div>
-        </section>
-
-        {/* Extension Settings Card */}
-        <section className="bg-white rounded-xl p-4 shadow-md">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Extension Settings</h2>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-700 text-sm font-medium">Extension Status</span>
-            <button
-              onClick={handleToggle}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none ${
-                enabled ? 'bg-indigo-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
-                  enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
+      <main className="space-y-3 p-4">
+        {!authed ? (
+          <form onSubmit={handleLogin} className="space-y-3">
+            <p className="text-sm text-[var(--safedm-muted)]">
+              Connectez-vous avec votre compte SafeDM.
+            </p>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-[var(--safedm-muted)]">
+                Identifiant
+              </span>
+              <input
+                className="w-full rounded-md border border-[var(--safedm-line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--safedm-blue)]"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
               />
-            </button>
-          </div>
-        </section>
-      </main>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-[var(--safedm-muted)]">
+                Mot de passe
+              </span>
+              <input
+                type="password"
+                className="w-full rounded-md border border-[var(--safedm-line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--safedm-blue)]"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 p-3 text-center">
-        <p className="text-xs text-gray-500">Sample Chrome Extension v1.0.0</p>
-      </footer>
+            <button
+              type="button"
+              className="text-xs text-[var(--safedm-muted)] underline"
+              onClick={() => setShowAdvanced((v) => !v)}
+            >
+              {showAdvanced ? "Masquer l’API" : "API avancée"}
+            </button>
+            {showAdvanced && (
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-[var(--safedm-muted)]">
+                  Base API
+                </span>
+                <input
+                  className="w-full rounded-md border border-[var(--safedm-line)] bg-white px-3 py-2 text-xs outline-none focus:border-[var(--safedm-blue)]"
+                  value={apiBase}
+                  onChange={(e) => setApiBaseInput(e.target.value)}
+                />
+              </label>
+            )}
+
+            {error && (
+              <p className="rounded-md bg-[var(--safedm-danger-bg)] px-3 py-2 text-xs text-[var(--safedm-danger)]">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-md bg-[var(--safedm-blue)] py-2.5 text-sm font-semibold text-white hover:bg-[var(--safedm-blue-hover)] disabled:opacity-60"
+            >
+              {loading ? "Connexion…" : "Se connecter"}
+            </button>
+          </form>
+        ) : (
+          <>
+            <p className="text-xs text-[var(--safedm-muted)]">
+              Connecté
+              {displayName ? (
+                <>
+                  {" "}
+                  · <span className="font-medium text-[var(--safedm-ink)]">{displayName}</span>
+                </>
+              ) : null}
+            </p>
+
+            <form onSubmit={handleAnalyze} className="space-y-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-[var(--safedm-muted)]">
+                  URL ou texte à vérifier
+                </span>
+                <textarea
+                  rows={4}
+                  className="w-full resize-none rounded-md border border-[var(--safedm-line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--safedm-blue)]"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="https://… ou collez un message"
+                  required
+                />
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={usePageUrl}
+                  disabled={!tabInfo?.url}
+                  className="rounded-md border border-[var(--safedm-line)] bg-white px-3 py-2 text-xs font-medium text-[var(--safedm-ink)] hover:bg-[var(--safedm-blue-tint)] disabled:opacity-50"
+                >
+                  URL de l’onglet
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !content.trim()}
+                  className="flex-1 rounded-md bg-[var(--safedm-blue)] py-2 text-sm font-semibold text-white hover:bg-[var(--safedm-blue-hover)] disabled:opacity-60"
+                >
+                  {loading ? "Analyse…" : "Analyser"}
+                </button>
+              </div>
+            </form>
+
+            {error && (
+              <p className="rounded-md bg-[var(--safedm-danger-bg)] px-3 py-2 text-xs text-[var(--safedm-danger)]">
+                {error}
+              </p>
+            )}
+
+            <ResultCard result={result} />
+
+            <p className="text-[11px] leading-snug text-[var(--safedm-muted)]">
+              Astuce : clic droit sur un lien ou une sélection → « Vérifier avec
+              SafeDM ».
+            </p>
+          </>
+        )}
+      </main>
     </div>
   );
 }
 
-export default App
+export default App;

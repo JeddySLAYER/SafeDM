@@ -45,6 +45,7 @@ export default function reloadExtensionPlugin(reload = true) {
   const manifestPath = path.resolve(__dirname, "../extension/manifest.json");
   const backgroundDir = path.resolve(__dirname, "../src/background");
   const contentDir = path.resolve(__dirname, "../src/content");
+  const sharedDir = path.resolve(__dirname, "../src/shared");
   const buildDir = path.resolve(__dirname, reload ? "../dev" : "../build");
   const mode = reload ? "dev" : "build";
 
@@ -88,38 +89,81 @@ export default function reloadExtensionPlugin(reload = true) {
     }
   }
 
-  function copyBackground() {
+  async function copyBackground() {
     ensureBuildDir();
     if (!fs.existsSync(backgroundDir)) return;
     const destDir = path.join(buildDir, "background");
     fs.mkdirSync(destDir, { recursive: true });
     const files = fs.readdirSync(backgroundDir);
+    let bundledCount = 0;
+    let copiedCount = 0;
     let totalSize = 0;
 
-    files.forEach((f) => {
+    for (const f of files) {
       const srcPath = path.join(backgroundDir, f);
       const destPath = path.join(destDir, f);
 
-      let content = fs.readFileSync(srcPath, "utf8");
+      // Only bundle the service worker entry; leave helpers (e.g. handleReload) for import
+      if (f === "background.js" || f === "background.ts") {
+        try {
+          let tempPath = srcPath;
 
-      if (!reload) {
-        content = content.replace(
-          /\/\/\s*HMR-START[\s\S]*?\/\/\s*HMR-END/g,
-          ""
-        );
+          if (!reload) {
+            let content = fs.readFileSync(srcPath, "utf8");
+            content = content.replace(
+              /\/\/\s*HMR-START[\s\S]*?\/\/\s*HMR-END/g,
+              ""
+            );
+            // Keep temp next to source so relative imports (../shared) resolve
+            tempPath = path.join(backgroundDir, `__temp_${f}`);
+            fs.writeFileSync(tempPath, content);
+          }
+
+          await esbuild.build({
+            entryPoints: [tempPath],
+            bundle: true,
+            outfile: destPath.replace(".ts", ".js"),
+            format: "esm",
+            target: "chrome100",
+            minify: process.env.NODE_ENV === "production",
+            sourcemap: process.env.NODE_ENV !== "production",
+          });
+
+          if (!reload && tempPath !== srcPath && fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
+          }
+
+          const size = fs.statSync(destPath.replace(".ts", ".js")).size;
+          totalSize += size;
+          bundledCount++;
+          log("success", "BUNDLE", f, `(${formatSize(size)})`);
+        } catch (error) {
+          log("warn", "WARN", `Could not bundle ${f}, copying instead`);
+          console.error(chalk.red("  " + error.message));
+          fs.copyFileSync(srcPath, destPath);
+          totalSize += fs.statSync(destPath).size;
+          copiedCount++;
+        }
+      } else if (f.endsWith(".js") || f.endsWith(".ts")) {
+        // Still copy companions when not bundling into entry (dev HMR helpers unused after bundle)
+        fs.copyFileSync(srcPath, destPath);
+        totalSize += fs.statSync(destPath).size;
+        copiedCount++;
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+        totalSize += fs.statSync(destPath).size;
+        copiedCount++;
       }
+    }
 
-      fs.writeFileSync(destPath, content);
-      totalSize += fs.statSync(destPath).size;
-    });
-
+    const summary = [];
+    if (bundledCount > 0) summary.push(chalk.green(`${bundledCount} bundled`));
+    if (copiedCount > 0) summary.push(chalk.cyan(`${copiedCount} copied`));
     log(
       "info",
-      "COPY",
-      `Background scripts`,
-      `(${files.length} file${files.length !== 1 ? "s" : ""}, ${formatSize(
-        totalSize
-      )})`
+      "BACKGROUND",
+      summary.join(chalk.gray(", ")) || "done",
+      `(${formatSize(totalSize)} total)`
     );
   }
 
@@ -238,9 +282,26 @@ export default function reloadExtensionPlugin(reload = true) {
       fs.watch(
         backgroundDir,
         { recursive: true, persistent: true },
-        (_, file) => {
+        async (_, file) => {
           log("change", "CHANGE", "background/", file || "");
-          copyBackground();
+          await copyBackground();
+          try {
+            reloadExtension();
+            log("reload", "RELOAD", "Extension reloaded\n");
+          } catch (err) {
+            log("error", "ERROR", "Reload failed:", err.message);
+          }
+        }
+      );
+    }
+
+    if (fs.existsSync(sharedDir)) {
+      fs.watch(
+        sharedDir,
+        { recursive: true, persistent: true },
+        async (_, file) => {
+          log("change", "CHANGE", "shared/", file || "");
+          await copyBackground();
           try {
             reloadExtension();
             log("reload", "RELOAD", "Extension reloaded\n");
@@ -284,11 +345,11 @@ export default function reloadExtensionPlugin(reload = true) {
       console.log(chalk.blue.bold("╰─────────────────────────────────╯"));
       log("info", "BUILD", `Mode: ${mode.toUpperCase()}\n`);
       copyManifest();
-      copyBackground();
+      await copyBackground();
       await copyContent();
     },
 
-    closeBundle() {
+    async closeBundle() {
       const duration = ((Date.now() - buildStartTime) / 1000).toFixed(2);
 
       console.log(chalk.green.bold("\n╭─────────────────────────────────╮"));
@@ -300,8 +361,8 @@ export default function reloadExtensionPlugin(reload = true) {
       console.log(chalk.green.bold("╰─────────────────────────────────╯"));
       log("success", "BUILD", `Completed in ${duration}s\n`);
       copyManifest();
-      copyBackground();
-      copyContent();
+      await copyBackground();
+      await copyContent();
 
       reload && setupWatchers();
     },

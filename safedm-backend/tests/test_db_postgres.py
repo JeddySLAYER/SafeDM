@@ -21,6 +21,7 @@ REQUIRED_TABLES = {
     "virustotal_scans",
     "guide_categories",
     "guide_articles",
+    "link_gate_events",
 }
 
 

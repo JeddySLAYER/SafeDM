@@ -3,17 +3,21 @@ import {
   BookOpen,
   Flag,
   LayoutDashboard,
+  Link2,
   LogOut,
   ShieldAlert,
+  Smartphone,
   Users,
 } from "lucide-react";
 import SafeDMLogo from "./SafeDMLogo";
 import { useAuth } from "../context/AuthContext";
 
 const LINKS = [
-  { to: "/", label: "Vue d’ensemble", end: true, icon: LayoutDashboard },
+  { to: "/", label: "Stats", end: true, icon: LayoutDashboard },
   { to: "/threats", label: "Menaces", icon: ShieldAlert },
   { to: "/reports", label: "Signalements", icon: Flag },
+  { to: "/link-gate", label: "Link Gate", icon: Link2 },
+  { to: "/applications", label: "Apps", icon: Smartphone },
   { to: "/users", label: "Utilisateurs", icon: Users },
   { to: "/guide", label: "Guide", icon: BookOpen },
 ];

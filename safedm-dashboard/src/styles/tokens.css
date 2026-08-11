@@ -1,30 +1,12 @@
 :root {
-  /* Marque */
-  --blue-50: #eaf3fe;
-  --blue-200: #b8d7fa;
-  --blue-primary: #2f8af2;
-  --blue-600: #1d6fd1;
-  --blue-800: #14549e;
-
-  /* Neutres */
+  --blue-primary: #1769d4;
   --white: #ffffff;
-  --section: #f7f9fc;
-  --border: #e4e7ec;
-  --text-secondary: #667085;
-  --text-primary: #101828;
-
-  /* Risque */
-  --risk-low: #12b76a;
-  --risk-low-bg: #ecfdf3;
-  --risk-medium: #f79009;
-  --risk-medium-bg: #fffaeb;
-  --risk-high: #f04438;
-  --risk-high-bg: #fef3f2;
-  --risk-unknown: #98a2b3;
-  --risk-unknown-bg: #f2f4f7;
-
+  --section: #f2f4f7;
+  --border: #d0d5dd;
+  --text-secondary: #3d4553;
+  --text-primary: #14181f;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--text-primary);
   background-color: var(--section);
 }

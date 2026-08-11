@@ -194,3 +194,24 @@ class ThreatRepository:
         self.db.commit()
         self.db.refresh(threat)
         return threat
+
+    def update_severity(self, threat: Threat, severity: ThreatSeverity) -> Threat:
+        threat.severity = severity
+        threat.last_seen_at = datetime.now(timezone.utc)
+        self.db.add(threat)
+        self.db.commit()
+        self.db.refresh(threat)
+        return threat
+
+    def get_by_id_with_scans(self, threat_id: int) -> Threat | None:
+        from app.models import ThreatUrl
+
+        return (
+            self.db.scalars(
+                select(Threat)
+                .options(joinedload(Threat.urls).joinedload(ThreatUrl.scans))
+                .where(Threat.id == threat_id)
+            )
+            .unique()
+            .first()
+        )

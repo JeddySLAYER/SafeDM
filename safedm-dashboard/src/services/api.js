@@ -46,11 +46,21 @@ export async function apiRequest(path, { method = "GET", body, auth = true } = {
   }
 
   const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+  const started = performance.now();
   const res = await fetch(`${base}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  const ms = Math.round(performance.now() - started);
+  if (import.meta.env.DEV) {
+    // Aide à distinguer latence réseau/DB vs UI
+    console.debug(`[api] ${method} ${path} → ${res.status} in ${ms}ms`);
+  }
+  // Expose last latency for optional UI (stats)
+  if (typeof window !== "undefined") {
+    window.__safedmLastApiMs = ms;
+  }
 
   if (res.status === 204) return null;
 

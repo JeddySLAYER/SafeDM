@@ -27,6 +27,50 @@ class ApplicationRepository:
             )
         )
 
+    def list_all(self) -> list[SupportedApplication]:
+        return list(
+            self.db.scalars(
+                select(SupportedApplication).order_by(SupportedApplication.id)
+            ).all()
+        )
+
+    def create(
+        self,
+        *,
+        name: str,
+        package_name: str,
+        is_enabled: bool = True,
+    ) -> SupportedApplication:
+        app = SupportedApplication(
+            name=name.strip()[:64],
+            package_name=package_name.strip()[:255],
+            is_enabled=is_enabled,
+        )
+        self.db.add(app)
+        self.db.commit()
+        self.db.refresh(app)
+        return app
+
+    def update(
+        self,
+        app: SupportedApplication,
+        *,
+        name: str | None = None,
+        is_enabled: bool | None = None,
+    ) -> SupportedApplication:
+        if name is not None:
+            app.name = name.strip()[:64]
+        if is_enabled is not None:
+            app.is_enabled = is_enabled
+        self.db.add(app)
+        self.db.commit()
+        self.db.refresh(app)
+        return app
+
+    def delete(self, app: SupportedApplication) -> None:
+        self.db.delete(app)
+        self.db.commit()
+
     def get_or_create_by_package(
         self,
         *,

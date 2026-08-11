@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getThreats, updateThreatStatus } from "../services/adminApi";
 import {
   Alert,
@@ -108,7 +109,9 @@ export default function ThreatsPage() {
                 <tbody>
                   {data.items.map((t) => (
                     <tr key={t.id}>
-                      <td>{t.id}</td>
+                      <td>
+                        <Link to={`/threats/${t.id}`}>#{t.id}</Link>
+                      </td>
                       <td>
                         <span className={`pill sev-${t.severity?.toLowerCase()}`}>
                           {t.severity}
@@ -120,6 +123,9 @@ export default function ThreatsPage() {
                         {t.content}
                       </td>
                       <td className="actions">
+                        <Link className="btn small" to={`/threats/${t.id}`}>
+                          Détail
+                        </Link>
                         {STATUSES.filter((s) => s !== t.status).map((s) => (
                           <button
                             key={s}

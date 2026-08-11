@@ -1,15 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "EXTENSION_NAME",
+  "name": "SafeDM",
   "version": "1.0.0",
-  "description": "EXTENSION_DESCRIPTION",
+  "description": "Vérifiez liens et messages suspects avec SafeDM depuis le navigateur.",
   "permissions": [
     "activeTab",
     "storage",
-    "tabs"
+    "tabs",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://safedm-backend.onrender.com/*",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
   ],
   "action": {
     "default_popup": "index.html",
+    "default_title": "SafeDM",
     "default_icon": {
       "16": "icon.png",
       "48": "icon.png",

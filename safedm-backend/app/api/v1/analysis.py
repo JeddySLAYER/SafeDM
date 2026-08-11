@@ -34,6 +34,5 @@ def analyze_url(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Analyse un lien avant ouverture (Link Gate). Non stocké sauf signalement."""
-    _ = current_user
-    return AnalysisService(db).analyze_url(payload)
+    """Analyse un lien avant ouverture (Link Gate). Journal léger côté ops."""
+    return AnalysisService(db).analyze_url(payload, user_id=current_user.id)
