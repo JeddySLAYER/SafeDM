@@ -4,10 +4,30 @@ API FastAPI pour SafeDM — analyse de messages suspects (Gemini + VirusTotal), 
 
 ## Prérequis
 
-- Python 3.11+
-- PostgreSQL installé **en local** (pas de Docker)
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) pour la gestion des dépendances
+- Base PostgreSQL : **Neon** (recommandé) ou PostgreSQL installé en local
 
-## Installation PostgreSQL (Windows)
+## Base de données
+
+### Neon (recommandé)
+
+1. Créer un projet sur https://neon.tech
+2. Copier la connection string **« pooled »** (l'hôte contient `-pooler`).
+3. La coller dans `DATABASE_URL` dans `.env` (garder `sslmode=require`).
+4. Vérifier la connexion puis appliquer les migrations :
+
+```bash
+uv sync
+uv run python scripts/ensure_database.py        # vérifie la connexion à Neon
+uv run alembic upgrade head
+uv run python -m scripts.seed_applications
+uv run python -m scripts.seed_guide
+```
+
+> Si psycopg2 signale une erreur sur `channel_binding=require`, retirer uniquement ce paramètre de l'URL (garder `sslmode=require`).
+
+### PostgreSQL local (alternative, dev)
 
 1. Installer PostgreSQL depuis https://www.postgresql.org/download/windows/
 2. Créer un utilisateur et une base :
@@ -20,27 +40,25 @@ CREATE DATABASE safedm OWNER safedm;
 Ou via script :
 
 ```bash
-python scripts/ensure_database.py
+uv run python scripts/ensure_database.py
 ```
+
+`scripts/create_database.sql` est réservé au PostgreSQL local (Neon gère la création côté serveur).
 
 ## Setup
 
 ```bash
 cd safedm-backend
-python -m venv .venv
+uv sync
 
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-
-pip install -r requirements.txt
-copy .env.example .env
+cp .env.example .env
 # Éditer .env (DATABASE_URL, SECRET_KEY, clés API)
 ```
 
 ## Lancer l’API
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 - Docs : http://localhost:8000/docs
@@ -49,10 +67,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Migrations
 
 ```bash
-# Créer la base PostgreSQL au préalable
-alembic upgrade head
-python -m scripts.seed_applications
-python -m scripts.seed_guide
+# Base prête (Neon ou local) — voir « Base de données »
+uv run alembic upgrade head
+uv run python -m scripts.seed_applications
+uv run python -m scripts.seed_guide
 ```
 
 ### Tables
@@ -97,8 +115,8 @@ Cela simule Gemini/VirusTotal pour valider le pipeline en local. Mettre `false` 
 ### Smoke test
 
 ```bash
-uvicorn app.main:app --reload --port 8000
-python scripts/smoke_analysis.py
+uv run uvicorn app.main:app --reload --port 8000
+uv run python scripts/smoke_analysis.py
 ```
 
 ## Auth & profil (Sprint 2)

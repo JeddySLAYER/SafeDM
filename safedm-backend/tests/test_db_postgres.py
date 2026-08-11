@@ -35,7 +35,7 @@ def _postgres_available() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not _postgres_available(),
-    reason="PostgreSQL indisponible — créer la base safedm puis alembic upgrade head",
+    reason="Base indisponible — configure DATABASE_URL (.env) puis uv run alembic upgrade head",
 )
 
 

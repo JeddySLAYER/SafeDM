@@ -1,0 +1,31 @@
+[project]
+name = "safedm-backend"
+version = "0.1.0"
+description = "SafeDM API - détection préventive de messages suspects"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+
+dependencies = [
+    "fastapi[standard]==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "sqlalchemy==2.0.40",
+    "psycopg2-binary==2.9.10",
+    "alembic==1.15.2",
+    "pydantic==2.11.3",
+    "pydantic-settings==2.9.1",
+    "python-jose[cryptography]==3.4.0",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.0.1",
+    "httpx==0.28.1",
+    "python-multipart==0.0.20",
+    "email-validator==2.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+]
+
+[tool.fastapi]
+entrypoint = "app.main:app"

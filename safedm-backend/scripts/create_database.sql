@@ -1,4 +1,5 @@
--- SafeDM — creation de la base PostgreSQL
+-- SafeDM — création de la base PostgreSQL LOCAL uniquement
+-- (Neon gère la création côté serveur : aucune exécution nécessaire)
 -- psql -U postgres -f scripts/create_database.sql
 
 CREATE USER safedm WITH PASSWORD 'safedm';
