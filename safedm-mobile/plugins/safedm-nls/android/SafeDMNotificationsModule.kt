@@ -3,6 +3,11 @@ package com.safedmmobile.notifications
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.provider.Settings
 import android.text.TextUtils
 import com.facebook.react.bridge.Arguments
@@ -15,8 +20,11 @@ import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import java.io.File
+import java.io.FileOutputStream
 import java.util.ArrayList
 import java.util.Collections
+import java.util.Locale
 
 @ReactModule(name = SafeDMNotificationsModule.NAME)
 class SafeDMNotificationsModule(
@@ -56,7 +64,7 @@ class SafeDMNotificationsModule(
 
   /**
    * Liste les applications installées visibles (lanceurs).
-   * Permet à l’utilisateur de surveiller n’importe quelle app, pas seulement WhatsApp/SMS/Email.
+   * Chaque entrée inclut `icon` = chemin file:// vers le vrai logo Android (PNG en cache).
    */
   @ReactMethod
   fun listInstalledApps(promise: Promise) {
@@ -67,6 +75,7 @@ class SafeDMNotificationsModule(
       val seen = HashSet<String>()
       val out: WritableArray = Arguments.createArray()
       val selfPkg = reactContext.packageName
+      val iconDir = ensureIconCacheDir()
 
       for (info in resolveInfos) {
         val pkg = info.activityInfo?.packageName ?: continue
@@ -76,14 +85,93 @@ class SafeDMNotificationsModule(
         } catch (_: Exception) {
           pkg
         }
+        val drawable = try {
+          info.loadIcon(pm) ?: pm.getApplicationIcon(pkg)
+        } catch (_: Exception) {
+          try {
+            pm.getApplicationIcon(pkg)
+          } catch (_: Exception) {
+            null
+          }
+        }
+        val iconPath = cacheAppIcon(iconDir, pkg, drawable)
         val row = Arguments.createMap()
         row.putString("name", label)
         row.putString("packageName", pkg)
+        if (!iconPath.isNullOrBlank()) {
+          row.putString("icon", iconPath)
+        }
         out.pushMap(row)
       }
       promise.resolve(out)
     } catch (e: Exception) {
       promise.reject("LIST_APPS_FAILED", e.message, e)
+    }
+  }
+
+  /** Renvoie le vrai logo d'un package (file://) ou null. */
+  @ReactMethod
+  fun getAppIcon(packageName: String, promise: Promise) {
+    try {
+      if (packageName.isBlank()) {
+        promise.resolve(null)
+        return
+      }
+      val pm = reactContext.packageManager
+      val drawable = try {
+        pm.getApplicationIcon(packageName)
+      } catch (_: PackageManager.NameNotFoundException) {
+        null
+      }
+      val path = cacheAppIcon(ensureIconCacheDir(), packageName, drawable)
+      promise.resolve(path)
+    } catch (e: Exception) {
+      promise.reject("GET_APP_ICON_FAILED", e.message, e)
+    }
+  }
+
+  private fun ensureIconCacheDir(): File {
+    val dir = File(reactContext.cacheDir, "app_icons")
+    if (!dir.exists()) dir.mkdirs()
+    return dir
+  }
+
+  private fun cacheAppIcon(dir: File, packageName: String, drawable: Drawable?): String? {
+    if (drawable == null) return null
+    val safeName =
+      packageName.lowercase(Locale.US).replace(Regex("[^a-z0-9._-]"), "_")
+    val file = File(dir, "$safeName.png")
+    try {
+      // Régénère si absent ou trop petit (cache corrompu)
+      if (!file.exists() || file.length() < 64) {
+        val bitmap = drawableToBitmap(drawable, 128) ?: return null
+        FileOutputStream(file).use { out ->
+          if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) return null
+        }
+        if (!bitmap.isRecycled) bitmap.recycle()
+      }
+      return "file://${file.absolutePath}"
+    } catch (_: Exception) {
+      return null
+    }
+  }
+
+  private fun drawableToBitmap(drawable: Drawable, size: Int): Bitmap? {
+    return try {
+      when {
+        drawable is BitmapDrawable && drawable.bitmap != null -> {
+          Bitmap.createScaledBitmap(drawable.bitmap, size, size, true)
+        }
+        else -> {
+          val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+          val canvas = Canvas(bmp)
+          drawable.setBounds(0, 0, size, size)
+          drawable.draw(canvas)
+          bmp
+        }
+      }
+    } catch (_: Exception) {
+      null
     }
   }
 

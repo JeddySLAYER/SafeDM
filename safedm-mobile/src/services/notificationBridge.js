@@ -88,12 +88,31 @@ export async function listInstalledApps() {
           .map((a) => ({
             name: a?.name || a?.packageName || "",
             packageName: a?.packageName || "",
+            // Vrai logo Android (file://…/app_icons/….png)
+            icon: typeof a?.icon === "string" && a.icon ? a.icon : null,
           }))
           .filter((a) => a.packageName)
           .sort((a, b) => a.name.localeCompare(b.name, "fr"))
       : [];
   } catch {
     return [];
+  }
+}
+
+/** Vrai logo d'un package installé (file://) ou null. */
+export async function getAppIcon(packageName) {
+  if (
+    Platform.OS !== "android" ||
+    !packageName ||
+    !SafeDMNotifications?.getAppIcon
+  ) {
+    return null;
+  }
+  try {
+    const uri = await SafeDMNotifications.getAppIcon(packageName);
+    return typeof uri === "string" && uri ? uri : null;
+  } catch {
+    return null;
   }
 }
 

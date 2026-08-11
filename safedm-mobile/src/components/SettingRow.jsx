@@ -1,10 +1,13 @@
 import React from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
-import { IconBadge, IconGlyph } from "./Icons";
+import AppLogo from "./AppLogo";
+import { IconGlyph } from "./Icons";
 import { colors, radii } from "../theme/tokens";
 
 export default function SettingRow({
   icon,
+  iconUri,
+  packageName,
   title,
   subtitle,
   valueText,
@@ -17,7 +20,12 @@ export default function SettingRow({
 
   const content = (
     <>
-      {icon ? <IconBadge name={icon} size={40} /> : null}
+      <AppLogo
+        uri={iconUri}
+        packageName={packageName}
+        fallbackIcon={icon || "bell"}
+        size={40}
+      />
       <View style={styles.textCol}>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}

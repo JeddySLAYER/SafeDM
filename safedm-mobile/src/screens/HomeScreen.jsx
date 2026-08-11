@@ -13,9 +13,11 @@ import { analyzeMessage } from "../api/analysis";
 import * as usersApi from "../api/users";
 import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
+import AppLogo from "../components/AppLogo";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
+import { fallbackIconForSource } from "../services/appIcons";
 import { subscribeAlertsChanged } from "../services/alertsEvents";
 import {
   addAlertFromManualAnalysis,
@@ -268,14 +270,9 @@ export default function HomeScreen({ navigation }) {
               navigation.navigate("AlertDetail", { alertId: alert.id })
             }
           >
-            <IconBadge
-              name={
-                alert.source === "SMS"
-                  ? "sms"
-                  : alert.source === "Email"
-                    ? "email"
-                    : "whatsapp"
-              }
+            <AppLogo
+              packageName={alert.packageName}
+              fallbackIcon={fallbackIconForSource(alert.source)}
               size={42}
             />
             <View style={{ flex: 1 }}>

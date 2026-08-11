@@ -4,10 +4,12 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ApiError } from "../api/client";
 import { analyzeMessage } from "../api/analysis";
 import { createReport } from "../api/reports";
+import AppLogo from "../components/AppLogo";
 import Button from "../components/Button";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import { fallbackIconForSource } from "../services/appIcons";
 import { getAlertById, updateAlert } from "../services/alertsStore";
 import {
   riskDescription,
@@ -120,7 +122,14 @@ export default function AlertDetailScreen({ navigation, route }) {
 
       <View style={styles.card}>
         <View style={styles.top}>
-          <Text style={styles.source}>{alert.source}</Text>
+          <View style={styles.sourceRow}>
+            <AppLogo
+              packageName={alert.packageName}
+              fallbackIcon={fallbackIconForSource(alert.source)}
+              size={36}
+            />
+            <Text style={styles.source}>{alert.source}</Text>
+          </View>
           <RiskBadge level={level} />
         </View>
         <Text style={styles.headline}>{riskHeadline(level)}</Text>
@@ -179,6 +188,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 10,
+  },
+  sourceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 1,
   },
   source: { fontWeight: "700", fontSize: 16, color: colors.textPrimary },
   headline: {

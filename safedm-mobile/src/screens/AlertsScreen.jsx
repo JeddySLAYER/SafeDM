@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { IconBadge } from "../components/Icons";
+import AppLogo from "../components/AppLogo";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
+import { fallbackIconForSource } from "../services/appIcons";
 import { subscribeAlertsChanged } from "../services/alertsEvents";
 import { formatAlertWhen, listAlerts } from "../services/alertsStore";
 import { colors, radii } from "../theme/tokens";
@@ -47,16 +48,9 @@ export default function AlertsScreen() {
               navigation.navigate("AlertDetail", { alertId: alert.id })
             }
           >
-            <IconBadge
-              name={
-                alert.source === "SMS"
-                  ? "sms"
-                  : alert.source === "Email"
-                    ? "email"
-                    : alert.source === "Manuel"
-                      ? "search"
-                      : "whatsapp"
-              }
+            <AppLogo
+              packageName={alert.packageName}
+              fallbackIcon={fallbackIconForSource(alert.source)}
               size={42}
             />
             <View style={{ flex: 1 }}>

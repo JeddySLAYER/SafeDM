@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import * as usersApi from "../api/users";
 import Button from "../components/Button";
@@ -14,6 +15,7 @@ import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import SettingRow from "../components/SettingRow";
 import {
+  getAppIcon,
   listInstalledApps,
   syncMonitoredPackages,
 } from "../services/notificationBridge";
@@ -66,6 +68,7 @@ function iconFor(name, packageName = "") {
 }
 
 export default function AppsScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const onboarding = route?.params?.onboarding === true;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +104,7 @@ export default function AppsScreen({ navigation, route }) {
           application_id: app.id,
           name: app.name,
           package_name: app.package_name,
+          iconUri: null,
           enabled: enabledByPackage.has(app.package_name)
             ? enabledByPackage.get(app.package_name)
             : false,
@@ -115,6 +119,7 @@ export default function AppsScreen({ navigation, route }) {
           byPackage.set(app.packageName, {
             ...existing,
             name: app.name || existing.name,
+            iconUri: app.icon || existing.iconUri || null,
             enabled: enabledByPackage.has(app.packageName)
               ? enabledByPackage.get(app.packageName)
               : existing.enabled,
@@ -124,6 +129,7 @@ export default function AppsScreen({ navigation, route }) {
             application_id: idByPackage.get(app.packageName) || null,
             name: app.name,
             package_name: app.packageName,
+            iconUri: app.icon || null,
             enabled: enabledByPackage.has(app.packageName)
               ? enabledByPackage.get(app.packageName)
               : false,
@@ -142,6 +148,7 @@ export default function AppsScreen({ navigation, route }) {
           application_id: p.application_id,
           name: p.application?.name || pkg,
           package_name: pkg,
+          iconUri: null,
           enabled: Boolean(p.enabled),
           recommended: false,
         });
@@ -154,6 +161,7 @@ export default function AppsScreen({ navigation, route }) {
             application_id: idByPackage.get(rec.package_name) || null,
             name: rec.name,
             package_name: rec.package_name,
+            iconUri: null,
             enabled: enabledByPackage.has(rec.package_name)
               ? enabledByPackage.get(rec.package_name)
               : false,
@@ -167,13 +175,25 @@ export default function AppsScreen({ navigation, route }) {
         }
       });
 
-      setItems(
-        [...byPackage.values()].sort((a, b) => {
-          if (a.recommended !== b.recommended) return a.recommended ? -1 : 1;
-          if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-          return a.name.localeCompare(b.name, "fr");
-        }),
-      );
+      const sorted = [...byPackage.values()].sort((a, b) => {
+        if (a.recommended !== b.recommended) return a.recommended ? -1 : 1;
+        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+        return a.name.localeCompare(b.name, "fr");
+      });
+
+      // Compléter seulement les logos des recommandés manquants (évite de
+      // saturer le bridge natif avec des centaines d'appels → écran blanc).
+      const missingRecommended = sorted.filter((i) => i.recommended && !i.iconUri);
+      if (missingRecommended.length > 0) {
+        await Promise.all(
+          missingRecommended.map(async (item) => {
+            const uri = await getAppIcon(item.package_name);
+            if (uri) item.iconUri = uri;
+          }),
+        );
+      }
+
+      setItems(sorted);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Chargement impossible.");
     } finally {
@@ -213,6 +233,7 @@ export default function AppsScreen({ navigation, route }) {
           application_id: null,
           name: pkg.split(".").pop() || pkg,
           package_name: pkg,
+          iconUri: null,
           enabled: true,
           recommended: false,
         },
@@ -288,113 +309,159 @@ export default function AppsScreen({ navigation, route }) {
   const recommended = filtered.filter((i) => i.recommended);
   const others = filtered.filter((i) => !i.recommended);
   const enabledCount = items.filter((i) => i.enabled).length;
+  const fabBottom = Math.max(insets.bottom, 16);
+
+  function renderManualAdd() {
+    return (
+      <View style={styles.manualBlock}>
+        <Text style={styles.section}>Ajouter manuellement</Text>
+        <Text style={styles.hint}>
+          Nom de package Android (ex. org.telegram.messenger).
+        </Text>
+        <View style={styles.manualRow}>
+          <TextInput
+            value={customPackage}
+            onChangeText={setCustomPackage}
+            placeholder="com.exemple.app"
+            placeholderTextColor={colors.textMuted}
+            style={styles.manualInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Button
+            label="Ajouter"
+            variant="outline"
+            onPress={addCustomPackage}
+            style={styles.manualBtn}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <Screen scroll>
-      <Text style={styles.title}>Applications surveillées</Text>
-      <Text style={styles.subtitle}>
-        Choisissez n’importe quelle application installée. SafeDM analysera ses
-        notifications (sans bloquer vos messages).
-      </Text>
+    <View style={styles.root}>
+      <Screen
+        scroll
+        contentStyle={{ paddingBottom: 96 + fabBottom }}
+      >
+        <Text style={styles.title}>Applications surveillées</Text>
+        <Text style={styles.subtitle}>
+          Choisissez n’importe quelle application installée. SafeDM analysera ses
+          notifications (sans bloquer vos messages).
+        </Text>
 
-      <View style={styles.searchBox}>
-        <IconGlyph name="search" color={colors.textMuted} size={18} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Rechercher une application…"
-          placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
+        <View style={styles.searchBox}>
+          <IconGlyph name="search" color={colors.textMuted} size={18} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Rechercher une application…"
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
 
-      <Text style={styles.meta}>
-        {enabledCount} application{enabledCount > 1 ? "s" : ""} sélectionnée
-        {enabledCount > 1 ? "s" : ""}
-      </Text>
+        {renderManualAdd()}
 
-      {loading ? (
-        <ActivityIndicator color={colors.bluePrimary} style={{ marginTop: 24 }} />
-      ) : (
-        <View>
-          {recommended.length > 0 ? (
-            <>
-              <Text style={styles.section}>Recommandées</Text>
-              {recommended.map((item) => (
+        <Text style={styles.meta}>
+          {enabledCount} application{enabledCount > 1 ? "s" : ""} sélectionnée
+          {enabledCount > 1 ? "s" : ""}
+        </Text>
+
+        {loading ? (
+          <ActivityIndicator color={colors.bluePrimary} style={{ marginTop: 24 }} />
+        ) : (
+          <View>
+            {recommended.length > 0 ? (
+              <>
+                <Text style={styles.section}>Recommandées</Text>
+                {recommended.map((item) => (
+                  <SettingRow
+                    key={item.package_name}
+                    icon={iconFor(item.name, item.package_name)}
+                    iconUri={item.iconUri}
+                    packageName={item.package_name}
+                    title={item.name}
+                    subtitle={item.package_name}
+                    switchValue={item.enabled}
+                    onSwitchChange={(value) => toggle(item.package_name, value)}
+                  />
+                ))}
+              </>
+            ) : null}
+
+            <Text style={styles.section}>Toutes les applications</Text>
+            {others.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                  {query
+                    ? "Aucun résultat pour cette recherche."
+                    : "Liste des apps indisponible (rebuild Android requis) — utilisez l’ajout manuel ci-dessus."}
+                </Text>
+              </View>
+            ) : (
+              others.map((item) => (
                 <SettingRow
                   key={item.package_name}
                   icon={iconFor(item.name, item.package_name)}
+                  iconUri={item.iconUri}
+                  packageName={item.package_name}
                   title={item.name}
                   subtitle={item.package_name}
                   switchValue={item.enabled}
                   onSwitchChange={(value) => toggle(item.package_name, value)}
                 />
-              ))}
-            </>
-          ) : null}
-
-          <Text style={styles.section}>Toutes les applications</Text>
-          {others.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>
-                {query
-                  ? "Aucun résultat pour cette recherche."
-                  : "Liste des apps indisponible (rebuild Android requis) — utilisez l’ajout manuel ci-dessous."}
-              </Text>
-            </View>
-          ) : (
-            others.map((item) => (
-              <SettingRow
-                key={item.package_name}
-                icon={iconFor(item.name, item.package_name)}
-                title={item.name}
-                subtitle={item.package_name}
-                switchValue={item.enabled}
-                onSwitchChange={(value) => toggle(item.package_name, value)}
-              />
-            ))
-          )}
-
-          <Text style={styles.section}>Ajouter manuellement</Text>
-          <Text style={styles.hint}>
-            Nom de package Android (ex. org.telegram.messenger).
-          </Text>
-          <View style={styles.manualRow}>
-            <TextInput
-              value={customPackage}
-              onChangeText={setCustomPackage}
-              placeholder="com.exemple.app"
-              placeholderTextColor={colors.textMuted}
-              style={styles.manualInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Button
-              label="Ajouter"
-              variant="outline"
-              onPress={addCustomPackage}
-              style={styles.manualBtn}
-            />
+              ))
+            )}
           </View>
-        </View>
-      )}
+        )}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </Screen>
 
-      <Button
-        label={onboarding ? "Continuer" : "Enregistrer"}
-        onPress={save}
-        loading={saving}
-        disabled={loading}
-        style={{ marginTop: 16 }}
-      />
-    </Screen>
+      <View
+        pointerEvents="box-none"
+        style={[styles.fabWrap, { paddingBottom: fabBottom }]}
+      >
+        <Button
+          label={onboarding ? "Continuer" : "Enregistrer"}
+          onPress={save}
+          loading={saving}
+          disabled={loading}
+          style={styles.fabButton}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  fabWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    backgroundColor: colors.white,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabButton: {
+    width: "100%",
+  },
   title: {
     fontSize: 26,
     fontWeight: "700",
@@ -436,6 +503,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
     marginBottom: 10,
+  },
+  manualBlock: {
+    marginBottom: 8,
   },
   hint: {
     fontSize: 12,
