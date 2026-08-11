@@ -3,12 +3,15 @@ const {
   withAndroidManifest,
   withDangerousMod,
   withMainApplication,
+  withMainActivity,
 } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
 const PACKAGE_IMPORT = "import com.safedmmobile.notifications.SafeDMNotificationsPackage";
 const PACKAGE_ADD = "packages.add(SafeDMNotificationsPackage())";
+const MAIN_ACTIVITY_IMPORT =
+  "import com.safedmmobile.notifications.SafeDMNotificationsModule\nimport android.content.Intent";
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -83,6 +86,42 @@ function addNotificationListenerService(androidManifest) {
     });
   }
 
+  if (!androidManifest.manifest.queries) {
+    androidManifest.manifest.queries = [];
+  }
+  const queries = androidManifest.manifest.queries;
+  const hasLauncherQuery = queries.some((q) =>
+    JSON.stringify(q).includes("android.intent.category.LAUNCHER"),
+  );
+  if (!hasLauncherQuery) {
+    queries.push({
+      intent: [
+        {
+          action: [{ $: { "android:name": "android.intent.action.MAIN" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.LAUNCHER" } },
+          ],
+        },
+      ],
+    });
+  }
+  const hasHttpsQuery = queries.some((q) =>
+    JSON.stringify(q).includes('"android:scheme":"https"'),
+  );
+  if (!hasHttpsQuery) {
+    queries.push({
+      intent: [
+        {
+          action: [{ $: { "android:name": "android.intent.action.VIEW" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.BROWSABLE" } },
+          ],
+          data: [{ $: { "android:scheme": "https" } }],
+        },
+      ],
+    });
+  }
+
   app.$["android:usesCleartextTraffic"] = "true";
   app.$["android:networkSecurityConfig"] = "@xml/network_security_config";
   return androidManifest;
@@ -120,6 +159,36 @@ function patchMainApplication(contents) {
   return next;
 }
 
+function patchMainActivity(contents) {
+  let next = contents;
+  if (!next.includes("SafeDMNotificationsModule")) {
+    if (next.includes("import android.os.Bundle")) {
+      next = next.replace(
+        "import android.os.Bundle",
+        `import android.os.Bundle\nimport android.content.Intent\nimport com.safedmmobile.notifications.SafeDMNotificationsModule`,
+      );
+    } else {
+      next = next.replace(
+        "package com.safedmmobile",
+        `package com.safedmmobile\n\n${MAIN_ACTIVITY_IMPORT}`,
+      );
+    }
+  }
+  if (!next.includes("override fun onNewIntent")) {
+    next = next.replace(
+      /override fun getMainComponentName\(\): String = "main"/,
+      `override fun getMainComponentName(): String = "main"
+
+  override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    SafeDMNotificationsModule.onNewIntent(intent)
+  }`,
+    );
+  }
+  return next;
+}
+
 function withSafeDMNotifications(config) {
   config = withDangerousMod(config, [
     "android",
@@ -137,6 +206,13 @@ function withSafeDMNotifications(config) {
   config = withMainApplication(config, (cfg) => {
     if (cfg.modResults.language === "kt" || cfg.modResults.contents) {
       cfg.modResults.contents = patchMainApplication(cfg.modResults.contents);
+    }
+    return cfg;
+  });
+
+  config = withMainActivity(config, (cfg) => {
+    if (cfg.modResults.contents) {
+      cfg.modResults.contents = patchMainActivity(cfg.modResults.contents);
     }
     return cfg;
   });

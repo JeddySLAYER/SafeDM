@@ -86,7 +86,10 @@ export async function apiRequest(path, options = {}) {
       await clearSession();
     }
     throw new ApiError(
-      formatDetail(data?.detail ?? data),
+      formatDetail(data?.detail ?? data) ||
+        (response.status === 404
+          ? "Ressource introuvable (404). Redémarrez le backend si le Link Gate est récent."
+          : `Erreur HTTP ${response.status}`),
       response.status,
       data?.detail ?? data,
     );

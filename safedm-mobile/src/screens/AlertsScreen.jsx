@@ -1,38 +1,51 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { IconBadge } from "../components/Icons";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
-import { listAlerts } from "../services/alertsStore";
+import { subscribeAlertsChanged } from "../services/alertsEvents";
+import { formatAlertWhen, listAlerts } from "../services/alertsStore";
 import { colors, radii } from "../theme/tokens";
 
 export default function AlertsScreen() {
   const navigation = useNavigation();
   const [alerts, setAlerts] = useState([]);
 
+  const refresh = useCallback(async () => {
+    setAlerts(await listAlerts());
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      listAlerts().then(setAlerts);
-    }, []),
+      refresh();
+    }, [refresh]),
   );
+
+  useEffect(() => subscribeAlertsChanged(refresh), [refresh]);
 
   return (
     <Screen scroll>
       <Text style={styles.title}>Alertes</Text>
       <Text style={styles.subtitle}>
-        Historique local des 7 derniers jours (appareils uniquement).
+        Historique local des 7 derniers jours (appareil uniquement) — notifications
+        capturées et analyses manuelles.
       </Text>
       {alerts.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Aucune alerte enregistrée.</Text>
+          <Text style={styles.emptyText}>
+            Aucune alerte enregistrée. Activez la surveillance ou analysez un
+            message depuis l’accueil.
+          </Text>
         </View>
       ) : (
         alerts.map((alert) => (
           <Pressable
             key={alert.id}
             style={styles.card}
-            onPress={() => navigation.navigate("AlertDetail", { alertId: alert.id })}
+            onPress={() =>
+              navigation.navigate("AlertDetail", { alertId: alert.id })
+            }
           >
             <IconBadge
               name={
@@ -40,7 +53,9 @@ export default function AlertsScreen() {
                   ? "sms"
                   : alert.source === "Email"
                     ? "email"
-                    : "whatsapp"
+                    : alert.source === "Manuel"
+                      ? "search"
+                      : "whatsapp"
               }
               size={42}
             />
@@ -53,7 +68,7 @@ export default function AlertsScreen() {
                 {alert.preview}
               </Text>
               <Text style={styles.meta}>
-                {new Date(alert.createdAt).toLocaleString("fr-FR")}
+                {formatAlertWhen(alert.createdAt)}
                 {alert.analyzed ? " · Analysé" : ""}
               </Text>
             </View>
@@ -71,6 +86,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
     marginBottom: 20,
+    lineHeight: 20,
   },
   empty: {
     borderWidth: 1,
@@ -78,7 +94,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: 20,
   },
-  emptyText: { color: colors.textSecondary },
+  emptyText: { color: colors.textSecondary, lineHeight: 20 },
   card: {
     flexDirection: "row",
     gap: 12,

@@ -250,6 +250,10 @@ def test_admin_stats_and_threat_moderation(user_auth, admin_auth):
     community = client.get("/api/v1/threats/community", headers=user_auth["headers"])
     assert all(item["id"] != threat_id for item in community.json()["items"])
 
+    reports = client.get("/api/v1/admin/reports?status=ACTIVE", headers=admin_auth["headers"])
+    assert reports.status_code == 200
+    assert "items" in reports.json()
+
 
 def test_admin_guide_crud(admin_auth):
     cats = client.get("/api/v1/guide/categories").json()

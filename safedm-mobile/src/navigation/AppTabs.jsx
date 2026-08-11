@@ -7,9 +7,12 @@ import AlertsScreen from "../screens/AlertsScreen";
 import AnalysisResultScreen from "../screens/AnalysisResultScreen";
 import AppsScreen from "../screens/AppsScreen";
 import CommunityScreen from "../screens/CommunityScreen";
+import DirectReportScreen from "../screens/DirectReportScreen";
 import GuideArticleScreen from "../screens/GuideArticleScreen";
 import GuideScreen from "../screens/GuideScreen";
 import HomeScreen from "../screens/HomeScreen";
+import LinkGateScreen from "../screens/LinkGateScreen";
+import LinkProtectionScreen from "../screens/LinkProtectionScreen";
 import ManualAnalysisScreen from "../screens/ManualAnalysisScreen";
 import AlertDetailScreen from "../screens/AlertDetailScreen";
 import PermissionsScreen from "../screens/PermissionsScreen";
@@ -101,7 +104,10 @@ export default function AppStack() {
         initialParams={{ onboarding: needsSetup }}
       />
       <Stack.Screen name="ManualAnalysis" component={ManualAnalysisScreen} />
+      <Stack.Screen name="DirectReport" component={DirectReportScreen} />
       <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />
+      <Stack.Screen name="LinkGate" component={LinkGateScreen} />
+      <Stack.Screen name="LinkProtection" component={LinkProtectionScreen} />
       <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />
       <Stack.Screen name="Community" component={CommunityScreen} />
       <Stack.Screen name="Guide" component={GuideScreen} />

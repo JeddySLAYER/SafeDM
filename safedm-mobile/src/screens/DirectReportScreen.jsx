@@ -8,22 +8,20 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { ApiError } from "../api/client";
-import { analyzeMessage } from "../api/analysis";
+import { createReport } from "../api/reports";
 import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
-import { addAlertFromManualAnalysis } from "../services/alertsStore";
 import { colors, radii } from "../theme/tokens";
 
-const MAX = 1000;
-const EXAMPLE =
-  "URGENT : votre compte bancaire sera bloqué. Validez immédiatement via https://bank-secure-login.example/confirm";
+const MAX = 2000;
 
-export default function ManualAnalysisScreen({ navigation, route }) {
-  const [content, setContent] = useState(route?.params?.initialContent || "");
+export default function DirectReportScreen({ navigation }) {
+  const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
 
   async function onPaste() {
     setError("");
@@ -39,26 +37,27 @@ export default function ManualAnalysisScreen({ navigation, route }) {
     }
   }
 
-  async function onAnalyze() {
+  async function onSubmit() {
     setError("");
+    setDone(false);
     const text = content.trim();
     if (text.length < 8) {
-      setError("Collez un message d’au moins 8 caractères.");
+      setError("Le message doit contenir au moins 8 caractères.");
       return;
     }
     setLoading(true);
     try {
-      const result = await analyzeMessage({
+      await createReport({
         content: text,
-        source: "MANUAL",
+        source: "DIRECT_REPORT",
+        severity: "MEDIUM",
       });
-      await addAlertFromManualAnalysis({ content: text, result });
-      navigation.navigate("AnalysisResult", {
-        result,
-        originalContent: text,
-      });
+      setDone(true);
+      setContent("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Analyse impossible.");
+      setError(
+        err instanceof ApiError ? err.message : "Signalement impossible.",
+      );
     } finally {
       setLoading(false);
     }
@@ -67,22 +66,23 @@ export default function ManualAnalysisScreen({ navigation, route }) {
   return (
     <Screen scroll>
       <ScreenHeader
-        title="Analyse manuelle"
+        title="Signaler un message"
         onBack={() => navigation.goBack()}
       />
 
       <View style={styles.introCard}>
-        <IconBadge name="clipboard" size={48} />
+        <IconBadge name="flag" size={48} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.introTitle}>Collez un message suspect</Text>
+          <Text style={styles.introTitle}>Contribution communautaire</Text>
           <Text style={styles.introBody}>
-            WhatsApp, SMS ou e-mail — analyse en quelques secondes.
+            En signalant, vous autorisez la conservation de ce contenu pour
+            protéger d’autres utilisateurs.
           </Text>
         </View>
       </View>
 
       <View style={styles.labelRow}>
-        <Text style={styles.label}>Message à analyser</Text>
+        <Text style={styles.label}>Contenu à signaler</Text>
         <Text style={styles.counter}>
           {content.length} / {MAX}
         </Text>
@@ -91,7 +91,7 @@ export default function ManualAnalysisScreen({ navigation, route }) {
       <TextInput
         value={content}
         onChangeText={(v) => setContent(v.slice(0, MAX))}
-        placeholder={'Ex : « Vous avez gagné un iPhone, cliquez ici »'}
+        placeholder="Collez le message ou le lien malveillant…"
         placeholderTextColor={colors.textMuted}
         multiline
         textAlignVertical="top"
@@ -103,22 +103,31 @@ export default function ManualAnalysisScreen({ navigation, route }) {
           <IconGlyph name="clipboard" color={colors.bluePrimary} size={15} />
           <Text style={styles.link}>Coller</Text>
         </Pressable>
-        <Pressable onPress={() => setContent(EXAMPLE)}>
-          <Text style={styles.link}>Exemple</Text>
-        </Pressable>
         <Pressable onPress={() => setContent("")}>
           <Text style={styles.clear}>Effacer</Text>
         </Pressable>
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {done ? (
+        <Text style={styles.ok}>
+          Message signalé. Merci — la communauté en bénéficie.
+        </Text>
+      ) : null}
 
       <Button
-        label="Analyser"
-        onPress={onAnalyze}
+        label="Confirmer le signalement"
+        onPress={onSubmit}
         loading={loading}
-        icon={<IconGlyph name="shield" color={colors.white} size={16} />}
+        icon={<IconGlyph name="flag" color={colors.white} size={16} />}
         style={{ marginTop: 16 }}
+      />
+
+      <Button
+        label="Voir mes signalements"
+        variant="outline"
+        onPress={() => navigation.navigate("MainTabs", { screen: "Reports" })}
+        style={{ marginTop: 12 }}
       />
     </Screen>
   );
@@ -189,5 +198,10 @@ const styles = StyleSheet.create({
   error: {
     color: "#F04438",
     marginTop: 12,
+  },
+  ok: {
+    color: colors.risk.low.bg,
+    marginTop: 12,
+    fontWeight: "600",
   },
 });

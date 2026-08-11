@@ -75,3 +75,36 @@ class ReportRepository:
         self.db.add(report)
         self.db.flush()
         return report
+
+    def list_all(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        status: ReportStatus | None = None,
+    ) -> tuple[list[CommunityReport], int]:
+        page = max(1, page)
+        page_size = min(100, max(1, page_size))
+
+        count_stmt = select(func.count(CommunityReport.id))
+        stmt = (
+            select(CommunityReport)
+            .options(
+                joinedload(CommunityReport.threat),
+                joinedload(CommunityReport.user),
+            )
+            .order_by(CommunityReport.created_at.desc())
+        )
+        if status is not None:
+            count_stmt = count_stmt.where(CommunityReport.status == status)
+            stmt = stmt.where(CommunityReport.status == status)
+
+        total = int(self.db.scalar(count_stmt) or 0)
+        items = list(
+            self.db.scalars(
+                stmt.offset((page - 1) * page_size).limit(page_size)
+            )
+            .unique()
+            .all()
+        )
+        return items, total

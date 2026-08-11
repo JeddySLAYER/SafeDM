@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import ThreatSeverity, VirusTotalResult
 from app.schemas.analysis_enums import AnalysisSource, AnalysisStatus, ThreatType
@@ -13,6 +13,24 @@ class AnalysisRequest(BaseModel):
     application_package: Optional[str] = Field(default=None, max_length=255)
     sender: Optional[str] = Field(default=None, max_length=255)
     title: Optional[str] = Field(default=None, max_length=512)
+
+
+class UrlGateRequest(BaseModel):
+    """Analyse d'un lien avant ouverture (Link Gate)."""
+
+    url: str = Field(min_length=4, max_length=2048)
+
+    @field_validator("url")
+    @classmethod
+    def normalize_url(cls, value: str) -> str:
+        url = (value or "").strip()
+        if not url:
+            raise ValueError("URL requise")
+        if url.lower().startswith("www."):
+            url = f"https://{url}"
+        if not url.lower().startswith(("http://", "https://")):
+            raise ValueError("URL http(s) requise")
+        return url
 
 
 class UrlAnalysisResult(BaseModel):
@@ -50,3 +68,13 @@ class AnalysisResponse(BaseModel):
     normalized_hash: str
     analyzed_at: datetime
     content_stored: bool = False
+
+
+class UrlGateResponse(AnalysisResponse):
+    """Résultat Link Gate avec décision d'ouverture."""
+
+    decision: Literal["ALLOW", "WARN", "BLOCK"]
+    url: str
+    domain: Optional[str] = None
+    headline: str
+    can_open: bool

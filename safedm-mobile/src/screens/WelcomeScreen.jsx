@@ -34,7 +34,7 @@ export default function WelcomeScreen({ navigation }) {
 
   return (
     <Screen contentStyle={styles.content}>
-      <BrandMark size={44} />
+      <BrandMark size={48} />
       <View style={styles.hero}>
         <Text style={styles.title}>{slide.title}</Text>
         <Text style={styles.body}>{slide.body}</Text>

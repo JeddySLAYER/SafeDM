@@ -5,7 +5,7 @@ import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import SettingRow from "../components/SettingRow";
 import { useAuth } from "../context/AuthContext";
-import { colors, radii } from "../theme/tokens";
+import { appVersion, colors, radii } from "../theme/tokens";
 
 export default function SettingsScreen({ navigation }) {
   const { user, logout } = useAuth();
@@ -30,7 +30,7 @@ export default function SettingsScreen({ navigation }) {
         </View>
       </View>
 
-      <Text style={styles.section}>Notifications</Text>
+      <Text style={styles.section}>Surveillance</Text>
       <SettingRow
         icon="whatsapp"
         title="Applications surveillées"
@@ -43,21 +43,41 @@ export default function SettingsScreen({ navigation }) {
         onPress={() => navigation.navigate("Permissions")}
         showChevron
       />
-
-      <Text style={styles.section}>Sécurité</Text>
       <SettingRow
-        icon="shield"
-        title="Analyse automatique"
-        valueText="Activée"
+        icon="globe"
+        title="Protection des liens"
+        valueText="Configurer"
+        onPress={() => navigation.navigate("LinkProtection")}
+        showChevron
       />
-      <SettingRow icon="globe" title="Langue" valueText="Français" />
+
+      <Text style={styles.section}>Aide</Text>
+      <SettingRow
+        icon="guide"
+        title="Guide de bonnes pratiques"
+        onPress={() => navigation.navigate("Guide")}
+        showChevron
+      />
+      <SettingRow
+        icon="community"
+        title="Menaces communautaires"
+        onPress={() => navigation.navigate("Community")}
+        showChevron
+      />
+      <SettingRow
+        icon="flag"
+        title="Signaler un message"
+        onPress={() => navigation.navigate("DirectReport")}
+        showChevron
+      />
 
       <Text style={styles.section}>À propos</Text>
       <SettingRow
         icon="doc"
-        title="Mentions & aide"
-        valueText="Sprint 7"
+        title="Version de l’application"
+        valueText={appVersion}
       />
+      <SettingRow icon="globe" title="Langue" valueText="Français" />
 
       <Button
         label="Se déconnecter"

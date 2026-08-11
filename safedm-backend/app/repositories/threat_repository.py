@@ -42,6 +42,28 @@ class ThreatRepository:
             normalized_hash=normalized_hash,
         )
 
+    def find_by_url(self, url: str) -> CommunityMatch:
+        """Retrouve une menace communautaire associée à une URL."""
+        url_hash = compute_url_hash(url)
+        threat = self.db.scalar(
+            select(Threat)
+            .join(ThreatUrl, ThreatUrl.threat_id == Threat.id)
+            .where(
+                Threat.status == ThreatStatus.ACTIVE,
+                ThreatUrl.url_hash == url_hash,
+            )
+            .order_by(Threat.report_count.desc())
+        )
+        if threat is None:
+            return CommunityMatch(matched=False)
+        return CommunityMatch(
+            matched=True,
+            threat_id=threat.id,
+            report_count=threat.report_count,
+            community_score=threat.community_score,
+            severity=threat.severity,
+        )
+
     def get_by_id(self, threat_id: int) -> Threat | None:
         return (
             self.db.scalars(

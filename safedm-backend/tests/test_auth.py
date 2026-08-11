@@ -151,6 +151,29 @@ def test_monitoring_defaults_and_update(registered_user):
     assert updated[first_id] is False
 
 
+def test_monitoring_by_package_name(registered_user):
+    headers = {"Authorization": f"Bearer {registered_user['token']}"}
+    update = client.put(
+        "/api/v1/users/me/monitoring",
+        headers=headers,
+        json={
+            "preferences": [
+                {
+                    "package_name": "org.telegram.messenger",
+                    "name": "Telegram",
+                    "enabled": True,
+                }
+            ]
+        },
+    )
+    assert update.status_code == 200
+    pkgs = {
+        item["application"]["package_name"]: item["enabled"]
+        for item in update.json()
+    }
+    assert pkgs.get("org.telegram.messenger") is True
+
+
 def test_register_device(registered_user):
     headers = {"Authorization": f"Bearer {registered_user['token']}"}
     response = client.post(

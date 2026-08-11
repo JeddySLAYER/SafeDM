@@ -3,16 +3,31 @@ import { StyleSheet, Text, View } from "react-native";
 import SafeDMLogo from "./SafeDMLogo";
 import { colors } from "../theme/tokens";
 
-export default function BrandMark({ size = 36, showTagline = false, centered = false }) {
+/**
+ * Marque Safeguard DM.
+ * - compact=false (défaut) : logo complet (icône + wordmark)
+ * - compact=true : icône seule (headers / barres)
+ */
+export default function BrandMark({
+  size = 36,
+  showTagline = false,
+  centered = false,
+  compact = false,
+}) {
+  if (compact) {
+    return (
+      <View style={[styles.wrap, centered && styles.centered]}>
+        <SafeDMLogo size={size} variant="icon" />
+        {showTagline ? (
+          <Text style={styles.tagline}>Protégez vos messages</Text>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.wrap, centered && styles.centered]}>
-      <View style={styles.row}>
-        <SafeDMLogo size={size} />
-        <Text style={[styles.wordmark, { fontSize: size * 0.7 }]}>
-          <Text style={styles.safe}>Safe</Text>
-          <Text style={styles.dm}>DM</Text>
-        </Text>
-      </View>
+      <SafeDMLogo size={size} variant="full" />
       {showTagline ? (
         <Text style={styles.tagline}>Protégez vos messages</Text>
       ) : null}
@@ -26,20 +41,6 @@ const styles = StyleSheet.create({
   },
   centered: {
     alignItems: "center",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  wordmark: {
-    fontWeight: "700",
-  },
-  safe: {
-    color: colors.black,
-  },
-  dm: {
-    color: colors.bluePrimary,
   },
   tagline: {
     marginTop: 10,

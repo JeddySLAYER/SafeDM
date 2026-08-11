@@ -240,3 +240,56 @@ def test_analysis_service_unit_no_persist():
     assert result.status == AnalysisStatus.SAFE
     db.add.assert_not_called()
     db.commit.assert_not_called()
+
+
+def test_analyze_url_gate_returns_decision(auth_headers, monkeypatch):
+    class FakeGemini:
+        def analyze(self, content):
+            return GeminiResult(
+                available=True,
+                risk_score=10,
+                severity=ThreatSeverity.LOW,
+                threat_type=ThreatType.NONE,
+                reasons=["Domaine courant"],
+                recommendations=["Rester vigilant"],
+            )
+
+    class FakeVT:
+        def scan_urls(self, urls):
+            return [
+                UrlAnalysisResult(
+                    url=urls[0],
+                    domain="example.com",
+                    available=True,
+                    result=VirusTotalResult.CLEAN,
+                    malicious_count=0,
+                    suspicious_count=0,
+                    harmless_count=5,
+                )
+            ]
+
+    from app.services import analysis_service as mod
+
+    monkeypatch.setattr(mod, "GeminiService", FakeGemini)
+    monkeypatch.setattr(mod, "VirusTotalService", FakeVT)
+
+    response = client.post(
+        "/api/v1/analysis/url",
+        headers=auth_headers,
+        json={"url": "https://example.com/page"},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["decision"] in ("ALLOW", "WARN", "BLOCK")
+    assert data["url"].startswith("https://example.com")
+    assert data["content_stored"] is False
+    assert "headline" in data
+
+    alias = client.post(
+        "/api/v1/analysis/link",
+        headers=auth_headers,
+        json={"url": "https://example.com/alias"},
+    )
+    assert alias.status_code == 200, alias.text
+    assert alias.json()["decision"] in ("ALLOW", "WARN", "BLOCK")
+

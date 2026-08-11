@@ -37,11 +37,7 @@ export default function LoginPage() {
     <div className="login-page">
       <form className="login-card" onSubmit={onSubmit}>
         <div className="brand center">
-          <SafeDMLogo size={40} />
-          <span className="brand-text">
-            <span className="brand-safe">Safe</span>
-            <span className="brand-dm">DM</span>
-          </span>
+          <SafeDMLogo size={48} variant="full" />
         </div>
         <h1>Espace admin</h1>
         <p className="muted">Connexion réservée aux comptes administrateurs.</p>
@@ -74,10 +70,11 @@ export default function LoginPage() {
         </label>
         {error ? <p className="error">{error}</p> : null}
         <button
-          className="btn primary"
+          className="btn primary block"
           type="submit"
           disabled={loading || apiOk === false}
         >
+          {loading ? <span className="btn-spinner" /> : null}
           {loading ? "Connexion…" : "Se connecter"}
         </button>
       </form>

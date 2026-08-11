@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ApplicationResponse(BaseModel):
@@ -14,10 +14,20 @@ class ApplicationResponse(BaseModel):
 
 
 class MonitoringPreferenceItem(BaseModel):
-    application_id: int
+    """Préférence par application_id (catalogue) ou package_name (app libre)."""
+
+    application_id: Optional[int] = None
+    package_name: Optional[str] = Field(default=None, max_length=255)
+    name: Optional[str] = Field(default=None, max_length=64)
     enabled: bool
     application: Optional[ApplicationResponse] = None
     updated_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def require_id_or_package(self):
+        if self.application_id is None and not (self.package_name or "").strip():
+            raise ValueError("application_id ou package_name requis")
+        return self
 
 
 class MonitoringPreferenceResponse(BaseModel):

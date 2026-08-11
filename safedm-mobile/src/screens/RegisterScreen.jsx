@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError } from "../api/client";
+import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
+import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
@@ -56,6 +58,7 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <Screen scroll>
+      <BrandMark size={48} centered />
       <Text style={styles.title}>Créer mon compte</Text>
       <Text style={styles.subtitle}>Protégez vos conversations dès maintenant</Text>
 
@@ -105,7 +108,9 @@ export default function RegisterScreen({ navigation }) {
 
       <Pressable style={styles.checkRow} onPress={() => setAccepted((v) => !v)}>
         <View style={[styles.checkbox, accepted && styles.checkboxOn]}>
-          {accepted ? <Text style={styles.checkMark}>✓</Text> : null}
+          {accepted ? (
+            <IconGlyph name="check" color={colors.white} size={14} strokeWidth={3} />
+          ) : null}
         </View>
         <Text style={styles.checkLabel}>
           J’accepte les conditions d’utilisation et la politique de confidentialité
@@ -131,7 +136,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     color: colors.textPrimary,
-    marginTop: 8,
+    marginTop: 20,
   },
   subtitle: {
     fontSize: 15,
@@ -169,7 +174,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bluePrimary,
     borderColor: colors.bluePrimary,
   },
-  checkMark: { color: colors.white, fontWeight: "700", fontSize: 12 },
   checkLabel: { flex: 1, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   error: { color: "#F04438", marginBottom: 12 },
   footerWrap: { marginTop: 20 },

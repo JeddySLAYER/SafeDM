@@ -7,7 +7,7 @@ export default function SplashView() {
   return (
     <View style={styles.root}>
       <View style={styles.center}>
-        <BrandMark size={56} showTagline centered />
+        <BrandMark size={64} showTagline centered />
       </View>
       <View style={styles.footer}>
         <ActivityIndicator color={colors.bluePrimary} style={styles.spinner} />

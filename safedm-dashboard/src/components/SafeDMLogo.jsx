@@ -1,43 +1,40 @@
-/** Logo icône SafeDM — cercle + 3 segments (signal) */
-export default function SafeDMLogo({ size = 40, color = "#2F8AF2" }) {
+import fullLogo from "../assets/brand/full-logo.png";
+import iconLogo from "../assets/brand/simplify-logo.png";
+
+/**
+ * Logo Safeguard DM (assets racine).
+ * variant="icon" | "full"
+ */
+export default function SafeDMLogo({ size = 40, variant = "icon" }) {
+  if (variant === "full") {
+    const height = size;
+    const width = Math.round(size * (512 / 128));
+    return (
+      <img
+        src={fullLogo}
+        width={width}
+        height={height}
+        alt="Safeguard DM"
+        style={{
+          display: "block",
+          objectFit: "contain",
+          borderRadius: Math.min(8, size * 0.12),
+        }}
+      />
+    );
+  }
+
   return (
-    <svg
+    <img
+      src={iconLogo}
       width={size}
       height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="SafeDM"
-      role="img"
-    >
-      <circle cx="32" cy="36" r="12" fill={color} />
-      <rect
-        x="28"
-        y="8"
-        width="8"
-        height="12"
-        rx="2"
-        fill={color}
-        transform="rotate(0 32 14)"
-      />
-      <rect
-        x="28"
-        y="8"
-        width="8"
-        height="12"
-        rx="2"
-        fill={color}
-        transform="rotate(-40 32 36)"
-      />
-      <rect
-        x="28"
-        y="8"
-        width="8"
-        height="12"
-        rx="2"
-        fill={color}
-        transform="rotate(40 32 36)"
-      />
-    </svg>
+      alt="Safeguard DM"
+      style={{
+        display: "block",
+        objectFit: "contain",
+        borderRadius: Math.min(10, size * 0.18),
+      }}
+    />
   );
 }

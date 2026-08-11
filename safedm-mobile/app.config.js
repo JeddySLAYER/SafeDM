@@ -21,8 +21,9 @@ function loadEnvFile() {
 
 loadEnvFile();
 
-const API_BASE_URL =
-  process.env.API_BASE_URL || "http://10.0.2.2:8000/api/v1";
+const API_BASE_URL = (
+  process.env.API_BASE_URL || "http://10.0.2.2:8000/api/v1"
+).replace(/\/+$/, "");
 
 module.exports = {
   expo: {
@@ -30,6 +31,7 @@ module.exports = {
     slug: "safedm-mobile",
     version: "1.0.0",
     orientation: "portrait",
+    icon: "./src/assets/simplify-logo.png",
     scheme: "safedm",
     userInterfaceStyle: "light",
     newArchEnabled: false,
@@ -40,9 +42,28 @@ module.exports = {
     android: {
       package: "com.safedmmobile",
       adaptiveIcon: {
-        backgroundColor: "#2F8AF2",
+        foregroundImage: "./src/assets/simplify-logo.png",
+        backgroundColor: "#000000",
       },
       permissions: ["INTERNET"],
+      // SafeDM comme filtre de liens (navigateur / partage)
+      intentFilters: [
+        {
+          action: "VIEW",
+          category: ["BROWSABLE", "DEFAULT", "APP_BROWSER"],
+          data: [{ scheme: "https" }, { scheme: "http" }],
+        },
+        {
+          action: "SEND",
+          category: ["DEFAULT"],
+          data: [{ mimeType: "text/plain" }],
+        },
+        {
+          action: "VIEW",
+          category: ["BROWSABLE", "DEFAULT"],
+          data: [{ scheme: "safedm", host: "link", pathPrefix: "/" }],
+        },
+      ],
     },
     plugins: [
       "expo-dev-client",

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError } from "../api/client";
 import { createReport } from "../api/reports";
 import Button from "../components/Button";
@@ -107,8 +107,11 @@ export default function AnalysisResultScreen({ navigation, route }) {
             const malicious = resultCode === "MALICIOUS";
             const suspicious = resultCode === "SUSPICIOUS";
             return (
-              <View
+              <Pressable
                 key={item.url}
+                onPress={() =>
+                  navigation.navigate("LinkGate", { url: item.url })
+                }
                 style={[
                   styles.urlBanner,
                   malicious && styles.urlMalicious,
@@ -138,10 +141,10 @@ export default function AnalysisResultScreen({ navigation, route }) {
                       suspicious && { color: colors.bluePrimary },
                     ]}
                   >
-                    {vtLabel(item.result)}
+                    {vtLabel(item.result)} · Toucher pour vérifier avant d’ouvrir
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </>
@@ -153,7 +156,7 @@ export default function AnalysisResultScreen({ navigation, route }) {
           {recommendations.map((rec, index) => (
             <View key={`${rec}-${index}`} style={styles.recRow}>
               <View style={styles.checkCircle}>
-                <Text style={styles.checkMark}>✓</Text>
+                <IconGlyph name="check" color={colors.white} size={12} strokeWidth={3} />
               </View>
               <Text style={styles.recText}>{rec}</Text>
             </View>
@@ -273,11 +276,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
-  },
-  checkMark: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: "700",
   },
   recText: {
     flex: 1,

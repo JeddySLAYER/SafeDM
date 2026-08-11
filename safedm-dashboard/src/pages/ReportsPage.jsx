@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getThreats, updateThreatStatus } from "../services/adminApi";
+import { getReports, withdrawReport } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
@@ -9,10 +9,10 @@ import {
   Spinner,
 } from "../components/ui";
 
-const STATUSES = ["ACTIVE", "UNDER_REVIEW", "DISMISSED"];
+const STATUSES = ["ACTIVE", "WITHDRAWN"];
 
-export default function ThreatsPage() {
-  const [status, setStatus] = useState("");
+export default function ReportsPage() {
+  const [status, setStatus] = useState("ACTIVE");
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 });
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
@@ -24,7 +24,7 @@ export default function ThreatsPage() {
     if (soft) setRefreshing(true);
     else setLoading(true);
     try {
-      const res = await getThreats({
+      const res = await getReports({
         page,
         pageSize: 20,
         status: status || undefined,
@@ -42,10 +42,11 @@ export default function ThreatsPage() {
     load(1);
   }, [load]);
 
-  async function changeStatus(id, next) {
+  async function onWithdraw(id) {
+    if (!window.confirm("Retirer ce signalement (WITHDRAWN) ?")) return;
     setBusyId(id);
     try {
-      await updateThreatStatus(id, next);
+      await withdrawReport(id);
       await load(data.page || 1, { soft: true });
     } catch (err) {
       setError(err.message);
@@ -57,13 +58,13 @@ export default function ThreatsPage() {
   return (
     <div>
       <PageHeader
-        title="Menaces"
-        subtitle="Modérez le statut des menaces communautaires (ACTIVE, revue, rejet)."
+        title="Signalements"
+        subtitle="Supervision communautaire — retirez un signalement abusif ou erroné."
       />
 
       <div className="toolbar">
         <label>
-          Filtrer par statut
+          Statut
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Tous</option>
             {STATUSES.map((s) => (
@@ -81,7 +82,7 @@ export default function ThreatsPage() {
 
       {loading ? (
         <div className="panel">
-          <Spinner label="Chargement des menaces…" />
+          <Spinner label="Chargement des signalements…" />
           <Skeleton rows={6} />
         </div>
       ) : (
@@ -90,48 +91,53 @@ export default function ThreatsPage() {
             <LoadingOverlay show={refreshing} />
             {data.items.length === 0 ? (
               <EmptyState
-                title="Aucune menace"
-                description="Les signalements utilisateurs apparaîtront ici."
+                title="Aucun signalement"
+                description="Changez le filtre ou attendez les premiers reports utilisateurs."
               />
             ) : (
               <table>
                 <thead>
                   <tr>
                     <th>ID</th>
+                    <th>User</th>
+                    <th>Source</th>
                     <th>Sévérité</th>
                     <th>Statut</th>
-                    <th>Signalements</th>
-                    <th>Contenu</th>
+                    <th>Menace</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.id}</td>
+                  {data.items.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.id}</td>
+                      <td>{r.username}</td>
+                      <td>{r.source}</td>
                       <td>
-                        <span className={`pill sev-${t.severity?.toLowerCase()}`}>
-                          {t.severity}
+                        <span
+                          className={`pill sev-${String(r.severity).toLowerCase()}`}
+                        >
+                          {r.severity}
                         </span>
                       </td>
-                      <td>{t.status}</td>
-                      <td>{t.report_count}</td>
-                      <td className="clip" title={t.content}>
-                        {t.content}
+                      <td>{r.status}</td>
+                      <td className="clip" title={r.threat_preview}>
+                        #{r.threat_id} · {r.threat_preview}
                       </td>
                       <td className="actions">
-                        {STATUSES.filter((s) => s !== t.status).map((s) => (
+                        {r.status === "ACTIVE" ? (
                           <button
-                            key={s}
                             type="button"
-                            className="btn small"
-                            disabled={busyId === t.id}
-                            onClick={() => changeStatus(t.id, s)}
+                            className="btn small danger"
+                            disabled={busyId === r.id}
+                            onClick={() => onWithdraw(r.id)}
                           >
-                            {busyId === t.id ? <span className="btn-spinner" /> : null}
-                            {s}
+                            {busyId === r.id ? <span className="btn-spinner" /> : null}
+                            Retirer
                           </button>
-                        ))}
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

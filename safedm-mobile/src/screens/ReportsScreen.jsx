@@ -6,16 +6,18 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { ApiError } from "../api/client";
 import { listMyReports, withdrawReport } from "../api/reports";
 import Button from "../components/Button";
+import { IconGlyph } from "../components/Icons";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
 import { severityToLevel } from "../utils/risk";
 import { colors, radii } from "../theme/tokens";
 
 export default function ReportsScreen() {
+  const navigation = useNavigation();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -78,8 +80,15 @@ export default function ReportsScreen() {
         Messages que vous avez explicitement signalés à la communauté.
       </Text>
 
+      <Button
+        label="Signaler un message"
+        onPress={() => navigation.navigate("DirectReport")}
+        icon={<IconGlyph name="flag" color={colors.white} size={16} />}
+        style={{ marginBottom: 20 }}
+      />
+
       {loading ? (
-        <ActivityIndicator color={colors.bluePrimary} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.bluePrimary} style={{ marginTop: 8 }} />
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 

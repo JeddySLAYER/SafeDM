@@ -20,6 +20,43 @@ class ApplicationRepository:
     def get_by_id(self, application_id: int) -> SupportedApplication | None:
         return self.db.get(SupportedApplication, application_id)
 
+    def get_by_package(self, package_name: str) -> SupportedApplication | None:
+        return self.db.scalar(
+            select(SupportedApplication).where(
+                SupportedApplication.package_name == package_name
+            )
+        )
+
+    def get_or_create_by_package(
+        self,
+        *,
+        package_name: str,
+        name: str,
+    ) -> SupportedApplication:
+        existing = self.get_by_package(package_name)
+        if existing:
+            label = (name or "").strip()
+            if (
+                label
+                and existing.name != label
+                and existing.name in (package_name, existing.package_name)
+            ):
+                existing.name = label[:64]
+                self.db.commit()
+                self.db.refresh(existing)
+            return existing
+
+        label = (name or "").strip() or package_name
+        app = SupportedApplication(
+            name=label[:64],
+            package_name=package_name.strip()[:255],
+            is_enabled=True,
+        )
+        self.db.add(app)
+        self.db.commit()
+        self.db.refresh(app)
+        return app
+
 
 class MonitoringRepository:
     def __init__(self, db: Session):
@@ -32,7 +69,9 @@ class MonitoringRepository:
                 .options(joinedload(MonitoringPreference.application))
                 .where(MonitoringPreference.user_id == user_id)
                 .order_by(MonitoringPreference.application_id)
-            ).unique().all()
+            )
+            .unique()
+            .all()
         )
 
     def upsert(

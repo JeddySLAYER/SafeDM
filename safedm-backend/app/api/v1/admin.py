@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_admin
 from app.models import User
-from app.models.enums import ThreatStatus
+from app.models.enums import ReportStatus, ThreatStatus
 from app.schemas.admin import (
+    AdminReportListResponse,
     AdminStatsResponse,
     AdminThreatListResponse,
     AdminUserListResponse,
@@ -19,7 +20,7 @@ from app.schemas.guide import (
     GuideCategoryResponse,
     GuideCategoryUpdateRequest,
 )
-from app.schemas.report import ThreatResponse
+from app.schemas.report import ReportResponse, ThreatResponse
 from app.services.admin_service import AdminService
 from app.services.guide_service import GuideService
 
@@ -46,6 +47,30 @@ def admin_list_users(
     return AdminService(db).list_users(page=page, page_size=page_size)
 
 
+@router.get("/reports", response_model=AdminReportListResponse)
+def admin_list_reports(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status_filter: ReportStatus | None = Query(default=None, alias="status"),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).list_reports(
+        page=page, page_size=page_size, status=status_filter
+    )
+
+
+@router.delete("/reports/{report_id}", response_model=ReportResponse)
+def admin_withdraw_report(
+    report_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).withdraw_report(report_id)
+
+
 @router.get("/guide/categories", response_model=list[GuideCategoryResponse])
 def admin_list_guide_categories(
     current_admin: User = Depends(get_current_admin),
@@ -53,6 +78,16 @@ def admin_list_guide_categories(
 ):
     _ = current_admin
     return GuideService(db).list_categories(published_only=False)
+
+
+@router.get("/guide/articles/{article_id}", response_model=GuideArticleResponse)
+def admin_get_article(
+    article_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return GuideService(db).get_article(article_id, published_only=False)
 
 
 @router.get("/threats", response_model=AdminThreatListResponse)

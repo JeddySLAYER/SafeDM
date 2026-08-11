@@ -33,7 +33,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <Screen scroll contentStyle={styles.content}>
-      <BrandMark size={40} centered />
+      <BrandMark size={52} centered />
       <Text style={styles.title}>Se connecter</Text>
       <Text style={styles.subtitle}>Accédez à votre espace de protection</Text>
 
@@ -54,10 +54,6 @@ export default function LoginScreen({ navigation }) {
         secureTextEntry
         autoComplete="password"
       />
-
-      <Pressable style={styles.forgotWrap} onPress={() => {}}>
-        <Text style={styles.forgot}>Mot de passe oublié ?</Text>
-      </Pressable>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -95,8 +91,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
-  forgotWrap: { alignSelf: "flex-end", marginBottom: 20, marginTop: -4 },
-  forgot: { color: colors.bluePrimary, fontWeight: "600", fontSize: 13 },
   error: { color: "#F04438", marginBottom: 12 },
   dividerRow: {
     flexDirection: "row",

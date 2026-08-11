@@ -24,3 +24,4 @@ class ThreatType(str, enum.Enum):
 class AnalysisSource(str, enum.Enum):
     NOTIFICATION = "NOTIFICATION"
     MANUAL = "MANUAL"
+    LINK_GATE = "LINK_GATE"

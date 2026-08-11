@@ -37,6 +37,19 @@ export function updateThreatStatus(id, status) {
   });
 }
 
+export function getReports({ page = 1, pageSize = 20, status } = {}) {
+  const q = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (status) q.set("status", status);
+  return apiRequest(`/admin/reports?${q}`);
+}
+
+export function withdrawReport(id) {
+  return apiRequest(`/admin/reports/${id}`, { method: "DELETE" });
+}
+
 export function getUsers({ page = 1, pageSize = 20 } = {}) {
   return apiRequest(`/admin/users?page=${page}&page_size=${pageSize}`);
 }
@@ -45,8 +58,23 @@ export function getGuideCategories() {
   return apiRequest("/admin/guide/categories");
 }
 
+export function getArticle(id) {
+  return apiRequest(`/admin/guide/articles/${id}`);
+}
+
 export function createCategory(payload) {
   return apiRequest("/admin/guide/categories", { method: "POST", body: payload });
+}
+
+export function updateCategory(id, payload) {
+  return apiRequest(`/admin/guide/categories/${id}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export function deleteCategory(id) {
+  return apiRequest(`/admin/guide/categories/${id}`, { method: "DELETE" });
 }
 
 export function createArticle(payload) {

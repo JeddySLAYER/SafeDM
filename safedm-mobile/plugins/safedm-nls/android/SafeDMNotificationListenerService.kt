@@ -14,6 +14,7 @@ class SafeDMNotificationListenerService : NotificationListenerService() {
     if (sbn == null || sbn.isOngoing) return
 
     val packageName = sbn.packageName ?: return
+    val configured = SafeDMNotificationsModule.isMonitoringConfigured(applicationContext)
     val stored = SafeDMNotificationsModule.monitoredPackages(applicationContext)
     val defaults = setOf(
       "com.whatsapp",
@@ -24,7 +25,12 @@ class SafeDMNotificationListenerService : NotificationListenerService() {
       "com.google.android.gm",
       "com.microsoft.office.outlook",
     )
-    val allowed = if (stored.isEmpty()) defaults else stored
+    // Jamais configuré → defaults. Configuré + vide → rien. Sinon liste choisie.
+    val allowed = when {
+      !configured -> defaults
+      stored.isEmpty() -> emptySet()
+      else -> stored
+    }
     if (packageName !in allowed) {
       return
     }
