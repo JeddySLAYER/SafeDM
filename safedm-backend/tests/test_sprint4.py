@@ -230,7 +230,7 @@ def test_admin_stats_and_threat_moderation(user_auth, admin_auth):
     body = stats.json()
     assert body["users_count"] >= 1
     assert body["threats_active_count"] >= 1
-    assert "gemini_configured" in body
+    assert "jev_configured" in body
 
     users = client.get("/api/v1/admin/users", headers=admin_auth["headers"])
     assert users.status_code == 200

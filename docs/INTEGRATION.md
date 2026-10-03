@@ -77,6 +77,6 @@ npx expo run:android
 
 - Remplacer HTTP par **HTTPS**
 - Restreindre `CORS_ORIGINS`
-- `ANALYSIS_DEMO_MODE=false` + vraies clés Gemini/VT
+- `ANALYSIS_DEMO_MODE=false` + vraies clés Jev (`TYPESAFE_API_KEY`) / VT
 - `SECRET_KEY` fort
 - Voir `docs/SECURITY.md`

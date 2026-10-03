@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.models.enums import ThreatSeverity, VirusTotalResult
 from app.schemas.analysis import UrlAnalysisResult
 from app.schemas.analysis_enums import ThreatType
-from app.services.gemini_types import GeminiResult
+from app.services.semantic_types import SemanticResult
 from app.utils.url_extraction import extract_domain
 
 _URGENT = ("urgent", "immédiat", "immediat", "sous 24h", "dernier avertissement")
@@ -13,7 +13,7 @@ _PHISH = ("mot de passe", "password", "otp", "code de vérification", "validez v
 _SENSITIVE = ("rib", "carte bancaire", "numéro de carte", "cvv", "sécurité sociale")
 
 
-def demo_gemini_analyze(content: str) -> GeminiResult:
+def demo_jev_analyze(content: str, urls: list[str] | None = None) -> SemanticResult:
     text = content.lower()
     score = 15
     reasons: list[str] = []
@@ -55,13 +55,16 @@ def demo_gemini_analyze(content: str) -> GeminiResult:
             "Ne fournir aucune information personnelle",
         ]
 
-    return GeminiResult(
+    return SemanticResult(
         available=True,
         risk_score=score,
         severity=severity,
         threat_type=threat_type,
         reasons=reasons or ["Aucun signal fort détecté (mode démo)"],
         recommendations=recommendations,
+        # En mode demo aucun juge reel n'intervient : on simule une confiance elevee
+        # pour ne pas declencher le routage d'incertitude et fausser la demo.
+        confidence=0.95,
         error=None,
         raw={"demo": True},
     )

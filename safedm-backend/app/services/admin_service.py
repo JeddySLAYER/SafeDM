@@ -154,11 +154,11 @@ class AdminService:
             for t in top_rows
         ]
 
-        gemini_configured = bool(settings.gemini_api_key)
+        jev_configured = bool(settings.typesafe_api_key)
         vt_configured = bool(settings.virustotal_api_key)
         provider_health = ProviderHealth(
-            gemini_configured=gemini_configured,
-            gemini_ok=gemini_configured or settings.analysis_demo_mode,
+            jev_configured=jev_configured,
+            jev_ok=jev_configured or settings.analysis_demo_mode,
             virustotal_configured=vt_configured,
             virustotal_ok=vt_configured or settings.analysis_demo_mode,
             analysis_demo_mode=settings.analysis_demo_mode,
@@ -167,7 +167,7 @@ class AdminService:
                 if settings.analysis_demo_mode
                 else (
                     "Clés API présentes"
-                    if gemini_configured and vt_configured
+                    if jev_configured and vt_configured
                     else "Au moins une clé API manquante"
                 )
             ),
@@ -179,10 +179,10 @@ class AdminService:
             reports_withdrawn_count=reports_withdrawn,
             threats_active_count=threats_active,
             threats_dismissed_count=threats_dismissed,
-            threats_under_review_count=threats_under_review,
+threats_under_review_count=threats_under_review,
             guide_articles_published=int(articles_published or 0),
             supported_applications=int(apps or 0),
-            gemini_configured=gemini_configured,
+            jev_configured=jev_configured,
             virustotal_configured=vt_configured,
             analysis_demo_mode=settings.analysis_demo_mode,
             severity_distribution=severity_distribution,

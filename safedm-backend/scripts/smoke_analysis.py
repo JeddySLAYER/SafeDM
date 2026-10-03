@@ -101,8 +101,8 @@ def main() -> int:
             failures.append("raw_hash invalid")
 
         providers = body.get("providers") or {}
-        gemini_ok = providers.get("gemini", {}).get("available")
-        if gemini_ok:
+        jev_ok = providers.get("jev", {}).get("available")
+        if jev_ok:
             # Mode demo ou cles reelles : un message phishing+lien doit etre dangereux
             if body.get("status") != "DANGEROUS":
                 failures.append(f"expected DANGEROUS for phishing demo, got {body.get('status')}")
@@ -132,10 +132,10 @@ def main() -> int:
     if r.status_code != 200:
         failures.append(f"plain analysis failed: {r.status_code}")
     else:
-        gemini_ok = body.get("providers", {}).get("gemini", {}).get("available")
-        if not gemini_ok and body.get("status") == "SAFE":
-            failures.append("plain text became SAFE while Gemini unavailable")
-        elif gemini_ok and body.get("status") not in ("SAFE", "SUSPICIOUS", "PARTIAL"):
+        jev_ok = body.get("providers", {}).get("jev", {}).get("available")
+        if not jev_ok and body.get("status") == "SAFE":
+            failures.append("plain text became SAFE while Jev unavailable")
+        elif jev_ok and body.get("status") not in ("SAFE", "SUSPICIOUS", "PARTIAL"):
             # message benign en demo peut etre SAFE
             failures.append(f"unexpected plain status: {body.get('status')}")
         print("OK plain analysis")

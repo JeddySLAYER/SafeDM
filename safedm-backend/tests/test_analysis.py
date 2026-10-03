@@ -13,7 +13,7 @@ from app.schemas.analysis import CommunityMatch, UrlAnalysisResult
 from app.schemas.analysis_enums import AnalysisStatus, ThreatType
 from app.services.analysis_service import AnalysisService
 from app.services.fusion_service import fuse_analysis
-from app.services.gemini_types import GeminiResult
+from app.services.semantic_types import SemanticResult
 from app.utils.hashing import compute_normalized_hash, compute_raw_hash
 from app.utils.url_extraction import extract_urls
 
@@ -53,8 +53,8 @@ def test_hashes_stable_and_normalized():
     )
 
 
-def test_fusion_vt_malicious_overrides_medium_gemini():
-    gemini = GeminiResult(
+def test_fusion_vt_malicious_overrides_medium_semantic():
+    semantic = SemanticResult(
         available=True,
         risk_score=40,
         severity=ThreatSeverity.MEDIUM,
@@ -72,7 +72,7 @@ def test_fusion_vt_malicious_overrides_medium_gemini():
         )
     ]
     fused = fuse_analysis(
-        gemini=gemini,
+        semantic=semantic,
         url_results=urls,
         community=CommunityMatch(matched=False),
         urls_detected=True,
@@ -83,7 +83,7 @@ def test_fusion_vt_malicious_overrides_medium_gemini():
 
 
 def test_fusion_providers_down_never_safe():
-    gemini = GeminiResult(available=False, error="GEMINI_TIMEOUT")
+    semantic = SemanticResult(available=False, error="JEV_TIMEOUT")
     urls = [
         UrlAnalysisResult(
             url="https://x.test",
@@ -94,7 +94,7 @@ def test_fusion_providers_down_never_safe():
         )
     ]
     fused = fuse_analysis(
-        gemini=gemini,
+        semantic=semantic,
         url_results=urls,
         community=CommunityMatch(matched=False),
         urls_detected=True,
@@ -103,8 +103,8 @@ def test_fusion_providers_down_never_safe():
     assert fused["status"] != AnalysisStatus.SAFE
 
 
-def test_fusion_partial_when_only_gemini_down_but_vt_clean():
-    gemini = GeminiResult(available=False, error="GEMINI_API_KEY_MISSING")
+def test_fusion_partial_when_only_semantic_down_but_vt_clean():
+    semantic = SemanticResult(available=False, error="JEV_API_KEY_MISSING")
     urls = [
         UrlAnalysisResult(
             url="https://ok.test",
@@ -114,7 +114,7 @@ def test_fusion_partial_when_only_gemini_down_but_vt_clean():
         )
     ]
     fused = fuse_analysis(
-        gemini=gemini,
+        semantic=semantic,
         url_results=urls,
         community=CommunityMatch(matched=False),
         urls_detected=True,
@@ -136,7 +136,7 @@ def test_analysis_insufficient_content(auth_headers):
 
 
 def test_analysis_endpoint_with_mocked_providers(auth_headers, monkeypatch):
-    gemini = GeminiResult(
+    semantic = SemanticResult(
         available=True,
         risk_score=80,
         severity=ThreatSeverity.HIGH,
@@ -154,10 +154,10 @@ def test_analysis_endpoint_with_mocked_providers(auth_headers, monkeypatch):
         )
     ]
 
-    class FakeGemini:
-        def analyze(self, content: str):
+    class FakeJev:
+        def analyze(self, content: str, urls=None):
             assert "Urgent" in content
-            return gemini
+            return semantic
 
     class FakeVT:
         def scan_urls(self, urls: list[str]):
@@ -167,7 +167,7 @@ def test_analysis_endpoint_with_mocked_providers(auth_headers, monkeypatch):
     original = AnalysisService.analyze
 
     def patched_analyze(self, payload):
-        self.gemini = FakeGemini()
+        self.jev = FakeJev()
         self.virustotal = FakeVT()
         return original(self, payload)
 
@@ -211,9 +211,9 @@ def test_analysis_service_unit_no_persist():
 
     service = AnalysisService(
         db=db,
-        gemini=MagicMock(
+        jev=MagicMock(
             analyze=MagicMock(
-                return_value=GeminiResult(
+                return_value=SemanticResult(
                     available=True,
                     risk_score=10,
                     severity=ThreatSeverity.LOW,
@@ -243,15 +243,18 @@ def test_analysis_service_unit_no_persist():
 
 
 def test_analyze_url_gate_returns_decision(auth_headers, monkeypatch):
-    class FakeGemini:
-        def analyze(self, content):
-            return GeminiResult(
+    class FakeJev:
+        # JevService.analyze(content, urls) : les URLs sont passeees a part
+        # pour alimenter la question link_deception.
+        def analyze(self, content, urls=None):
+            return SemanticResult(
                 available=True,
                 risk_score=10,
                 severity=ThreatSeverity.LOW,
                 threat_type=ThreatType.NONE,
                 reasons=["Domaine courant"],
                 recommendations=["Rester vigilant"],
+                confidence=0.9,
             )
 
     class FakeVT:
@@ -270,7 +273,7 @@ def test_analyze_url_gate_returns_decision(auth_headers, monkeypatch):
 
     from app.services import analysis_service as mod
 
-    monkeypatch.setattr(mod, "GeminiService", FakeGemini)
+    monkeypatch.setattr(mod, "JevService", FakeJev)
     monkeypatch.setattr(mod, "VirusTotalService", FakeVT)
 
     response = client.post(

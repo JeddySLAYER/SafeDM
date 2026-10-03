@@ -1,16 +1,16 @@
 # SafeDM Backend
 
-API FastAPI pour SafeDM — analyse de messages suspects (Gemini + VirusTotal), authentification, signalements communautaires et guide CMS.
+API FastAPI pour SafeDM — analyse de messages suspects (Jev + VirusTotal), authentification, signalements communautaires et guide CMS.
 
 ## Prérequis
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) pour la gestion des dépendances
-- Base PostgreSQL : **Neon** (recommandé) ou PostgreSQL installé en local
+- Base PostgreSQL : **Neon** (recommandé) ou **Docker** ou PostgreSQL local
 
 ## Base de données
 
-### Neon (recommandé)
+### Neon (hébergé, recommandé pour le partage)
 
 1. Créer un projet sur https://neon.tech
 2. Copier la connection string **« pooled »** (l'hôte contient `-pooler`).
@@ -27,9 +27,28 @@ uv run python -m scripts.seed_guide
 
 > Si psycopg2 signale une erreur sur `channel_binding=require`, retirer uniquement ce paramètre de l'URL (garder `sslmode=require`).
 
+### Docker (recommandé en dev)
+
+```bash
+docker compose up -d          # démarre sur le port 55432
+docker compose ps             # attendre "healthy"
+docker compose psql           # shell SQL
+docker compose down -v        # arrêter et effacer les données
+```
+
+Puis dans `.env`, commenter la ligne Neon et décommenter celle du conteneur :
+
+```env
+DATABASE_URL=postgresql+psycopg2://safedm:safedm@localhost:55432/safedm
+```
+
+```bash
+uv run alembic upgrade head
+```
+
 ### PostgreSQL local (alternative, dev)
 
-1. Installer PostgreSQL depuis https://www.postgresql.org/download/windows/
+1. Installer PostgreSQL depuis https://www.postgresql.org/download/
 2. Créer un utilisateur et une base :
 
 ```sql
@@ -43,7 +62,13 @@ Ou via script :
 uv run python scripts/ensure_database.py
 ```
 
-`scripts/create_database.sql` est réservé au PostgreSQL local (Neon gère la création côté serveur).
+Puis les migrations :
+
+```bash
+uv run alembic upgrade head
+```
+
+> `scripts/create_database.sql` est réservé au PostgreSQL local (Neon gère la création côté serveur).
 
 ## Setup
 
@@ -96,11 +121,19 @@ Aucune table d'historique d'analyses : les messages non signalés ne sont pas st
 |---------|-------|-------------|
 | POST | `/api/v1/analysis` | Analyse un message (JWT). Contenu **non stocké**. |
 
-Pipeline : hash → lookup communauté → Gemini → extraction URLs → VirusTotal → fusion.
+Pipeline : hash → lookup communauté → extraction URLs → Jev → VirusTotal → fusion.
+
+Jev reçoit les URLs déjà extraites dans `state`, ce qui évite un second aller-retour.
+Cinq questions en un seul appel : `verdict` (Choice), `urgency` (Score) et
+`credential_request` / `sensitive_data_request` / `link_deception` (trois Noul).
+Le score de risque est la somme des probabilités de verdicts malveillants, pas un entier inventé.
+`confidence` est la dispersion de la distribution du verdict : c'est ce qui permet le
+routage V2. En dessous de `0.40`, un verdict SAFE est dégradé en `PARTIAL` — un juge
+incertain ne réhabilite jamais un message.
 
 Statuts : `SAFE` | `SUSPICIOUS` | `DANGEROUS` | `UNKNOWN` | `PARTIAL` | `INSUFFICIENT_CONTENT`.
 
-Si Gemini ou VirusTotal est indisponible, le résultat est `UNKNOWN`/`PARTIAL` — **jamais** `SAFE` par défaut.
+Si Jev ou VirusTotal est indisponible, le résultat est `UNKNOWN`/`PARTIAL` — **jamais** `SAFE` par défaut.
 
 ### Mode démo local
 
@@ -110,7 +143,7 @@ Sans clés API, activer dans `.env` :
 ANALYSIS_DEMO_MODE=true
 ```
 
-Cela simule Gemini/VirusTotal pour valider le pipeline en local. Mettre `false` dès que les vraies clés sont configurées.
+Cela simule Jev/VirusTotal pour valider le pipeline en local. Mettre `false` dès que les vraies clés sont configurées.
 
 ### Smoke test
 
@@ -118,6 +151,45 @@ Cela simule Gemini/VirusTotal pour valider le pipeline en local. Mettre `false` 
 uv run uvicorn app.main:app --reload --port 8000
 uv run python scripts/smoke_analysis.py
 ```
+
+### Benchmark qualité Jev (Sprint 10)
+
+Mesure la qualité réelle du juge sur 28 SMS français/togolais étiquetés, avant
+de figer les seuils ou le schéma de features.
+
+```bash
+python scripts/benchmark_jev.py --out /tmp/jev_benchmark.json
+```
+
+Résultat mesuré le 2026-10-02 (`jev-latest`) :
+
+| Métrique | Valeur |
+|----------|--------|
+| Exactitude du verdict | 16/28 |
+| Menaces détectées (recall) | 17/17 — 100% |
+| Précision | 17/17 — 100% |
+| Faux positifs | 0 |
+| Score malveillants | min 83, moyenne 98 |
+| Score bénins | max 39, moyenne 9 |
+| Latence médiane | ~324 ms (1 appel, 5 questions) |
+
+11 des 12 écarts de verdict sont de la **confusion de taxonomie**
+(`phishing` ↔ `scam_financial` ↔ `social_engineering`) : les trois classes
+déclenchent la même action utilisateur et toutes les deux produisent un score
+~100. Pour SafeDM, ce sont une seule et même classe « menace ».
+
+La réécriture des questions Noul (frontières négatives explicites : *afficher*
+un OTP n'est pas *demander* un OTP) a fait passer la précision de 85% à 100% et
+la marge de séparation de 30 à 44 points. Voir `scripts/ab_jev_questions.py`.
+
+Les tests de non-régression contre l'API sont marqués `jev_benchmark`, donc
+**exclus par défaut** (ils consomment des crédits) :
+
+```bash
+python -m pytest tests/test_jev_benchmark.py -q -m jev_benchmark
+```
+
+La baseline figée est dans `tests/fixtures/jev_benchmark_baseline.json`.
 
 ## Auth & profil (Sprint 2)
 

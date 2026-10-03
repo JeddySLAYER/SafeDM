@@ -34,8 +34,8 @@ class TopThreatItem(BaseModel):
 
 
 class ProviderHealth(BaseModel):
-    gemini_configured: bool
-    gemini_ok: bool
+    jev_configured: bool
+    jev_ok: bool
     virustotal_configured: bool
     virustotal_ok: bool
     analysis_demo_mode: bool
@@ -51,7 +51,7 @@ class AdminStatsResponse(BaseModel):
     threats_under_review_count: int = 0
     guide_articles_published: int
     supported_applications: int
-    gemini_configured: bool
+    jev_configured: bool
     virustotal_configured: bool
     analysis_demo_mode: bool
     severity_distribution: list[SeverityBucket] = Field(default_factory=list)

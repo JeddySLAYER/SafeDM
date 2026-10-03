@@ -3,7 +3,7 @@
 ## Règles produit
 
 - Contenu des messages **non stocké** à l’analyse (uniquement après signalement explicite)
-- Clés Gemini / VirusTotal **uniquement** dans le backend `.env`
+- Clés Jev (TypeSafe) / VirusTotal **uniquement** dans le backend `.env`
 - API indisponible → `UNKNOWN` / `PARTIAL`, **jamais** `SAFE` par défaut
 - NotificationListener : lecture seule, **ne bloque ni ne modifie** les messages
 - Logs d’analyse : longueur / statut / score uniquement — **pas le contenu**

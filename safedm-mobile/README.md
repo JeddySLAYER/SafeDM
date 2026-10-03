@@ -56,6 +56,6 @@ app.config.js
 
 ## Notes
 
-- Clés Gemini / VirusTotal : jamais dans l’app  
+- Clés Jev (TypeSafe) / VirusTotal : jamais dans l’app  
 - NLS ne bloque / ne modifie aucun message  
 - Voir [`docs/INTEGRATION.md`](../docs/INTEGRATION.md)

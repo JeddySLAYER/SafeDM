@@ -1,0 +1,36 @@
+# PostgreSQL local pour developpement et tests.
+# Usage :  docker compose up -d
+#          docker compose psql   (shell)
+#          docker compose down -v  (reinitialise complet, efface les donnees)
+#
+# Les migrations alembic lisent DATABASE_URL dans .env ; ce service utilise le
+# meme couple identifiants/mot de passe pour que les deux se parlent.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: safedm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: safedm
+      POSTGRES_PASSWORD: safedm
+      POSTGRES_DB: safedm
+      # Initdb en UTF-8 : les corpus francais et les messages en francais
+      # contiendront des accents ; on ne veut pas dependre de la locale du conteneur.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # 5432 est aussi l'hote d'un postgres systeme possible ; on expose donc
+      # 55432 pour eviter un conflit. DATABASE_URL doit pointer ici.
+      - "55432:5432"
+    volumes:
+      - safedm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safedm -d safedm"]
+      interval: 5s
+      timeout: 5s
+      # 10 tentatives * 5s : postgres ne repond pas avant d'avoir fini initdb.
+      retries: 10
+      start_period: 10s
+
+volumes:
+  safedm-pgdata:

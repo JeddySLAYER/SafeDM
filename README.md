@@ -73,5 +73,5 @@ Admin dashboard : `python -m scripts.promote_admin <username>` depuis `safedm-ba
 ## Confidentialité
 
 - Messages analysés **non stockés** sauf signalement explicite
-- Clés Gemini / VirusTotal **uniquement** backend
+- Clés Jev (TypeSafe) / VirusTotal **uniquement** backend
 - API indisponible → `UNKNOWN` / `PARTIAL`, jamais `SAFE` par défaut

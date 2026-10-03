@@ -22,8 +22,8 @@ from app.schemas.analysis import (
 )
 from app.schemas.analysis_enums import AnalysisSource, AnalysisStatus, ThreatType
 from app.services.fusion_service import fuse_analysis
-from app.services.gemini_service import GeminiService
-from app.services.gemini_types import GeminiResult
+from app.services.jev_service import JevService
+from app.services.semantic_types import SemanticResult
 from app.services.virustotal_service import VirusTotalService
 from app.utils.hashing import compute_normalized_hash, compute_raw_hash
 from app.utils.url_extraction import extract_domain, extract_urls
@@ -94,11 +94,11 @@ class AnalysisService:
     def __init__(
         self,
         db: Session,
-        gemini: Optional[GeminiService] = None,
+        jev: Optional[JevService] = None,
         virustotal: Optional[VirusTotalService] = None,
     ):
         self.db = db
-        self.gemini = gemini or GeminiService()
+        self.jev = jev or JevService()
         self.virustotal = virustotal or VirusTotalService()
         self.threats = ThreatRepository(db)
 
@@ -132,7 +132,7 @@ class AnalysisService:
                     raw_hash=raw_hash,
                     normalized_hash=normalized_hash,
                 ),
-                providers={"gemini": {"skipped": True}, "virustotal": {"skipped": True}},
+                providers={"jev": {"skipped": True}, "virustotal": {"skipped": True}},
                 raw_hash=raw_hash,
                 normalized_hash=normalized_hash,
                 analyzed_at=datetime.now(timezone.utc),
@@ -140,12 +140,16 @@ class AnalysisService:
             )
 
         community = self.threats.find_by_hashes(raw_hash, normalized_hash)
-        gemini_result: GeminiResult = self.gemini.analyze(content)
         urls = extract_urls(content)
+
+        # Jev est interroge une seule fois, apres extraction des URLs :
+        # `urls` sert a la question link_deception et evite un second aller-retour.
+        semantic_result: SemanticResult = self.jev.analyze(content, urls)
+
         url_results = self.virustotal.scan_urls(urls) if urls else []
 
         fused = fuse_analysis(
-            gemini=gemini_result,
+            semantic=semantic_result,
             url_results=url_results,
             community=community,
             urls_detected=bool(urls),
@@ -178,7 +182,7 @@ class AnalysisService:
     def analyze_url(
         self, payload: UrlGateRequest, *, user_id: int | None = None
     ) -> UrlGateResponse:
-        """Pipeline Link Gate : VirusTotal obligatoire + communauté + Gemini léger."""
+        """Pipeline Link Gate : VirusTotal obligatoire + communauté + Jev léger."""
         url = payload.url.strip()
         domain = extract_domain(url)
         raw_hash = compute_raw_hash(url)
@@ -187,17 +191,17 @@ class AnalysisService:
         logger.info("link_gate_start domain=%s", domain)
 
         community = self.threats.find_by_url(url)
-        # Gemini analyse le contexte « lien » (pas le contenu d'une page)
-        prompt_content = (
-            f"Analyse ce lien reçu par un utilisateur. "
-            f"URL: {url}. Domaine: {domain or 'inconnu'}. "
-            "Indique si le domaine ou le motif ressemble à du phishing."
+        # Jev analyse le contexte « lien » (pas le contenu d'une page).
+        # On lui passe l'URL dans `state` plutot que dans le texte : c'est le
+        # champ prevu pour ca, et la question link_deception s'en sert.
+        semantic_result: SemanticResult = self.jev.analyze(
+            f"Lien recu par un utilisateur. Domaine: {domain or 'inconnu'}.",
+            [url],
         )
-        gemini_result: GeminiResult = self.gemini.analyze(prompt_content)
         url_results = self.virustotal.scan_urls([url])
 
         fused = fuse_analysis(
-            gemini=gemini_result,
+            semantic=semantic_result,
             url_results=url_results,
             community=community,
             urls_detected=True,
