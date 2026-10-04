@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
 
 from fastapi import HTTPException, status
 from sqlalchemy import cast, Date, func, select
@@ -6,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models import (
+    AccessAuditLog,
     CommunityReport,
     Device,
     GuideArticle,
@@ -54,6 +57,21 @@ class AdminService:
     def stats(self) -> AdminStatsResponse:
         """Stats admin — requêtes agrégées (évite 10+ round-trips vers Neon)."""
         settings = get_settings()
+        model_metrics = {}
+        try:
+            manifest = json.loads(
+                Path(settings.model_patch_manifest_path).read_text(encoding="utf-8")
+            )
+            model_metrics = {
+                "version": manifest.get("version"),
+                "recall": manifest.get("metrics", {}).get("recall"),
+                "false_positive_rate": manifest.get("metrics", {}).get(
+                    "false_positive_rate"
+                ),
+                "status": manifest.get("metrics", {}).get("status", "unavailable"),
+            }
+        except (FileNotFoundError, json.JSONDecodeError):
+            model_metrics = {"status": "unavailable"}
 
         # 1 round-trip : compteurs scalaires
         users_count, apps, articles_published, link_events = self.db.execute(
@@ -190,7 +208,75 @@ threats_under_review_count=threats_under_review,
             top_reported_threats=top_reported,
             provider_health=provider_health,
             link_gate_events_count=int(link_events or 0),
+            model_metrics=model_metrics,
         )
+
+    def operations_overview(self) -> dict:
+        """Return operational facts for the admin UI without exposing content."""
+        settings = get_settings()
+        manifest = {}
+        manifest_path = Path(settings.model_patch_manifest_path)
+        try:
+            loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = loaded_manifest if isinstance(loaded_manifest, dict) else {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            manifest = {}
+
+        metrics = manifest.get("metrics") or {}
+        rollout = manifest.get("rollout") or {}
+        audit_rows = self.db.execute(
+            select(AccessAuditLog, User.username)
+            .join(User, User.id == AccessAuditLog.user_id)
+            .order_by(AccessAuditLog.created_at.desc())
+            .limit(50)
+        ).all()
+
+        return {
+            "patch": {
+                "version": manifest.get("version"),
+                "status": metrics.get("status", "unavailable"),
+                "rollout_percentage": rollout.get("percentage", 0),
+                "recall": metrics.get("recall"),
+                "false_positive_rate": metrics.get("false_positive_rate"),
+            },
+            "aggregation": {
+                "last_run": (
+                    datetime.fromtimestamp(
+                        manifest_path.stat().st_mtime, tz=timezone.utc
+                    ).isoformat()
+                    if manifest_path.exists()
+                    else None
+                ),
+                "source": "filesystem",
+                "note": "Le job Cloud Run/Scheduler doit être déployé pour automatiser ce cycle.",
+            },
+            "policy": {
+                "thresholds": {
+                    "safe_score": settings.threshold_safe_score,
+                    "suspicious_score": settings.threshold_suspicious_score,
+                    "critical_score": settings.threshold_critical_score,
+                    "escalation_confidence": settings.threshold_escalation_confidence,
+                },
+                "note": "Les seuils par entreprise/région nécessitent encore un stockage de configuration dédié.",
+            },
+            "retention": {
+                "inactive_months": 6,
+                "status": "configured",
+                "last_audit": None,
+                "note": "La suppression doit être exécutée par le job de rétention planifié.",
+            },
+            "audit": [
+                {
+                    "id": entry.id,
+                    "username": username,
+                    "action": entry.action,
+                    "resource": entry.resource,
+                    "purpose": entry.purpose,
+                    "created_at": entry.created_at.isoformat(),
+                }
+                for entry, username in audit_rows
+            ],
+        }
 
     def list_users(self, *, page: int = 1, page_size: int = 20) -> AdminUserListResponse:
         page = max(1, page)

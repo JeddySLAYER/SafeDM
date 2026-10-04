@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     virustotal_base_url: str = "https://www.virustotal.com/api/v3"
     virustotal_timeout_seconds: int = 30
     fingerprint_private_key_pem_b64: str = ""
+    model_patch_manifest_path: str = "artifacts/weekly/latest.json"
+    model_patch_url: str = ""
+    model_patch_artifact_sha256: str = ""
+    model_patch_signing_key_pem_b64: str = ""
 
     # --- Seuils de decision (politique produit, pas technique) -------------
     # Policy de decision,see docs/FEATURE_SCHEMA.md et le benchmark Sprint 10.

@@ -12,10 +12,11 @@ function base64ToBytes(value) {
   return Uint8Array.from(Buffer.from(value, "base64"));
 }
 
-export async function encryptFingerprintPayload(payload) {
+export async function encryptPayload(payload) {
   if (!FINGERPRINT_PUBLIC_KEY || !globalThis.crypto?.subtle) {
     throw new Error("Le chiffrement des signalements n'est pas configuré.");
   }
+
   const publicKey = await crypto.subtle.importKey(
     "spki",
     base64ToBytes(FINGERPRINT_PUBLIC_KEY),
@@ -47,3 +48,5 @@ export async function encryptFingerprintPayload(payload) {
     ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
   };
 }
+
+export const encryptFingerprintPayload = encryptPayload;

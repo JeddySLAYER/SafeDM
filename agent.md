@@ -347,6 +347,76 @@ compatibilité avec Expo SDK 52.*
   `assets/models/safedm_v3.tflite`) ; `LOCAL_MODEL_URI` ne sert que de
   surcharge contrôlée. `react-native-quick-crypto@1.x` est maintenant installé
   et initialisé dans `index.js` pour l'enveloppe fingerprint.
+- Sprint 4 implémenté : le chemin d'incertitude affiche un consentement
+  explicite avant tout appel distant. Après acceptation, l'app chiffre
+  uniquement le vecteur V3 de 50 features et appelle `POST /analysis/features`;
+  le texte n'est pas inclus dans la requête. Le backend déchiffre en mémoire,
+  appelle `JevService.analyze_features`, ne persiste rien et renvoie une
+  réponse fusionnée. Refus, absence de clé ou hors-ligne restent des chemins
+  non bloquants vers la décision locale/signalement manuel.
+- Review Sprint 4 : tests backend ciblés `13 passed`, tests mobiles `9 passed`,
+  compilation Python et `git diff --check` réussis. Le benchmark Android réel
+  reste à faire sur un appareil/ADB disponible. La recherche communautaire
+  confirme la minimisation des données, le consentement comme garde réseau et
+  le traitement des vecteurs comme données potentiellement sensibles ; le
+  vecteur reste donc chiffré en enveloppe et non persisté.
+- Sprint 5 démarré : `weekly_patch_service.py` agrège uniquement les
+  métadonnées anonymes des rapports actifs des 7 derniers jours et génère un
+  manifeste déterministe `policy-<timestamp>.json` avec checksum, seuils,
+  métriques explicitement `unlabeled_data` et rollout canary à 1%. Le job
+  `scripts/generate_weekly_patch.py` est prévu pour Cloud Run Job + Cloud
+  Scheduler et supporte les retries par sortie déterministe.
+- Le mobile peut récupérer `/models/latest`, sélectionner les appareils canary
+  par identifiant stable, télécharger un modèle TFLite, vérifier son SHA-256 et
+  l'activer via AsyncStorage sans mise à jour du store. Une URL de modèle doit
+  être fournie par `MODEL_PATCH_URL`; sans manifeste ou URL valide, le modèle
+  bundlé reste utilisé.
+- Revue Sprint 5 corrigée : le checksum du fichier `.tflite` est maintenant
+  séparé du checksum du manifeste (`artifact_sha256` vs `manifest_sha256`).
+  L'ancien contrat envoyait le hash du manifeste comme si c'était le hash du
+  modèle, ce qui pouvait rejeter tous les téléchargements valides.
+  L'activation mobile vérifie aussi l'existence locale, impose une URL HTTPS et
+  retombe sur le modèle bundlé si le modèle distant échoue au chargement.
+- Sprint 6 implémenté : ajout de `access_audit_logs` (migration Alembic 0003)
+  avec acteur, action, ressource, finalité et horodatage pour les lectures de
+  la base de signatures. Le contrat hors-ligne conserve le modèle bundlé et
+  les métriques de correctif refusent de déclarer rappel/faux positifs sans
+  labels (`unlabeled_data`).
+- Le dashboard admin expose maintenant les métriques du manifeste (rappel et
+  faux positifs) en affichant `N/D` tant que le manifeste n'a pas de labels ;
+  le volume des signalements existait déjà dans les statistiques 7 jours.
+- Le rafraîchissement du manifeste est maintenant lancé au démarrage de
+  l'application mobile. Toute indisponibilité réseau est absorbée et conserve
+  le modèle bundlé ; aucune mise à jour distante ne bloque l'inférence.
+- Revue générale : `/models/latest` exige maintenant l'authentification
+  utilisateur et renvoie `Cache-Control: no-store`; un manifeste sans version
+  est rejeté. Le modèle reste donc distribué par le chemin authentifié et
+  vérifié par checksum côté appareil.
+- Signature des manifestes ajoutée : le job signe le manifeste avec RSA
+  PKCS#1 v1.5/SHA-256 et le mobile vérifie la signature avec une clé publique
+  distincte avant téléchargement. Générer les clés avec
+  `scripts/generate_model_signing_key.py`; la clé privée doit rester dans
+  Secret Manager et seule la clé publique doit entrer dans la configuration
+  mobile.
+- Des fichiers de déploiement de référence sont présents sous `deploy/` pour
+  Cloud Run Job et les variables Cloud Run. Ils restent volontairement
+  paramétrés : le projet GCP, la région, le registre, les secrets et le bucket
+  doivent être fournis avant exécution.
+- État d'atteinte des objectifs : les Sprints 0-6 sont couverts par le code
+  et les tests ciblés, mais la cible d'infrastructure n'est pas encore
+  entièrement atteinte. Les signatures restent dans PostgreSQL (pas Firestore),
+  les artefacts restent dans le répertoire local (pas Firebase Storage/GCS),
+  et aucun Cloud Scheduler/Cloud Run Job n'est déployé depuis ce dépôt.
+  Le benchmark Android réel et la mesure de rappel/faux positifs sur un jeu
+  labellisé restent également ouverts.
+- Inventaire final : réutiliser `feature_extraction.py`, les repositories,
+  `AnalysisService`, `JevService` et les écrans existants; modifier les routes
+  d'analyse, le consentement, la classification TFLite et les mises à jour de
+  modèle; conserver VirusTotal uniquement pour les URLs; ne pas utiliser le
+  chemin fastText pour la décision officielle.
+- Correction de la migration d'audit : elle fusionne explicitement les deux
+  branches Alembic historiques `0002_link_gate_events` et
+  `0002_similarity_fingerprint_reports`, évitant un head multiple au déploiement.
 - Revue de transition Sprint 3 : les tables SQL `threats` et
   `community_reports`, les endpoints `/reports` et les hachages SHA-256
   existent déjà et sont réutilisables. En revanche, le hachage de similarité
@@ -393,3 +463,45 @@ Je commence par :
 3. Valider avec un test rapide
 
 Passons à l'action.
+
+## Sprint 7 — Administration production et exploitation
+
+**Décision :** le dashboard reste React/Vite. Une migration SvelteKit a été
+écartée pour éviter deux runtimes et une réécriture sans bénéfice opérationnel
+immédiat.
+
+**Livré :**
+- appels API et états de chargement de `StatsPage` déplacés dans des hooks
+  réutilisables (`useAsyncResource`, `useAdminStats`) ;
+- nouvelle page Opérations (`/operations`) couvrant le manifest/canary, le
+  dernier cycle d'agrégation, le journal d'audit récent, les seuils actuels et
+  la rétention ;
+- endpoint backend authentifié `/api/v1/admin/operations/overview` ;
+- surfaces admin aplaties : couleurs pleines, hiérarchie par espacement,
+  bordures et rayons réduits, sans gradients ni décoration superflue ;
+- guide de déploiement production dans
+  `docs/PRODUCTION_DEPLOYMENT.md`.
+
+**Limites explicites à traiter avant un pilote entreprise :**
+- Firebase Auth et custom claims ne sont pas encore la source d'identité de
+  l'API ; l'autorisation backend JWT `is_admin` reste active ;
+- la configuration par entreprise/région n'est pas encore persistée ;
+- l'agrégation est encore signalée depuis le manifest local tant que Cloud Run
+  Job, Scheduler et stockage objet ne sont pas déployés ;
+- l'endpoint d'opérations expose uniquement les données déjà vérifiables et ne
+  simule aucune métrique manquante.
+
+### Passe UX/UI — chargement, cache et hiérarchie
+
+- `useAsyncResource` fournit maintenant cache `sessionStorage` à TTL, cache
+  stale-while-refresh, annulation des requêtes précédentes avec
+  `AbortController`, erreurs explicites et distinction `loading`/`refreshing`.
+- `StatsPage` et `OperationsPage` affichent un skeleton initial, un indicateur
+  de fraîcheur et une actualisation sans effacer les données déjà visibles.
+- La déconnexion invalide les caches admin ; une réponse 401 déclenche le même
+  nettoyage via `clearSession`.
+- Les surfaces ont été aplaties : statistiques sous forme de repères visuels,
+  panneaux sans ombres ni bordures décoratives, espacements et contrastes
+  utilisés pour la hiérarchie, et états vides/erreurs conservés.
+- Les appels acceptent désormais un `AbortSignal`, afin d'éviter qu'une
+  réponse obsolète ne remplace une donnée plus récente.

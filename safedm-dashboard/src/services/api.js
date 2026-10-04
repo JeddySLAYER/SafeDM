@@ -13,6 +13,10 @@ export function setSession(token, user) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem("safedm_admin_stats_cache");
+    sessionStorage.removeItem("safedm_admin_operations_cache");
+  }
 }
 
 export function getStoredUser() {
@@ -37,7 +41,10 @@ function formatDetail(detail) {
   return JSON.stringify(detail);
 }
 
-export async function apiRequest(path, { method = "GET", body, auth = true } = {}) {
+export async function apiRequest(
+  path,
+  { method = "GET", body, auth = true, signal } = {},
+) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (auth) {
@@ -51,6 +58,7 @@ export async function apiRequest(path, { method = "GET", body, auth = true } = {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   });
   const ms = Math.round(performance.now() - started);
   if (import.meta.env.DEV) {

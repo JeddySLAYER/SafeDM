@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import { encryptPayload } from "../services/fingerprintEnvelope";
 
 function gateFromMessageAnalysis(result, url) {
   const status = (result?.status || "").toUpperCase();
@@ -48,6 +49,15 @@ export function analyzeMessage(payload) {
       consent_external: payload.consentExternal === true,
     },
   });
+}
+
+export function analyzeFeatureVector(features) {
+  return encryptPayload({ features }).then((envelope) =>
+    apiRequest("/analysis/features", {
+      method: "POST",
+      body: { ...envelope, consent_external: true },
+    }),
+  );
 }
 
 /**

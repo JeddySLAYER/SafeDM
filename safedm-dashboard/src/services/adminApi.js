@@ -17,8 +17,12 @@ export function logout() {
   clearSession();
 }
 
-export function getStats() {
-  return apiRequest("/admin/stats");
+export function getStats(options) {
+  return apiRequest("/admin/stats", options);
+}
+
+export function getOperationsOverview(options) {
+  return apiRequest("/admin/operations/overview", options);
 }
 
 export function getThreats({ page = 1, pageSize = 20, status } = {}) {

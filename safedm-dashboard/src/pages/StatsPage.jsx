@@ -1,75 +1,36 @@
-import { useEffect, useState } from "react";
-import { getStats } from "../services/adminApi";
+import { useMemo } from "react";
+import { useAdminStats } from "../hooks/useAdminStats";
 import {
   Alert,
   EmptyState,
   PageHeader,
   SkeletonCards,
   Spinner,
+  Freshness,
 } from "../components/ui";
 
-const STATS_CACHE_KEY = "safedm_admin_stats_cache";
-const STATS_TTL_MS = 20_000;
-
-function readStatsCache() {
-  try {
-    const raw = sessionStorage.getItem(STATS_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.data || !parsed?.at) return null;
-    if (Date.now() - parsed.at > STATS_TTL_MS) return null;
-    return parsed.data;
-  } catch {
-    return null;
-  }
-}
-
-function writeStatsCache(data) {
-  try {
-    sessionStorage.setItem(
-      STATS_CACHE_KEY,
-      JSON.stringify({ at: Date.now(), data }),
-    );
-  } catch {
-    /* ignore quota */
-  }
-}
-
 export default function StatsPage() {
-  const cached = readStatsCache();
-  const [stats, setStats] = useState(cached);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(!cached);
-  const [latencyMs, setLatencyMs] = useState(null);
-
-  async function load({ soft = false } = {}) {
-    if (!soft) setLoading(!stats);
-    setError("");
-    try {
-      const data = await getStats();
-      setStats(data);
-      writeStatsCache(data);
-      setLatencyMs(
-        typeof window !== "undefined" ? window.__safedmLastApiMs ?? null : null,
-      );
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load({ soft: Boolean(cached) });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { data: stats, error, loading, refreshing, updatedAt, refresh } = useAdminStats();
+  const modelMetrics = stats?.model_metrics || {};
+  const latencyMs =
+    typeof window !== "undefined" ? window.__safedmLastApiMs ?? null : null;
+  const maxDay = useMemo(
+    () =>
+      Math.max(
+        1,
+        ...(stats?.reports_last_7_days || []).map(
+          (d) => d.reports + d.threats,
+        ),
+      ),
+    [stats],
+  );
 
   if (error && !stats) {
     return (
       <div>
         <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
         <Alert tone="error">{error}</Alert>
-        <button type="button" className="btn primary" onClick={() => load()}>
+        <button type="button" className="btn primary" onClick={() => refresh()}>
           Réessayer
         </button>
       </div>
@@ -96,13 +57,20 @@ export default function StatsPage() {
     { label: "Articles publiés", value: stats.guide_articles_published },
     { label: "Apps supportées", value: stats.supported_applications },
     { label: "Link Gate (events)", value: stats.link_gate_events_count ?? 0 },
+    {
+      label: "Rappel modèle",
+      value: modelMetrics.recall == null ? "N/D" : `${(modelMetrics.recall * 100).toFixed(1)}%`,
+    },
+    {
+      label: "Faux positifs",
+      value:
+        modelMetrics.false_positive_rate == null
+          ? "N/D"
+          : `${(modelMetrics.false_positive_rate * 100).toFixed(1)}%`,
+    },
   ];
 
   const health = stats.provider_health;
-  const maxDay = Math.max(
-    1,
-    ...(stats.reports_last_7_days || []).map((d) => d.reports + d.threats),
-  );
 
   return (
     <div>
@@ -110,23 +78,19 @@ export default function StatsPage() {
         title="Stats"
         subtitle="Activité, providers et tendances (7 jours)."
         actions={
-          <button
-            type="button"
-            className="btn"
-            onClick={() => load({ soft: true })}
-            disabled={loading}
-          >
-            {loading ? <span className="btn-spinner" /> : null}
-            Actualiser
-          </button>
+          <>
+            <Freshness updatedAt={updatedAt} refreshing={refreshing} />
+            <button type="button" className="btn" onClick={() => refresh()} disabled={refreshing}>
+              {refreshing ? <span className="btn-spinner" /> : null}
+              Actualiser
+            </button>
+          </>
         }
       />
       {latencyMs != null ? (
         <p className="req-meta">Dernière requête stats : {latencyMs} ms</p>
       ) : null}
-      <Alert tone="error" onDismiss={() => setError("")}>
-        {error}
-      </Alert>
+      <Alert tone="error">{error}</Alert>
 
       <div className="stat-grid">
         {cards.map((c) => (
@@ -144,8 +108,8 @@ export default function StatsPage() {
             <ul className="health-list">
               <li className="health-row">
                 <span>Gemini</span>
-                <span className={`health-badge ${health.gemini_ok ? "ok" : "warn"}`}>
-                  {health.gemini_ok ? "OK" : "Manquant"}
+                <span className={`health-badge ${health.jev_ok ? "ok" : "warn"}`}>
+                  {health.jev_ok ? "OK" : "Manquant"}
                 </span>
               </li>
               <li className="health-row">
@@ -165,7 +129,7 @@ export default function StatsPage() {
             </ul>
           ) : (
             <ul className="plain-list">
-              <li>Gemini : {stats.gemini_configured ? "oui" : "non"}</li>
+              <li>Jev : {stats.jev_configured ? "oui" : "non"}</li>
               <li>VirusTotal : {stats.virustotal_configured ? "oui" : "non"}</li>
             </ul>
           )}

@@ -338,8 +338,15 @@ textarea {
 
 .page-header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.freshness {
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .alert {
@@ -425,6 +432,30 @@ textarea {
 
 .skeleton-card {
   min-height: 84px;
+}
+
+.skeleton-table {
+  display: grid;
+  gap: 1px;
+  padding: 14px;
+  background: #eef1f4;
+}
+
+.skeleton-table-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 14px 0;
+  background: var(--surface);
+}
+
+.skeleton-table-row .skeleton-line {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
 }
 
 .empty-state {
@@ -646,6 +677,64 @@ tr:last-child td {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.details-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.details-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.details-list div:last-child {
+  border-bottom: none;
+}
+
+.details-list dt {
+  color: var(--text-secondary);
+}
+
+.details-list dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 650;
+}
+
+.compact-note {
+  font-size: 0.82rem;
+  margin-bottom: 0;
+}
+
+/* Admin surfaces stay deliberately flat: hierarchy comes from spacing and color. */
+.panel,
+.stat-card,
+.table-wrap,
+.login-card {
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.stat-card {
+  border-bottom: 2px solid var(--blue);
+  padding: 14px 4px 12px;
+  background: transparent;
+}
+
+.panel {
+  padding: 18px;
+}
+
+.panel h2 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }
 
 .checkbox {

@@ -6,12 +6,15 @@ Important: le contenu analysé n'est JAMAIS persisté ici.
 from __future__ import annotations
 
 import logging
+import hashlib
+import base64
 from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.enums import ThreatSeverity, VirusTotalResult
+from app.core.config import get_settings
 from app.repositories.threat_repository import ThreatRepository
 from app.schemas.analysis import (
     AnalysisRequest,
@@ -19,7 +22,9 @@ from app.schemas.analysis import (
     CommunityMatch,
     UrlGateRequest,
     UrlGateResponse,
+    FeatureVectorAnalysisRequest,
 )
+from app.services.fingerprint_envelope import decrypt_fingerprint_envelope, FingerprintEnvelopeError
 from app.schemas.analysis_enums import AnalysisSource, AnalysisStatus, ThreatType
 from app.services.fusion_service import fuse_analysis
 from app.services.jev_service import JevService
@@ -187,6 +192,61 @@ class AnalysisService:
             providers=fused["providers"],
             raw_hash=raw_hash,
             normalized_hash=normalized_hash,
+            analyzed_at=datetime.now(timezone.utc),
+            content_stored=False,
+        )
+
+    def analyze_encrypted_features(
+        self, payload: FeatureVectorAnalysisRequest
+    ) -> AnalysisResponse:
+        if not payload.consent_external:
+            raise ValueError("consent_external must be true")
+        private_key = get_settings().fingerprint_private_key_pem_b64
+        if not private_key:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=503,
+                detail="Feature analysis encryption is not configured",
+            )
+        try:
+            envelope = decrypt_fingerprint_envelope(
+                payload.model_dump(),
+                base64.b64decode(private_key, validate=True).decode(),
+            )
+            features = envelope["features"]
+            if (
+                not isinstance(features, list)
+                or len(features) != 50
+                or any(
+                    not isinstance(value, int) or value < 0 or value > 255
+                    for value in features
+                )
+            ):
+                raise ValueError("invalid feature vector")
+        except (FingerprintEnvelopeError, KeyError, ValueError, TypeError) as exc:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Invalid feature envelope") from exc
+
+        raw_hash = hashlib.sha256(bytes(features)).hexdigest()
+        semantic = self.jev.analyze_features(features)
+        fused = fuse_analysis(
+            semantic=semantic,
+            url_results=[],
+            community=CommunityMatch(matched=False),
+            urls_detected=False,
+        )
+        return AnalysisResponse(
+            status=fused["status"],
+            risk_score=fused["risk_score"],
+            severity=fused["severity"],
+            threat_type=fused["threat_type"],
+            reasons=fused["reasons"],
+            recommendations=fused["recommendations"],
+            urls=[],
+            community=CommunityMatch(matched=False),
+            providers=fused["providers"],
+            raw_hash=raw_hash,
+            normalized_hash=raw_hash,
             analyzed_at=datetime.now(timezone.utc),
             content_stored=False,
         )

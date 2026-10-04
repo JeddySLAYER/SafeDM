@@ -23,6 +23,13 @@ class AnalysisRequest(BaseModel):
     consent_external: bool = False
 
 
+class FeatureVectorAnalysisRequest(BaseModel):
+    encrypted_key: str = Field(min_length=32, max_length=1024)
+    nonce: str = Field(min_length=16, max_length=64)
+    ciphertext: str = Field(min_length=16, max_length=16384)
+    consent_external: bool = True
+
+
 class UrlGateRequest(BaseModel):
     """Analyse d'un lien avant ouverture (Link Gate)."""
 

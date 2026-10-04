@@ -59,6 +59,7 @@ class AdminStatsResponse(BaseModel):
     top_reported_threats: list[TopThreatItem] = Field(default_factory=list)
     provider_health: Optional[ProviderHealth] = None
     link_gate_events_count: int = 0
+    model_metrics: dict = Field(default_factory=dict)
 
 
 class ThreatStatusUpdateRequest(BaseModel):
@@ -180,3 +181,20 @@ class LinkGateEventListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class AdminAuditItem(BaseModel):
+    id: int
+    username: str
+    action: str
+    resource: str
+    purpose: str
+    created_at: str
+
+
+class AdminOperationsOverview(BaseModel):
+    patch: dict
+    aggregation: dict
+    policy: dict
+    retention: dict
+    audit: list[AdminAuditItem] = Field(default_factory=list)

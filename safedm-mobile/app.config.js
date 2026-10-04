@@ -95,6 +95,7 @@ module.exports = {
       appVersion: "1.0.0",
       localModelUri: process.env.LOCAL_MODEL_URI || null,
       fingerprintPublicKey: process.env.FINGERPRINT_PUBLIC_KEY || null,
+      modelManifestPublicKey: process.env.MODEL_MANIFEST_PUBLIC_KEY || null,
       eas: {
         projectId: "bc025d6a-0110-4c6c-9ef9-e2a1c3d9a2b2",
       },

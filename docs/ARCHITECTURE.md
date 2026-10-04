@@ -37,6 +37,22 @@ intégration ; le code existant TypeSafe est réutilisé sans inventer d'API.
 - Persistance cible post-MVP : Firestore pour les signatures et Storage pour
   les versions de modèle/correctif. Le MVP existant PostgreSQL reste réutilisé
   tant que la migration n'est pas implémentée.
+- État actuel : le code de référence utilise encore PostgreSQL/SQLAlchemy et
+  le stockage local des artefacts. Firestore, Firebase Storage/GCS et les
+  déclenchements Cloud Scheduler doivent être provisionnés et validés avant
+  de déclarer le déploiement cible terminé.
+- Correctifs hebdomadaires : Cloud Scheduler déclenche un Cloud Run Job qui
+  produit un manifeste versionné et déterministe. Le déploiement commence à
+  1% des appareils via un bucket canary déterministe ; chaque modèle est
+  vérifié par SHA-256 avant activation. Les métriques de rappel et de faux
+  positifs restent `unlabeled_data` tant qu'un jeu de vérité terrain n'est pas
+  disponible : aucun gain ne doit être déclaré sans labels.
+- Les manifestes de modèles sont signés séparément du checksum de l'artefact.
+  Le client refuse tout manifeste sans signature vérifiable, puis vérifie le
+  SHA-256 du fichier téléchargé avant activation.
+- Accès à la base de signatures : les routes communautaires inscrivent un
+  audit minimal (acteur, action, ressource, finalité, horodatage). Le journal
+  ne contient ni message, ni vecteur, ni empreinte brute.
 
 ## Règle de cohérence
 

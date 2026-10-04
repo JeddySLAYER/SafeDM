@@ -7,6 +7,7 @@ from app.models import User
 from app.models.enums import ThreatStatus
 from app.schemas.report import ThreatListResponse, ThreatResponse
 from app.services.threat_service import ThreatService
+from app.services.audit_service import record_access
 
 router = APIRouter(prefix="/threats", tags=["threats"])
 
@@ -19,6 +20,14 @@ def list_community_threats(
     db: Session = Depends(get_db),
 ):
     _ = current_user
+    record_access(
+        db,
+        user_id=current_user.id,
+        action="list",
+        resource="threat_signatures",
+        purpose="community_analysis",
+    )
+    db.commit()
     return ThreatService(db).list_community(
         page=page,
         page_size=page_size,
@@ -33,4 +42,12 @@ def get_threat_by_hash(
     db: Session = Depends(get_db),
 ):
     _ = current_user
+    record_access(
+        db,
+        user_id=current_user.id,
+        action="read",
+        resource="threat_signature",
+        purpose="community_analysis",
+    )
+    db.commit()
     return ThreatService(db).get_by_hash(threat_hash)

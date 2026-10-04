@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -7,6 +7,7 @@ from app.models import User
 from app.schemas.analysis import (
     AnalysisRequest,
     AnalysisResponse,
+    FeatureVectorAnalysisRequest,
     UrlGateRequest,
     UrlGateResponse,
 )
@@ -25,6 +26,19 @@ def analyze_message(
     """Analyse un message. Le contenu n'est pas stocké côté serveur."""
     _ = current_user  # auth required
     return AnalysisService(db).analyze(payload)
+
+
+@router.post("/features", response_model=AnalysisResponse)
+def analyze_features(
+    payload: FeatureVectorAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyse uniquement le vecteur local, sans recevoir le texte."""
+    _ = current_user
+    if not payload.consent_external:
+        raise HTTPException(status_code=400, detail="Explicit consent is required")
+    return AnalysisService(db).analyze_encrypted_features(payload)
 
 
 @router.post("/link", response_model=UrlGateResponse)

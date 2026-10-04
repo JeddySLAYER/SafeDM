@@ -1,6 +1,7 @@
 """SQLAlchemy models for SafeDM."""
 
 from app.models.community_report import CommunityReport
+from app.models.access_audit_log import AccessAuditLog
 from app.models.device import Device
 from app.models.enums import (
     ReportSource,
@@ -27,6 +28,7 @@ __all__ = [
     "MonitoringPreference",
     "Threat",
     "CommunityReport",
+    "AccessAuditLog",
     "ThreatUrl",
     "VirusTotalScan",
     "GuideCategory",

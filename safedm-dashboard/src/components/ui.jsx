@@ -56,6 +56,29 @@ export function SkeletonCards({ count = 6 }) {
   );
 }
 
+export function SkeletonTable({ rows = 5, columns = 4 }) {
+  return (
+    <div className="skeleton-table" role="status" aria-label="Chargement des données">
+      {Array.from({ length: rows }).map((_, row) => (
+        <div className="skeleton-table-row" key={row}>
+          {Array.from({ length: columns }).map((_, column) => (
+            <div className="skeleton-line" key={column} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Freshness({ updatedAt, refreshing }) {
+  if (!updatedAt) return null;
+  return (
+    <span className="freshness" aria-live="polite">
+      {refreshing ? "Actualisation…" : `Mis à jour à ${new Date(updatedAt).toLocaleTimeString("fr-FR")}`}
+    </span>
+  );
+}
+
 export function EmptyState({ title, description, action }) {
   return (
     <div className="empty-state">

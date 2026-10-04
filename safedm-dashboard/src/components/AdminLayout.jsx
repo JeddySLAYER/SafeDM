@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
+  Settings2,
   ShieldAlert,
   Smartphone,
   Users,
@@ -20,6 +21,7 @@ const LINKS = [
   { to: "/applications", label: "Apps", icon: Smartphone },
   { to: "/users", label: "Utilisateurs", icon: Users },
   { to: "/guide", label: "Guide", icon: BookOpen },
+  { to: "/operations", label: "Opérations", icon: Settings2 },
 ];
 
 export default function AdminLayout() {

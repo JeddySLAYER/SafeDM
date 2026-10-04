@@ -5,6 +5,7 @@ import ApplicationsPage from "./pages/ApplicationsPage";
 import GuidePage from "./pages/GuidePage";
 import LinkGatePage from "./pages/LinkGatePage";
 import LoginPage from "./pages/LoginPage";
+import OperationsPage from "./pages/OperationsPage";
 import ReportsPage from "./pages/ReportsPage";
 import StatsPage from "./pages/StatsPage";
 import ThreatDetailPage from "./pages/ThreatDetailPage";
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="users/:userId" element={<UserDetailPage />} />
             <Route path="guide" element={<GuidePage />} />
+            <Route path="operations" element={<OperationsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

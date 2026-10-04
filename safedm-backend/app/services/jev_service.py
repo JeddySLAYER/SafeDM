@@ -215,6 +215,26 @@ class JevService:
 
         return self._to_result(response.answers, response)
 
+    def analyze_features(self, features: list[int]) -> SemanticResult:
+        """Analyse le vecteur engineered sans transmettre le contenu textuel."""
+        try:
+            response = self._get_client().system_one(
+                state={"features": features},
+                questions=_SEMANTIC_QUESTIONS,
+                model=self.settings.typesafe_model,
+            )
+        except (
+            TypeSafeAPITimeoutError,
+            TypeSafeAPIConnectionError,
+            TypeSafeAPIError,
+        ) as exc:
+            logger.error("Jev feature analysis failed: %s", type(exc).__name__)
+            return SemanticResult(available=False, error="TYPESAFE_FEATURE_ANALYSIS_FAILED")
+        except Exception:
+            logger.exception("Jev feature analysis unexpected error")
+            return SemanticResult(available=False, error="TYPESAFE_FEATURE_ANALYSIS_FAILED")
+        return self._to_result(response.answers, response)
+
     # -------------------------------------------------------------- conversion
 
     def _to_result(self, answers: dict[str, Any], response: Any) -> SemanticResult:

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -8,13 +9,16 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { ApiError } from "../api/client";
-import { analyzeMessage } from "../api/analysis";
+import { analyzeFeatureVector, analyzeMessage } from "../api/analysis";
 import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
 import { addAlertFromManualAnalysis } from "../services/alertsStore";
-import { classifyLocalMessage } from "../services/localThreatClassifier";
+import {
+  classifyLocalFeatures,
+  extractLocalFeatures,
+} from "../services/localThreatClassifier";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 1000;
@@ -49,8 +53,41 @@ export default function ManualAnalysisScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
-      const local = await classifyLocalMessage(text);
+      const features = await extractLocalFeatures(text);
+      const local = features
+        ? await classifyLocalFeatures(features)
+        : { decision: "UNAVAILABLE", confidence: null, riskScore: null };
       if (local.decision !== "UNAVAILABLE") {
+        if (local.decision === "UNCERTAIN") {
+          const remoteResult = await new Promise((resolve, reject) => {
+            Alert.alert(
+              "Analyse complémentaire",
+              "Le modèle local est incertain. Avec votre accord, seuls 50 paramètres numériques seront transmis au service d’analyse. Le texte ne sera pas envoyé.",
+              [
+                {
+                  text: "Refuser",
+                  style: "cancel",
+                  onPress: () => resolve(null),
+                },
+                {
+                  text: "Autoriser",
+                  onPress: () =>
+                    analyzeFeatureVector(features)
+                      .then(resolve)
+                      .catch(() => resolve(null)),
+                },
+              ],
+            );
+          });
+          if (remoteResult) {
+            await addAlertFromManualAnalysis({ content: text, result: remoteResult });
+            navigation.navigate("AnalysisResult", {
+              result: remoteResult,
+              originalContent: text,
+            });
+            return;
+          }
+        }
         const result = {
           status:
             local.decision === "DANGEROUS"

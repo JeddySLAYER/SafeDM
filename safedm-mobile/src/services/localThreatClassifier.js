@@ -1,5 +1,6 @@
 import { LOCAL_MODEL_URI } from "../config";
 import { NativeModules } from "react-native";
+import { getStoredModelUri } from "./modelUpdate";
 import {
   createModelInput,
   decideLocalThreat,
@@ -9,16 +10,20 @@ import {
 let modelPromise;
 
 async function loadModel() {
-  const modelUri =
-    LOCAL_MODEL_URI || require("../../assets/models/safedm_v3.tflite");
+  const bundledModel = require("../../assets/models/safedm_v3.tflite");
+  const modelUri = (await getStoredModelUri()) || LOCAL_MODEL_URI || bundledModel;
   if (!modelPromise) {
     modelPromise = (async () => {
       // Lazy require keeps Expo/Jest usable when the native dev client is not
       // installed. The production build must provide a valid model URI.
       const { loadTensorflowModel } = require("react-native-fast-tflite");
       return loadTensorflowModel({ url: modelUri }, []);
-    })().catch((error) => {
+    })().catch(async (error) => {
       modelPromise = undefined;
+      if (modelUri !== bundledModel) {
+        const { loadTensorflowModel } = require("react-native-fast-tflite");
+        return loadTensorflowModel({ url: bundledModel }, []);
+      }
       throw error;
     });
   }
@@ -44,10 +49,17 @@ export async function classifyLocalFeatures(features) {
 }
 
 export async function classifyLocalMessage(text, packageName = null) {
-  const bridge = NativeModules.SafeDMNotificationsModule;
-  if (!bridge?.extractFeatures) {
+  const features = await extractLocalFeatures(text, packageName);
+  if (!features) {
     return { decision: LOCAL_DECISION.UNAVAILABLE, confidence: null, riskScore: null };
   }
-  const features = await bridge.extractFeatures(text, packageName);
   return classifyLocalFeatures(features);
+}
+
+export async function extractLocalFeatures(text, packageName = null) {
+  const bridge = NativeModules.SafeDMNotificationsModule;
+  if (!bridge?.extractFeatures) {
+    return null;
+  }
+  return bridge.extractFeatures(text, packageName);
 }

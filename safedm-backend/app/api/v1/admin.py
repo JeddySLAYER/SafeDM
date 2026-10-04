@@ -44,6 +44,15 @@ def admin_stats(
     return AdminService(db).stats()
 
 
+@router.get("/operations/overview")
+def admin_operations_overview(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).operations_overview()
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def admin_list_users(
     page: int = Query(1, ge=1),
