@@ -48,11 +48,11 @@ export default function LoginPage() {
           Mot de passe
           <div className="password-field">
             <input
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
             />
             <button
               type="button"
@@ -68,7 +68,7 @@ export default function LoginPage() {
         <button
           className="btn primary block"
           type="submit"
-          disabled={loading || apiOk === false}
+          disabled={loading}
         >
           {loading ? <span className="btn-spinner" /> : null}
           {loading ? "Connexion…" : "Se connecter"}
