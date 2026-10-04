@@ -14,6 +14,7 @@ import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
 import { addAlertFromManualAnalysis } from "../services/alertsStore";
+import { classifyLocalMessage } from "../services/localThreatClassifier";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 1000;
@@ -48,6 +49,38 @@ export default function ManualAnalysisScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
+      const local = await classifyLocalMessage(text);
+      if (local.decision !== "UNAVAILABLE") {
+        const result = {
+          status:
+            local.decision === "DANGEROUS"
+              ? "DANGEROUS"
+              : local.decision === "SAFE"
+                ? "SAFE"
+                : "PARTIAL",
+          risk_score: local.riskScore,
+          severity:
+            local.decision === "DANGEROUS"
+              ? "HIGH"
+              : local.decision === "UNCERTAIN"
+                ? "MEDIUM"
+                : "LOW",
+          reasons: ["Décision produite hors ligne par le modèle local"],
+          recommendations:
+            local.decision === "UNCERTAIN"
+              ? ["Une consultation distante nécessite votre consentement explicite"]
+              : [],
+          urls: [],
+          providers: { local: { available: true } },
+          content_stored: false,
+        };
+        await addAlertFromManualAnalysis({ content: text, result });
+        navigation.navigate("AnalysisResult", {
+          result,
+          originalContent: text,
+        });
+        return;
+      }
       const result = await analyzeMessage({
         content: text,
         source: "MANUAL",

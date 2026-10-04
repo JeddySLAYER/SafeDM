@@ -13,6 +13,20 @@ class ReportCreateRequest(BaseModel):
     application_package: Optional[str] = Field(default=None, max_length=255)
 
 
+class FingerprintReportRequest(BaseModel):
+    similarity_hash: str = Field(pattern=r"^[0-9a-fA-F]{16}$")
+    source: ReportSource = ReportSource.DIRECT_REPORT
+    severity: ThreatSeverity = ThreatSeverity.MEDIUM
+    observed_at: Optional[datetime] = None
+    application_package: Optional[str] = Field(default=None, max_length=255)
+
+
+class FingerprintEnvelopeRequest(BaseModel):
+    encrypted_key: str = Field(min_length=32, max_length=1024)
+    nonce: str = Field(min_length=16, max_length=64)
+    ciphertext: str = Field(min_length=16, max_length=8192)
+
+
 class ReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,7 +61,8 @@ class ThreatResponse(BaseModel):
     id: int
     raw_hash: str
     normalized_hash: str
-    content: str
+    content: Optional[str] = None
+    similarity_hash: Optional[str] = None
     report_count: int
     community_score: float
     severity: ThreatSeverity

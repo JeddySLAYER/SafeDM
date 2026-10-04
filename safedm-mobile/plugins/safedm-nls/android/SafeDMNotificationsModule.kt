@@ -38,6 +38,22 @@ class SafeDMNotificationsModule(
   override fun getName(): String = NAME
 
   @ReactMethod
+  fun extractFeatures(text: String, packageName: String?, promise: Promise) {
+    try {
+      val features = FeatureExtraction.extract(
+        text = text,
+        postTimeMs = System.currentTimeMillis(),
+        packageName = packageName,
+      )
+      val out = Arguments.createArray()
+      features.forEach(out::pushInt)
+      promise.resolve(out)
+    } catch (error: Exception) {
+      promise.reject("FEATURE_EXTRACTION_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
   fun isNotificationAccessEnabled(promise: Promise) {
     promise.resolve(hasNotificationAccess(reactContext))
   }
@@ -434,17 +450,44 @@ class SafeDMNotificationsModule(
       return copy
     }
 
+    /**
+     * Construit le payload envoye au JS, avec le vecteur de features deja
+     * calcule par le code natif.
+     *
+     * L'extraction se fait ici plutot que dans `guessLevel()` en JS pour trois
+     * raisons : le listener voit chaque notification meme avant le demarrage du
+     * bundle JS ; `java.text.Normalizer` reproduit exactement l'NFKD de Python
+     * alors que les proprietes Unicode d'Hermes ne le garantissent pas ; et un
+     * seul portage evite d'avoir deux detecteurs qui divergent.
+     *
+     * @param features les 50 uint8 du contrat V3, ou `null` si l'extraction a
+     *   echoue — le JS degr alors proprement au lieu d'inventer un niveau.
+     */
     fun buildPayload(
       packageName: String,
       title: String?,
       text: String?,
       postTime: Long,
+      features: IntArray? = null,
+      vectorHash: String? = null,
+      similarityHash: String? = null,
     ): WritableMap {
       val map = Arguments.createMap()
       map.putString("packageName", packageName)
       map.putString("title", title ?: "")
       map.putString("text", text ?: "")
       map.putDouble("postTime", postTime.toDouble())
+      if (features != null) {
+        val arr = Arguments.createArray()
+        for (value in features) arr.pushInt(value)
+        map.putArray("features", arr)
+      }
+      if (vectorHash != null) {
+        map.putString("vectorHash", vectorHash)
+      }
+      if (similarityHash != null) {
+        map.putString("similarityHash", similarityHash)
+      }
       return map
     }
   }

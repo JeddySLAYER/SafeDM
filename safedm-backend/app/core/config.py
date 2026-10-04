@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     virustotal_api_key: str = ""
     virustotal_base_url: str = "https://www.virustotal.com/api/v3"
     virustotal_timeout_seconds: int = 30
+    fingerprint_private_key_pem_b64: str = ""
 
     # --- Seuils de decision (politique produit, pas technique) -------------
     # Policy de decision,see docs/FEATURE_SCHEMA.md et le benchmark Sprint 10.

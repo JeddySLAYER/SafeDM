@@ -22,3 +22,5 @@ export const API_BASE_URL = normalizeApiBase(
 );
 
 export const APP_VERSION = extra.appVersion || "1.0.0";
+export const LOCAL_MODEL_URI = extra.localModelUri || null;
+export const FINGERPRINT_PUBLIC_KEY = extra.fingerprintPublicKey || null;

@@ -18,7 +18,8 @@ class Threat(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     raw_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     normalized_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    similarity_hash: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     report_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     community_score: Mapped[float] = mapped_column(
         Float,

@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { ApiError } from "../api/client";
 import { analyzeMessage } from "../api/analysis";
-import { createReport } from "../api/reports";
+import { createFingerprintReport, createReport } from "../api/reports";
 import AppLogo from "../components/AppLogo";
 import Button from "../components/Button";
 import RiskBadge from "../components/RiskBadge";
@@ -71,23 +71,26 @@ export default function AlertDetailScreen({ navigation, route }) {
 
   async function report() {
     const content = alert?.fullText || alert?.preview;
-    if (!content || content.length < 8) {
+    if (!alert?.similarityHash && (!content || content.length < 8)) {
       setError("Contenu trop court pour signaler.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      await createReport({
-        content,
-        source: "NOTIFICATION",
-        severity:
-          alert.level === "high"
-            ? "HIGH"
-            : alert.level === "low"
-              ? "LOW"
-              : "MEDIUM",
-      });
+      const severity =
+        alert.level === "high" ? "HIGH" : alert.level === "low" ? "LOW" : "MEDIUM";
+      if (alert.similarityHash) {
+        await createFingerprintReport({
+          similarityHash: alert.similarityHash,
+          source: "NOTIFICATION",
+          severity,
+          observedAt: alert.createdAt,
+          applicationPackage: alert.packageName,
+        });
+      } else {
+        await createReport({ content, source: "NOTIFICATION", severity });
+      }
       setMessage("Signalement envoyé.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Signalement impossible.");

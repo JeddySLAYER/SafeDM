@@ -8,9 +8,16 @@ from app.repositories.threat_repository import ThreatRepository
 from app.schemas.report import (
     ReportCreateRequest,
     ReportCreateResponse,
+    FingerprintReportRequest,
+    FingerprintEnvelopeRequest,
     ReportResponse,
     UserReportItem,
     UserReportListResponse,
+)
+from app.core.config import get_settings
+from app.services.fingerprint_envelope import (
+    FingerprintEnvelopeError,
+    decrypt_fingerprint_envelope,
 )
 
 
@@ -25,7 +32,7 @@ class ReportService:
         mapped: list[UserReportItem] = []
         for report in items:
             threat = report.threat
-            preview = (threat.content if threat else "")[:160]
+            preview = ((threat.content or "") if threat else "")[:160]
             mapped.append(
                 UserReportItem(
                     id=report.id,
@@ -75,6 +82,53 @@ class ReportService:
             created_threat=created_threat,
             content_stored=True,
         )
+
+    def create_fingerprint(
+        self,
+        user: User,
+        payload: FingerprintReportRequest,
+    ) -> ReportCreateResponse:
+        threat, created_threat = self.threats.get_or_create_from_similarity_hash(
+            similarity_hash=payload.similarity_hash.lower(),
+            severity=payload.severity,
+        )
+        existing = self.reports.get_by_user_threat(user.id, threat.id)
+        if existing and existing.status == ReportStatus.ACTIVE:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Vous avez déjà signalé cette menace")
+        report = (
+            self.reports.reactivate(existing, payload.source)
+            if existing and existing.status == ReportStatus.WITHDRAWN
+            else self.reports.create(user_id=user.id, threat_id=threat.id, source=payload.source)
+        )
+        self.threats.recount_active_reports(threat)
+        self.db.commit()
+        self.db.refresh(report)
+        self.db.refresh(threat)
+        return ReportCreateResponse(
+            report=ReportResponse.model_validate(report),
+            threat_id=threat.id,
+            created_threat=created_threat,
+            content_stored=False,
+        )
+
+    def create_encrypted_fingerprint(
+        self,
+        user: User,
+        envelope: FingerprintEnvelopeRequest,
+    ) -> ReportCreateResponse:
+        private_key = get_settings().fingerprint_private_key_pem_b64
+        if not private_key:
+            raise HTTPException(status_code=503, detail="Fingerprint encryption is not configured")
+        try:
+            import base64
+
+            private_pem = base64.b64decode(private_key, validate=True).decode()
+            payload = FingerprintReportRequest.model_validate(
+                decrypt_fingerprint_envelope(envelope.model_dump(), private_pem)
+            )
+        except (FingerprintEnvelopeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid fingerprint envelope") from exc
+        return self.create_fingerprint(user, payload)
 
     def withdraw(self, user: User, report_id: int) -> ReportResponse:
         report = self.reports.get_by_id(report_id)

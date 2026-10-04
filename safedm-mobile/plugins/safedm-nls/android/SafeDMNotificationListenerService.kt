@@ -45,11 +45,34 @@ class SafeDMNotificationListenerService : NotificationListenerService() {
 
     if (title.isNullOrBlank() && text.isNullOrBlank()) return
 
+    // Extraction des features dans le code natif, avant l'emission vers le JS.
+    //
+    // Un echec ici ne doit jamais empeicher l'affichage de l'alerte : on transmet
+    // un payload sans vecteur et le JS degrade. Mieux vaut une alerte sans
+    // niveau qu'une alerte perdue.
+    val features: IntArray? = try {
+      FeatureExtraction.extract(
+        listOfNotNull(title, text).joinToString(" — "),
+        // `knownBadUrl` reste inconnu ici : la verification reseau demande un
+        // consentement et sort de l'appareil. 128 = « pas verifie », et non
+        // « sur » — le modele ne doit pas se laisser Eldormir par defaut
+        // d'information.
+        knownBadUrl = null,
+      )
+    } catch (t: Throwable) {
+      // Log minimal : jamais le contenu du message.
+      android.util.Log.w("SafeDMFeatures", "extraction failed: ${t.javaClass.simpleName}")
+      null
+    }
+
     val payload = SafeDMNotificationsModule.buildPayload(
       packageName = packageName,
       title = title,
       text = text,
       postTime = sbn.postTime,
+      features = features,
+      vectorHash = features?.let { LocalThreatModel.vectorHashOrNull(it) },
+      similarityHash = SimilarityHash.compute(listOfNotNull(title, text).joinToString(" — ")),
     )
     SafeDMNotificationsModule.emitNotification(payload)
   }

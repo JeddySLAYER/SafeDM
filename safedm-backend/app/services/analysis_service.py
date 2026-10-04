@@ -142,6 +142,18 @@ class AnalysisService:
         community = self.threats.find_by_hashes(raw_hash, normalized_hash)
         urls = extract_urls(content)
 
+        # Aucun appel externe sans consentement explicite. La recherche
+        # communautaire ci-dessus reste autorisee parce qu'elle ne sort que des
+        # empreintes : aucun contenu n'est transmis.
+        if not payload.consent_external:
+            return self._local_only_response(
+                raw_hash=raw_hash,
+                normalized_hash=normalized_hash,
+                community=community,
+                urls=urls,
+                reason="consentement externe non fourni",
+            )
+
         # Jev est interroge une seule fois, apres extraction des URLs :
         # `urls` sert a la question link_deception et evite un second aller-retour.
         semantic_result: SemanticResult = self.jev.analyze(content, urls)
@@ -179,6 +191,82 @@ class AnalysisService:
             content_stored=False,
         )
 
+    def _local_only_response(
+        self,
+        *,
+        raw_hash: str,
+        normalized_hash: str,
+        community: CommunityMatch,
+        urls: list[str],
+        reason: str,
+    ) -> AnalysisResponse:
+        """Reponse quand aucun analyseur externe n'est autorise.
+
+        Le statut est `UNKNOWN`, **jamais** `SAFE`. Conclure « sur » sans avoir
+        rien analyse serait une affirmation de securite non etayee : c'est
+        exactement le piege que le garde-fou de confiance de `fuse_analysis`
+        cherche a eviter cote Jev, il doit s'appliquer aussi ici.
+
+        La comunaute peut casser l'ignorerance : si elle a deja signale ce
+        message, on le sait sans rien transmettre.
+        """
+        if community.matched and community.severity in (
+            ThreatSeverity.HIGH,
+            ThreatSeverity.CRITICAL,
+        ):
+            status = AnalysisStatus.DANGEROUS
+            severity = community.severity
+            reasons = [
+                f"{reason} : analyse semantique non executee",
+                "Ce message correspond a un signalement deja connu "
+                f"({community.report_count} signalement(s))",
+            ]
+            score = 85
+        elif community.matched:
+            status = AnalysisStatus.SUSPICIOUS
+            severity = community.severity or ThreatSeverity.MEDIUM
+            reasons = [
+                f"{reason} : analyse semantique non executee",
+                f"Message deja signale {community.report_count} fois par la communaute",
+            ]
+            score = 60
+        else:
+            status = AnalysisStatus.UNKNOWN
+            severity = ThreatSeverity.LOW
+            reasons = [
+                f"{reason} : le message n'a pas ete analyse",
+                "La decision locale sur l'appareil est la seule disponible",
+            ]
+            score = 0
+
+        if urls and status is AnalysisStatus.UNKNOWN:
+            reasons.append(
+                f"{len(urls)} lien(s) detecte(s) non verifie(s) : "
+                "l'analyse necessite le consentement externe"
+            )
+
+        return AnalysisResponse(
+            status=status,
+            risk_score=score,
+            severity=severity,
+            threat_type=ThreatType.NONE,
+            reasons=reasons,
+            recommendations=[
+                "Activer l'analyse cloud pour une judgement semantique",
+                "Ne pas Considerer ce message comme sur : il n'a pas ete analyse",
+            ],
+            urls=[],
+            community=community,
+            providers={
+                "jev": {"skipped": True, "reason": reason},
+                "virustotal": {"skipped": True, "reason": reason},
+            },
+            raw_hash=raw_hash,
+            normalized_hash=normalized_hash,
+            analyzed_at=datetime.now(timezone.utc),
+            content_stored=False,
+        )
+
     def analyze_url(
         self, payload: UrlGateRequest, *, user_id: int | None = None
     ) -> UrlGateResponse:
@@ -191,6 +279,65 @@ class AnalysisService:
         logger.info("link_gate_start domain=%s", domain)
 
         community = self.threats.find_by_url(url)
+
+        if not payload.consent_external:
+            logger.info("link_gate_skipped_no_consent domain=%s", domain)
+            # La communaute est deja interrogee (empreintes seules) : un lien
+            # deja signale reste dangereux sans qu'on ait besoin de Jev ni VT.
+            if community.matched:
+                status = AnalysisStatus.DANGEROUS
+                score = 85
+                reasons = [
+                    "Consentement externe non fourni : lien non analyse",
+                    f"Lien deja signale {community.report_count} fois par la communaute",
+                ]
+            else:
+                status = AnalysisStatus.UNKNOWN
+                score = 0
+                reasons = [
+                    "Consentement externe non fourni : lien non analyse",
+                    "Ne pasconsiderer ce lien comme sur : il n'a pas ete verifie",
+                ]
+
+            decision, headline, can_open = _link_gate_decision(
+                status=status,
+                severity=ThreatSeverity.HIGH if status is AnalysisStatus.DANGEROUS
+                else ThreatSeverity.LOW,
+                risk_score=score,
+                url_results=[],
+            )
+
+            return UrlGateResponse(
+                status=status,
+                risk_score=score,
+                severity=ThreatSeverity.HIGH
+                if status is AnalysisStatus.DANGEROUS
+                else ThreatSeverity.LOW,
+                threat_type=ThreatType.MALICIOUS_LINK,
+                reasons=reasons,
+                recommendations=[
+                    "Relancer l'analyse pour autoriser l'envoi du lien a VirusTotal",
+                ],
+                urls=[],
+                community=community,
+                providers={
+                    "jev": {"skipped": True, "reason": "consentement non fourni"},
+                    "virustotal": {
+                        "skipped": True,
+                        "reason": "consentement non fourni",
+                    },
+                },
+                raw_hash=raw_hash,
+                normalized_hash=normalized_hash,
+                analyzed_at=datetime.now(timezone.utc),
+                content_stored=False,
+                decision=decision,
+                url=url,
+                domain=domain,
+                headline=headline,
+                can_open=can_open,
+            )
+
         # Jev analyse le contexte « lien » (pas le contenu d'une page).
         # On lui passe l'URL dans `state` plutot que dans le texte : c'est le
         # champ prevu pour ca, et la question link_deception s'en sert.

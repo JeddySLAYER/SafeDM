@@ -5,5 +5,6 @@ module.exports = {
   ],
   moduleNameMapper: {
     "^expo-constants$": "<rootDir>/__mocks__/expo-constants.js",
+    "\\.tflite$": "<rootDir>/__mocks__/tfliteAsset.js",
   },
 };

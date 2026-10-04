@@ -26,6 +26,16 @@ function gateFromMessageAnalysis(result, url) {
   };
 }
 
+/**
+ * Analyse un message.
+ *
+ * `consentExternal` doit refleter un consentement REEL de l'utilisateur, jamais
+ * un `true` par defaut : le serveur refuse tout appel a un tiers sans ce
+ * drapeau. Le flux automatique des notifications passe par
+ * `getCloudConsent()` (opt-in dans les reglages), et une analyse manuelle
+ * declenchee au doigt passe `true` puisque l'utilisateur vient de demander
+ * l'analyse.
+ */
 export function analyzeMessage(payload) {
   return apiRequest("/analysis", {
     method: "POST",
@@ -35,6 +45,7 @@ export function analyzeMessage(payload) {
       application_package: payload.application_package || null,
       title: payload.title || null,
       sender: payload.sender || null,
+      consent_external: payload.consentExternal === true,
     },
   });
 }
@@ -44,7 +55,9 @@ export function analyzeMessage(payload) {
  * Essaie /analysis/link puis /analysis/url, puis fallback message.
  */
 export async function analyzeUrl(url) {
-  const body = { url };
+  // Appele uniquement depuis LinkGateScreen, donc sur action explicite de
+  // l'utilisateur : le consentement est ici mismo implicite dans le geste.
+  const body = { url, consent_external: true };
   try {
     return await apiRequest("/analysis/link", { method: "POST", body });
   } catch (err) {
@@ -59,6 +72,7 @@ export async function analyzeUrl(url) {
   const result = await analyzeMessage({
     content: url,
     source: "MANUAL",
+    consentExternal: true,
   });
   return gateFromMessageAnalysis(result, url);
 }

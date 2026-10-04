@@ -234,6 +234,9 @@ def test_analysis_service_unit_no_persist():
         AnalysisRequest(
             content="Bonjour, voici un message bénin sans lien.",
             source=AnalysisSource.MANUAL,
+            # Sans ce consentement, Jev n'est pas appele et le statut vaut
+            # UNKNOWN. Voir `test_no_consent_means_jev_is_not_called`.
+            consent_external=True,
         )
     )
     assert result.content_stored is False

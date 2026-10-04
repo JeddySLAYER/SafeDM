@@ -1,10 +1,11 @@
-import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import Button from "../components/Button";
 import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import SettingRow from "../components/SettingRow";
 import { useAuth } from "../context/AuthContext";
+import { getCloudConsent, setCloudConsent } from "../utils/storage";
 import { appVersion, colors, radii } from "../theme/tokens";
 
 export default function SettingsScreen({ navigation }) {
@@ -13,6 +14,28 @@ export default function SettingsScreen({ navigation }) {
     const name = user?.username || "?";
     return name.slice(0, 2).toUpperCase();
   }, [user]);
+
+  const [cloudConsent, setConsent] = useState(false);
+  const [consentLoaded, setConsentLoaded] = useState(false);
+
+  useEffect(() => {
+    getCloudConsent().then((value) => {
+      setConsent(value);
+      setConsentLoaded(true);
+    });
+  }, []);
+
+  const toggleCloudConsent = useCallback((next) => {
+    setConsent(next);
+    setCloudConsent(next);
+    if (next) {
+      Alert.alert(
+        "Analyse cloud activée",
+        "Le contenu de vos messages sera envoyé à nos serveurs pour être " +
+          "analysé. Désactivée, l'analyse reste 100 % sur l'appareil.",
+      );
+    }
+  }, []);
 
   return (
     <Screen scroll>
@@ -29,6 +52,19 @@ export default function SettingsScreen({ navigation }) {
           </Text>
         </View>
       </View>
+
+      <Text style={styles.section}>Analyse</Text>
+      <SettingRow
+        icon="globe"
+        title="Analyse cloud"
+        subtitle={
+          cloudConsent
+            ? "Le contenu des messages est envoyé à nos serveurs"
+            : "100 % sur l'appareil — rien n'est envoyé"
+        }
+        switchValue={consentLoaded ? cloudConsent : false}
+        onSwitchChange={toggleCloudConsent}
+      />
 
       <Text style={styles.section}>Surveillance</Text>
       <SettingRow

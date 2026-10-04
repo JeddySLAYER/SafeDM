@@ -64,6 +64,25 @@ class ThreatRepository:
             severity=threat.severity,
         )
 
+    def find_by_similarity_hash(self, similarity_hash: str) -> CommunityMatch:
+        threat = self.db.scalar(
+            select(Threat)
+            .where(
+                Threat.status == ThreatStatus.ACTIVE,
+                Threat.similarity_hash == similarity_hash.lower(),
+            )
+            .order_by(Threat.report_count.desc())
+        )
+        if threat is None:
+            return CommunityMatch(matched=False)
+        return CommunityMatch(
+            matched=True,
+            threat_id=threat.id,
+            report_count=threat.report_count,
+            community_score=threat.community_score,
+            severity=threat.severity,
+        )
+
     def get_by_id(self, threat_id: int) -> Threat | None:
         return (
             self.db.scalars(
@@ -167,6 +186,35 @@ class ThreatRepository:
                     domain=extract_domain(url),
                 )
             )
+        self.db.flush()
+        return threat, True
+
+    def get_or_create_from_similarity_hash(
+        self,
+        *,
+        similarity_hash: str,
+        severity: ThreatSeverity,
+    ) -> tuple[Threat, bool]:
+        existing = self.db.scalar(
+            select(Threat).where(Threat.similarity_hash == similarity_hash)
+        )
+        now = datetime.now(timezone.utc)
+        if existing:
+            existing.last_seen_at = now
+            self.db.add(existing)
+            self.db.flush()
+            return existing, False
+        threat = Threat(
+            raw_hash=similarity_hash,
+            normalized_hash=similarity_hash,
+            similarity_hash=similarity_hash,
+            content=None,
+            severity=severity,
+            status=ThreatStatus.ACTIVE,
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        self.db.add(threat)
         self.db.flush()
         return threat, True
 

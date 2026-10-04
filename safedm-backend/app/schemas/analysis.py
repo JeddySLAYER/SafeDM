@@ -13,12 +13,23 @@ class AnalysisRequest(BaseModel):
     application_package: Optional[str] = Field(default=None, max_length=255)
     sender: Optional[str] = Field(default=None, max_length=255)
     title: Optional[str] = Field(default=None, max_length=512)
+    # Consentement a sortir le contenu de l'appareil. Refuse par defaut.
+    #
+    # Ce n'est pas une precaution de style : sans ce drapeau, le
+    # NotificationListenerService analysis chaque SMS recu et l'envoi a Jev. Le
+    # defaut « faux » garantit qu'un nouvel appelant ne se met pas a diffuser
+    # des messages sans y avoir pense, et qu'un oubli est visible dans le
+    # payload plutot que silencieux.
+    consent_external: bool = False
 
 
 class UrlGateRequest(BaseModel):
     """Analyse d'un lien avant ouverture (Link Gate)."""
 
     url: str = Field(min_length=4, max_length=2048)
+    # Meme regle que `AnalysisRequest` : refuse par defaut. L'ecran Link Gate
+    # passe `true` quand l'utilisateur demande explicitement l'analyse.
+    consent_external: bool = False
 
     @field_validator("url")
     @classmethod

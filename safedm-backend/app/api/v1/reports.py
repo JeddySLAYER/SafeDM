@@ -7,6 +7,8 @@ from app.models import User
 from app.schemas.report import (
     ReportCreateRequest,
     ReportCreateResponse,
+    FingerprintReportRequest,
+    FingerprintEnvelopeRequest,
     ReportResponse,
     UserReportListResponse,
 )
@@ -32,6 +34,25 @@ def create_report(
 ):
     """Signale un message — le contenu est alors conservé côté serveur."""
     return ReportService(db).create(current_user, payload)
+
+
+@router.post("/fingerprint", response_model=ReportCreateResponse, status_code=201)
+def create_fingerprint_report(
+    payload: FingerprintReportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Signale uniquement une empreinte de similarité ; aucun contenu n'est reçu."""
+    return ReportService(db).create_fingerprint(current_user, payload)
+
+
+@router.post("/fingerprint/envelope", response_model=ReportCreateResponse, status_code=201)
+def create_encrypted_fingerprint_report(
+    payload: FingerprintEnvelopeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return ReportService(db).create_encrypted_fingerprint(current_user, payload)
 
 
 @router.delete("/{report_id}", response_model=ReportResponse)

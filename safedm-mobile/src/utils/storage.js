@@ -6,7 +6,24 @@ const KEYS = {
   onboardingDone: "safedm_onboarding_done",
   setupDone: "safedm_setup_done",
   deviceId: "safedm_device_id",
+  // Opt-in explicite a l'analyse cloud. Absent = refuse : le serveur applique
+  // « pas de consentement, pas d'appel a un tiers ». Voir consent_external
+  // dans AnalysisRequest.
+  cloudConsent: "safedm_cloud_consent",
 };
+
+/** L'utilisateur a-t-il autorise l'envoi de ses messages a l'analyse cloud ? */
+export async function getCloudConsent() {
+  return (await AsyncStorage.getItem(KEYS.cloudConsent)) === "true";
+}
+
+export async function setCloudConsent(enabled) {
+  if (enabled) {
+    await AsyncStorage.setItem(KEYS.cloudConsent, "true");
+  } else {
+    await AsyncStorage.removeItem(KEYS.cloudConsent);
+  }
+}
 
 export async function getToken() {
   return AsyncStorage.getItem(KEYS.token);

@@ -209,7 +209,18 @@ La baseline figée est dans `tests/fixtures/jev_benchmark_baseline.json`.
 |---------|-------|-------------|
 | GET | `/api/v1/reports` | Mes signalements (JWT) |
 | POST | `/api/v1/reports` | Signaler un message (contenu alors conservé) |
+| POST | `/api/v1/reports/fingerprint` | Signaler une empreinte SimHash sans envoyer le contenu |
 | DELETE | `/api/v1/reports/{id}` | Retirer son signalement |
+
+Les signalements fingerprint utilisent un SimHash 64-bit calculé sur l'appareil.
+Le payload est protégé par AES-256-GCM, avec la clé de session enveloppée par
+RSA-OAEP/SHA-256. Le serveur ne reçoit donc qu'une enveloppe chiffrée ; après
+déchiffrement en mémoire, il conserve uniquement l'empreinte, la source, la
+sévérité et les métadonnées. Configurez `FINGERPRINT_PRIVATE_KEY_PEM_B64` avec
+la sortie privée de `scripts/generate_fingerprint_keys.py` et injectez la
+valeur publique correspondante dans `FINGERPRINT_PUBLIC_KEY` du build mobile.
+La rétention des empreintes inactives est exécutée par
+`scripts/purge_inactive_fingerprints.py` dans un Cloud Run Job planifié.
 | GET | `/api/v1/threats/community` | Menaces communautaires actives |
 | GET | `/api/v1/threats/{hash}` | Menace par hash |
 | GET | `/api/v1/guide/categories` | Catégories + articles publiés |
