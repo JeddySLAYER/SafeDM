@@ -1417,6 +1417,44 @@ tr:last-child td {
   line-height: 1.55;
 }
 
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(11, 13, 16, 0.38);
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(16, 24, 40, 0.18);
+}
+
+.confirm-dialog h2 {
+  margin: 5px 0 10px;
+  border: 0;
+  padding: 0;
+}
+
+.confirm-dialog-message {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+
 .help-sheet-header {
   display: flex;
   justify-content: space-between;

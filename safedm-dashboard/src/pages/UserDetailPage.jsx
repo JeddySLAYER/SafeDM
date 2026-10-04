@@ -7,6 +7,7 @@ import {
   PageHeader,
   Skeleton,
   Spinner,
+  ConfirmDialog,
 } from "../components/ui";
 
 export default function UserDetailPage() {
@@ -15,6 +16,7 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmAdmin, setConfirmAdmin] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,12 +37,6 @@ export default function UserDetailPage() {
   async function toggleAdmin() {
     if (!user) return;
     const next = !user.is_admin;
-    const ok = window.confirm(
-      next
-        ? `Promouvoir ${user.username} en administrateur ?`
-        : `Retirer les droits admin de ${user.username} ?`,
-    );
-    if (!ok) return;
     setBusy(true);
     try {
       setUser(await updateUser(user.id, { is_admin: next }));
@@ -48,6 +44,7 @@ export default function UserDetailPage() {
       setError(err.message);
     } finally {
       setBusy(false);
+      setConfirmAdmin(false);
     }
   }
 
@@ -87,7 +84,7 @@ export default function UserDetailPage() {
               type="button"
               className="btn"
               disabled={busy}
-              onClick={toggleAdmin}
+              onClick={() => setConfirmAdmin(true)}
             >
               {busy ? <span className="btn-spinner" /> : null}
               {user.is_admin ? "Retirer admin" : "Promouvoir admin"}
@@ -113,6 +110,16 @@ export default function UserDetailPage() {
             <li>Appareils : {user.devices?.length || 0}</li>
           </ul>
         </div>
+        <ConfirmDialog
+          open={confirmAdmin}
+          title={user.is_admin ? "Retirer les droits admin ?" : "Promouvoir administrateur ?"}
+          message={user.is_admin ? `Le compte ${user.username} ne pourra plus accéder à l’administration.` : `Le compte ${user.username} pourra accéder à toutes les fonctions d’administration.`}
+          confirmLabel={user.is_admin ? "Retirer admin" : "Promouvoir"}
+          danger={user.is_admin}
+          busy={busy}
+          onCancel={() => setConfirmAdmin(false)}
+          onConfirm={toggleAdmin}
+        />
 
         <div className="panel">
           <h2>Appareils</h2>

@@ -11,6 +11,7 @@ import {
   PageHeader,
   Skeleton,
   Spinner,
+  ConfirmDialog,
 } from "../components/ui";
 
 export default function ApplicationsPage() {
@@ -25,6 +26,7 @@ export default function ApplicationsPage() {
     is_enabled: true,
   });
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,7 +73,6 @@ export default function ApplicationsPage() {
   }
 
   async function remove(id) {
-    if (!window.confirm("Supprimer cette application du catalogue ?")) return;
     setBusyId(id);
     try {
       await deleteApplication(id);
@@ -81,6 +82,7 @@ export default function ApplicationsPage() {
       setError(err.message);
     } finally {
       setBusyId(null);
+      setDeleteId(null);
     }
   }
 
@@ -184,7 +186,7 @@ export default function ApplicationsPage() {
                           type="button"
                           className="btn small danger"
                           disabled={busyId === a.id}
-                          onClick={() => remove(a.id)}
+                          onClick={() => setDeleteId(a.id)}
                         >
                           Suppr.
                         </button>
@@ -196,6 +198,16 @@ export default function ApplicationsPage() {
             </div>
           )}
         </div>
+        <ConfirmDialog
+          open={deleteId !== null}
+          title="Supprimer l’application ?"
+          message="Elle ne sera plus disponible dans le catalogue des applications surveillables."
+          confirmLabel="Supprimer"
+          danger
+          busy={busyId === deleteId}
+          onCancel={() => setDeleteId(null)}
+          onConfirm={() => remove(deleteId)}
+        />
       </div>
     </div>
   );

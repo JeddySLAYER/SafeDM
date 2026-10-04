@@ -7,6 +7,7 @@ import {
   PageHeader,
   Skeleton,
   Spinner,
+  ConfirmDialog,
 } from "../components/ui";
 
 const STATUSES = ["ACTIVE", "WITHDRAWN"];
@@ -18,6 +19,7 @@ export default function ReportsPage() {
   const [busyId, setBusyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [withdrawId, setWithdrawId] = useState(null);
 
   const load = useCallback(async (page = 1, { soft = false } = {}) => {
     setError("");
@@ -43,7 +45,6 @@ export default function ReportsPage() {
   }, [load]);
 
   async function onWithdraw(id) {
-    if (!window.confirm("Retirer ce signalement (WITHDRAWN) ?")) return;
     setBusyId(id);
     try {
       await withdrawReport(id);
@@ -52,6 +53,7 @@ export default function ReportsPage() {
       setError(err.message);
     } finally {
       setBusyId(null);
+      setWithdrawId(null);
     }
   }
 
@@ -130,7 +132,7 @@ export default function ReportsPage() {
                             type="button"
                             className="btn small danger"
                             disabled={busyId === r.id}
-                            onClick={() => onWithdraw(r.id)}
+                            onClick={() => setWithdrawId(r.id)}
                           >
                             {busyId === r.id ? <span className="btn-spinner" /> : null}
                             Retirer
@@ -144,6 +146,16 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             )}
+            <ConfirmDialog
+              open={withdrawId !== null}
+              title="Retirer ce signalement ?"
+              message="Le signalement passera à l’état WITHDRAWN et ne sera plus traité comme actif."
+              confirmLabel="Retirer"
+              danger
+              busy={busyId === withdrawId}
+              onCancel={() => setWithdrawId(null)}
+              onConfirm={() => onWithdraw(withdrawId)}
+            />
           </div>
 
           <div className="pager">

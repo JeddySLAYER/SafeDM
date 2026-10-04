@@ -16,6 +16,7 @@ import {
   PageHeader,
   Skeleton,
   Spinner,
+  ConfirmDialog,
 } from "../components/ui";
 
 const emptyArticle = {
@@ -41,6 +42,7 @@ export default function GuidePage() {
   const [saving, setSaving] = useState(false);
   const [loadingArticle, setLoadingArticle] = useState(false);
   const [rowBusy, setRowBusy] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const articleCount = useMemo(
     () => categories.reduce((n, c) => n + (c.articles?.length || 0), 0),
@@ -162,7 +164,6 @@ export default function GuidePage() {
   }
 
   async function removeArticle(id) {
-    if (!window.confirm("Supprimer cet article ?")) return;
     setRowBusy(`del-a-${id}`);
     try {
       await deleteArticle(id);
@@ -173,6 +174,7 @@ export default function GuidePage() {
       setError(err.message);
     } finally {
       setRowBusy(null);
+      setConfirmAction(null);
     }
   }
 
@@ -204,7 +206,6 @@ export default function GuidePage() {
   }
 
   async function removeCategory(id) {
-    if (!window.confirm("Supprimer cette catégorie et ses articles ?")) return;
     setRowBusy(`del-c-${id}`);
     try {
       await deleteCategory(id);
@@ -214,6 +215,7 @@ export default function GuidePage() {
       setError(err.message);
     } finally {
       setRowBusy(null);
+      setConfirmAction(null);
     }
   }
 
@@ -344,7 +346,7 @@ export default function GuidePage() {
                         type="button"
                         className="btn small danger"
                         disabled={rowBusy === `del-c-${cat.id}`}
-                        onClick={() => removeCategory(cat.id)}
+                        onClick={() => setConfirmAction({ type: "category", id: cat.id })}
                       >
                         {rowBusy === `del-c-${cat.id}` ? (
                           <span className="btn-spinner" />
@@ -400,7 +402,7 @@ export default function GuidePage() {
                             type="button"
                             className="btn small danger"
                             disabled={rowBusy === `del-a-${a.id}`}
-                            onClick={() => removeArticle(a.id)}
+                            onClick={() => setConfirmAction({ type: "article", id: a.id })}
                           >
                             {rowBusy === `del-a-${a.id}` ? (
                               <span className="btn-spinner" />
@@ -412,6 +414,16 @@ export default function GuidePage() {
                     ))}
                   </ul>
                 )}
+                <ConfirmDialog
+                  open={Boolean(confirmAction)}
+                  title={confirmAction?.type === "category" ? "Supprimer la catégorie ?" : "Supprimer l’article ?"}
+                  message={confirmAction?.type === "category" ? "Tous les articles de cette catégorie seront également supprimés." : "Cet article ne sera plus disponible dans le guide."}
+                  confirmLabel="Supprimer"
+                  danger
+                  busy={confirmAction ? rowBusy === `del-${confirmAction.type === "category" ? "c" : "a"}-${confirmAction.id}` : false}
+                  onCancel={() => setConfirmAction(null)}
+                  onConfirm={() => confirmAction && (confirmAction.type === "category" ? removeCategory(confirmAction.id) : removeArticle(confirmAction.id))}
+                />
               </div>
             ))
           )}

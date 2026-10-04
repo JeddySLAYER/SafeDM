@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import { X } from "lucide-react";
+
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <header className="page-header">
@@ -45,6 +48,35 @@ export function DetailSheet({ open, title, eyebrow = "Fiche détaillée", loadin
           {!loading && !error ? children : null}
         </div>
       </aside>
+    </div>
+  );
+}
+
+export function ConfirmDialog({ open, title, message, confirmLabel = "Confirmer", danger = false, busy = false, onCancel, onConfirm }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "Escape" && !busy) onCancel();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, busy, onCancel]);
+
+  if (!open) return null;
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={() => !busy && onCancel()}>
+      <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <p className="eyebrow">Confirmation</p>
+        <h2 id="confirm-dialog-title">{title}</h2>
+        <p className="confirm-dialog-message">{message}</p>
+        <div className="dialog-actions">
+          <button type="button" className="btn ghost" disabled={busy} onClick={onCancel}>Annuler</button>
+          <button type="button" className={`btn ${danger ? "danger" : "primary"}`} disabled={busy} onClick={onConfirm}>
+            {busy ? <span className="btn-spinner" /> : null}
+            {busy ? "Traitement…" : confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -169,5 +201,3 @@ export function LoadingOverlay({ show, label = "Actualisation…" }) {
     </div>
   );
 }
-import { useEffect } from "react";
-import { X } from "lucide-react";
