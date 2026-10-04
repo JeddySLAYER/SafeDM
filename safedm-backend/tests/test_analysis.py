@@ -179,6 +179,7 @@ def test_analysis_endpoint_with_mocked_providers(auth_headers, monkeypatch):
         json={
             "content": "Urgent: validez votre compte https://bank-secure-login.test/reset",
             "source": "MANUAL",
+            "consent_external": True,
         },
     )
     assert response.status_code == 200, response.text
@@ -298,4 +299,3 @@ def test_analyze_url_gate_returns_decision(auth_headers, monkeypatch):
     )
     assert alias.status_code == 200, alias.text
     assert alias.json()["decision"] in ("ALLOW", "WARN", "BLOCK")
-
