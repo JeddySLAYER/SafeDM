@@ -24,6 +24,8 @@ export default function Options() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [connection, setConnection] = useState("");
 
   useEffect(() => {
     Promise.all([getApiBase(), getUsername()]).then(([base, name]) => {
@@ -65,6 +67,29 @@ export default function Options() {
     setMessage("Session locale effacée.");
   }
 
+  async function checkConnection() {
+    const value = apiBase.trim().replace(/\/+$/, "");
+    setConnection("");
+    setError("");
+    if (!isAllowedApi(value)) {
+      setError("Enregistrez d’abord une URL HTTPS ou une adresse locale valide.");
+      return;
+    }
+    setChecking(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(`${value}/health`, { signal: controller.signal });
+      if (!response.ok) throw new Error("health check failed");
+      setConnection("API joignable.");
+    } catch {
+      setConnection("API inaccessible ou délai dépassé.");
+    } finally {
+      clearTimeout(timeout);
+      setChecking(false);
+    }
+  }
+
   return (
     <main className="options-page">
       <header className="options-header">
@@ -103,7 +128,11 @@ export default function Options() {
             <button className="options-button" type="button" onClick={resetApi}>
               Restaurer l’API officielle
             </button>
+            <button className="options-button" type="button" onClick={checkConnection} disabled={checking}>
+              {checking ? "Vérification…" : "Tester la connexion"}
+            </button>
           </div>
+          {connection ? <p className="options-help" role="status">{connection}</p> : null}
         </form>
       </section>
 
