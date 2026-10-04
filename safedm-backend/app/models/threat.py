@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, Float, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -36,6 +36,9 @@ class Threat(Base):
         Enum(ThreatStatus, values_callable=lambda x: [e.value for e in x], native_enum=False),
         default=ThreatStatus.ACTIVE,
         nullable=False,
+    )
+    false_positive: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
     )
     first_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

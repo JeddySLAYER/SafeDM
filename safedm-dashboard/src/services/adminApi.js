@@ -25,6 +25,28 @@ export function getOperationsOverview(options) {
   return apiRequest("/admin/operations/overview", options);
 }
 
+export function approvePatch(version) {
+  return apiRequest("/admin/operations/patches/approve", {
+    method: "POST",
+    body: { version },
+  });
+}
+
+export function rollbackPatch(version) {
+  return apiRequest("/admin/operations/patches/rollback", {
+    method: "POST",
+    body: { version },
+  });
+}
+
+export function requestAggregation() {
+  return apiRequest("/admin/operations/aggregation", { method: "POST" });
+}
+
+export function saveTenantPolicy(payload) {
+  return apiRequest("/admin/operations/policies", { method: "PUT", body: payload });
+}
+
 export function getThreats({ page = 1, pageSize = 20, status } = {}) {
   const q = new URLSearchParams({
     page: String(page),
@@ -49,6 +71,13 @@ export function updateThreatSeverity(id, severity) {
   return apiRequest(`/admin/threats/${id}/severity`, {
     method: "PUT",
     body: { severity },
+  });
+}
+
+export function flagThreatFalsePositive(id, value = true) {
+  return apiRequest(`/admin/threats/${id}/false-positive`, {
+    method: "PUT",
+    body: { value },
   });
 }
 

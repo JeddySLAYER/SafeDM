@@ -505,3 +505,30 @@ immédiat.
   utilisés pour la hiérarchie, et états vides/erreurs conservés.
 - Les appels acceptent désormais un `AbortSignal`, afin d'éviter qu'une
   réponse obsolète ne remplace une donnée plus récente.
+
+## Sprint 8 — Workflows admin haute et moyenne priorité
+
+**Livré :**
+- migration `0004_admin_operations` pour persister les déploiements de patch,
+  les demandes d'agrégation et les politiques par entreprise/région ;
+- approbation et rollback de patchs avec état `APPROVED`/`ROLLED_BACK`,
+  pourcentage de rollout et acteur d'approbation ;
+- demande manuelle d'agrégation avec état `REQUESTED`, sans prétendre exécuter
+  Cloud Run tant que le job n'est pas déployé ;
+- configuration persistée des seuils `safe`, `suspicious`, `critical` et de
+  confiance d'escalade par tenant/région ;
+- flag serveur de faux positif sur une menace, avec passage en `DISMISSED` et
+  entrée d'audit ;
+- journalisation des actions sensibles d'administration ;
+- visibilité accrue de la rétention avec le nombre de signatures candidates ;
+- contrôles UI pour approuver/rollback, demander l'agrégation, enregistrer une
+  politique et marquer un faux positif.
+
+**À finaliser avant production complète :**
+- fédérer l'identité avec Firebase Auth et valider les custom claims côté API ;
+- connecter le statut `REQUESTED` au déclenchement OIDC Cloud Scheduler/Cloud
+  Run Job et faire remonter les logs d'exécution ;
+- ajouter pagination/filtres dédiés à l'écran d'audit et alimenter les
+  métriques régionales depuis des événements portant une région fiable ;
+- verrouiller les transitions de patch avec une approbation multi-admin si la
+  politique de déploiement l'exige.

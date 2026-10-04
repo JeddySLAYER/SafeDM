@@ -198,3 +198,32 @@ class AdminOperationsOverview(BaseModel):
     policy: dict
     retention: dict
     audit: list[AdminAuditItem] = Field(default_factory=list)
+
+
+class AdminPatchActionRequest(BaseModel):
+    version: str = Field(min_length=1, max_length=128)
+
+
+class AdminTenantPolicyRequest(BaseModel):
+    tenant_key: str = Field(min_length=1, max_length=128)
+    region: str = Field(default="global", min_length=1, max_length=64)
+    safe_score: int = Field(ge=0, le=100)
+    suspicious_score: int = Field(ge=0, le=100)
+    critical_score: int = Field(ge=0, le=100)
+    escalation_confidence: float = Field(ge=0, le=1)
+
+
+class AdminFalsePositiveRequest(BaseModel):
+    value: bool = True
+
+
+class AdminAggregationRunResponse(BaseModel):
+    id: int
+    status: str
+    message: str
+    created_at: str
+
+
+class AdminTenantPolicyResponse(AdminTenantPolicyRequest):
+    id: int
+    updated_at: str

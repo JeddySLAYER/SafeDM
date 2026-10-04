@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import (
     AccessAuditLog,
+    AggregationRun,
     CommunityReport,
     Device,
     GuideArticle,
@@ -16,6 +17,8 @@ from app.models import (
     SupportedApplication,
     Threat,
     User,
+    PatchDeployment,
+    TenantPolicy,
 )
 from app.models.enums import ReportStatus, ThreatSeverity, ThreatStatus
 from app.repositories.monitoring_repository import ApplicationRepository, MonitoringRepository
@@ -224,6 +227,16 @@ threats_under_review_count=threats_under_review,
 
         metrics = manifest.get("metrics") or {}
         rollout = manifest.get("rollout") or {}
+        manifest_version = manifest.get("version")
+        current_deployment = (
+            self.db.scalar(
+                select(PatchDeployment).where(
+                    PatchDeployment.version == manifest_version
+                )
+            )
+            if manifest_version
+            else None
+        )
         audit_rows = self.db.execute(
             select(AccessAuditLog, User.username)
             .join(User, User.id == AccessAuditLog.user_id)
@@ -234,8 +247,12 @@ threats_under_review_count=threats_under_review,
         return {
             "patch": {
                 "version": manifest.get("version"),
-                "status": metrics.get("status", "unavailable"),
-                "rollout_percentage": rollout.get("percentage", 0),
+                "status": current_deployment.status if current_deployment else rollout.get("stage", "unavailable"),
+                "rollout_percentage": (
+                    current_deployment.rollout_percentage
+                    if current_deployment
+                    else rollout.get("percentage", 0)
+                ),
                 "recall": metrics.get("recall"),
                 "false_positive_rate": metrics.get("false_positive_rate"),
             },
@@ -262,7 +279,19 @@ threats_under_review_count=threats_under_review,
             "retention": {
                 "inactive_months": 6,
                 "status": "configured",
-                "last_audit": None,
+                "candidate_count": int(
+                    self.db.scalar(
+                        select(func.count(Threat.id)).where(
+                            Threat.similarity_hash.is_not(None)
+                        )
+                    )
+                    or 0
+                ),
+                "last_audit": (
+                    audit_rows[0][0].created_at.isoformat()
+                    if audit_rows
+                    else None
+                ),
                 "note": "La suppression doit être exécutée par le job de rétention planifié.",
             },
             "audit": [
@@ -276,7 +305,152 @@ threats_under_review_count=threats_under_review,
                 }
                 for entry, username in audit_rows
             ],
+            "deployments": [
+                {
+                    "version": item.version,
+                    "status": item.status,
+                    "rollout_percentage": item.rollout_percentage,
+                    "approved_at": item.approved_at.isoformat() if item.approved_at else None,
+                }
+                for item in self.db.scalars(
+                    select(PatchDeployment).order_by(PatchDeployment.created_at.desc()).limit(10)
+                ).all()
+            ],
+            "aggregation_runs": [
+                {
+                    "id": item.id,
+                    "status": item.status,
+                    "message": item.message,
+                    "created_at": item.created_at.isoformat(),
+                }
+                for item in self.db.scalars(
+                    select(AggregationRun).order_by(AggregationRun.created_at.desc()).limit(10)
+                ).all()
+            ],
+            "policies": [
+                {
+                    "id": item.id,
+                    "tenant_key": item.tenant_key,
+                    "region": item.region,
+                    "safe_score": item.safe_score,
+                    "suspicious_score": item.suspicious_score,
+                    "critical_score": item.critical_score,
+                    "escalation_confidence": item.escalation_confidence,
+                    "updated_at": item.updated_at.isoformat(),
+                }
+                for item in self.db.scalars(
+                    select(TenantPolicy).order_by(TenantPolicy.tenant_key)
+                ).all()
+            ],
         }
+
+    def approve_patch(self, version: str, actor: User) -> dict:
+        self._validate_patch_version(version)
+        deployment = self._get_or_create_deployment(version)
+        deployment.status = "APPROVED"
+        deployment.rollout_percentage = 1
+        deployment.approved_by = actor.id
+        deployment.approved_at = datetime.now(timezone.utc)
+        self.db.add(deployment)
+        self.db.commit()
+        return {"version": version, "status": deployment.status}
+
+    def rollback_patch(self, version: str, actor: User) -> dict:
+        self._validate_patch_version(version)
+        deployment = self._get_or_create_deployment(version)
+        deployment.status = "ROLLED_BACK"
+        deployment.rollout_percentage = 0
+        self.db.add(deployment)
+        self.db.commit()
+        return {"version": version, "status": deployment.status}
+
+    def request_aggregation(self, actor: User) -> dict:
+        run = AggregationRun(
+            status="REQUESTED",
+            requested_by=actor.id,
+            message="Demande enregistrée; exécution Cloud Run Job en attente.",
+        )
+        self.db.add(run)
+        self.db.commit()
+        self.db.refresh(run)
+        return {
+            "id": run.id,
+            "status": run.status,
+            "message": run.message,
+            "created_at": run.created_at.isoformat(),
+        }
+
+    def save_tenant_policy(self, payload, actor: User) -> dict:
+        if not (
+            payload.safe_score < payload.suspicious_score < payload.critical_score
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Les seuils doivent être strictement croissants",
+            )
+        policy = self.db.scalar(
+            select(TenantPolicy).where(TenantPolicy.tenant_key == payload.tenant_key)
+        )
+        if policy is None:
+            policy = TenantPolicy(tenant_key=payload.tenant_key)
+        policy.region = payload.region
+        policy.safe_score = payload.safe_score
+        policy.suspicious_score = payload.suspicious_score
+        policy.critical_score = payload.critical_score
+        policy.escalation_confidence = payload.escalation_confidence
+        policy.updated_by = actor.id
+        self.db.add(policy)
+        self.db.commit()
+        self.db.refresh(policy)
+        return {
+            "id": policy.id,
+            "tenant_key": policy.tenant_key,
+            "region": policy.region,
+            "safe_score": policy.safe_score,
+            "suspicious_score": policy.suspicious_score,
+            "critical_score": policy.critical_score,
+            "escalation_confidence": policy.escalation_confidence,
+            "updated_at": policy.updated_at.isoformat(),
+        }
+
+    def flag_false_positive(self, threat_id: int, value: bool) -> ThreatResponse:
+        threat = self.threats.get_by_id(threat_id)
+        if threat is None:
+            raise HTTPException(status_code=404, detail="Menace introuvable")
+        threat.false_positive = value
+        if value:
+            threat.status = ThreatStatus.DISMISSED
+        self.db.add(threat)
+        self.db.commit()
+        self.db.refresh(threat)
+        return self._to_threat_response(threat)
+
+    def _get_or_create_deployment(self, version: str) -> PatchDeployment:
+        deployment = self.db.scalar(
+            select(PatchDeployment).where(PatchDeployment.version == version)
+        )
+        if deployment is None:
+            deployment = PatchDeployment(version=version)
+            self.db.add(deployment)
+            self.db.flush()
+        return deployment
+
+    def _validate_patch_version(self, version: str) -> None:
+        manifest_path = Path(get_settings().model_patch_manifest_path)
+        manifest_version = None
+        try:
+            loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_version = loaded.get("version") if isinstance(loaded, dict) else None
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        known = self.db.scalar(
+            select(PatchDeployment.id).where(PatchDeployment.version == version)
+        )
+        if version != manifest_version and known is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Version de patch inconnue",
+            )
 
     def list_users(self, *, page: int = 1, page_size: int = 20) -> AdminUserListResponse:
         page = max(1, page)
@@ -404,6 +578,7 @@ threats_under_review_count=threats_under_review,
             community_score=threat.community_score,
             severity=threat.severity,
             status=threat.status,
+            false_positive=threat.false_positive,
             first_seen_at=threat.first_seen_at,
             last_seen_at=threat.last_seen_at,
             urls=urls,

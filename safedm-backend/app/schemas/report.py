@@ -67,6 +67,7 @@ class ThreatResponse(BaseModel):
     community_score: float
     severity: ThreatSeverity
     status: ThreatStatus
+    false_positive: bool = False
     first_seen_at: datetime
     last_seen_at: datetime
     urls: list[ThreatUrlResponse] = []

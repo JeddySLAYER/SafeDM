@@ -2,6 +2,7 @@
 
 from app.models.community_report import CommunityReport
 from app.models.access_audit_log import AccessAuditLog
+from app.models.admin_operations import AggregationRun, PatchDeployment, TenantPolicy
 from app.models.device import Device
 from app.models.enums import (
     ReportSource,
@@ -29,6 +30,9 @@ __all__ = [
     "Threat",
     "CommunityReport",
     "AccessAuditLog",
+    "PatchDeployment",
+    "AggregationRun",
+    "TenantPolicy",
     "ThreatUrl",
     "VirusTotalScan",
     "GuideCategory",

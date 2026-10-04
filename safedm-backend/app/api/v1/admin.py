@@ -7,6 +7,11 @@ from app.models import User
 from app.models.enums import ReportStatus, ThreatStatus
 from app.schemas.admin import (
     AdminReportListResponse,
+    AdminAggregationRunResponse,
+    AdminFalsePositiveRequest,
+    AdminPatchActionRequest,
+    AdminTenantPolicyRequest,
+    AdminTenantPolicyResponse,
     AdminStatsResponse,
     AdminThreatDetailResponse,
     AdminThreatListResponse,
@@ -30,6 +35,7 @@ from app.schemas.guide import (
 from app.schemas.monitoring import ApplicationResponse
 from app.schemas.report import ReportResponse, ThreatResponse
 from app.services.admin_service import AdminService
+from app.services.audit_service import record_access
 from app.services.guide_service import GuideService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -51,6 +57,53 @@ def admin_operations_overview(
 ):
     _ = current_admin
     return AdminService(db).operations_overview()
+
+
+@router.post("/operations/patches/approve")
+def admin_approve_patch(
+    payload: AdminPatchActionRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = AdminService(db).approve_patch(payload.version, current_admin)
+    record_access(db, user_id=current_admin.id, action="approve_patch", resource=payload.version, purpose="Admin deployment approval")
+    db.commit()
+    return result
+
+
+@router.post("/operations/patches/rollback")
+def admin_rollback_patch(
+    payload: AdminPatchActionRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = AdminService(db).rollback_patch(payload.version, current_admin)
+    record_access(db, user_id=current_admin.id, action="rollback_patch", resource=payload.version, purpose="Admin deployment rollback")
+    db.commit()
+    return result
+
+
+@router.post("/operations/aggregation", response_model=AdminAggregationRunResponse)
+def admin_request_aggregation(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = AdminService(db).request_aggregation(current_admin)
+    record_access(db, user_id=current_admin.id, action="request_aggregation", resource="weekly_patch", purpose="Manual aggregation request")
+    db.commit()
+    return result
+
+
+@router.put("/operations/policies", response_model=AdminTenantPolicyResponse)
+def admin_save_policy(
+    payload: AdminTenantPolicyRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = AdminService(db).save_tenant_policy(payload, current_admin)
+    record_access(db, user_id=current_admin.id, action="update_policy", resource=payload.tenant_key, purpose="Tenant threshold configuration")
+    db.commit()
+    return result
 
 
 @router.get("/users", response_model=AdminUserListResponse)
@@ -235,6 +288,20 @@ def admin_update_threat_severity(
 ):
     _ = current_admin
     return AdminService(db).update_threat_severity(threat_id, payload.severity)
+
+
+@router.put("/threats/{threat_id}/false-positive", response_model=ThreatResponse)
+def admin_flag_false_positive(
+    threat_id: int,
+    payload: AdminFalsePositiveRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    result = AdminService(db).flag_false_positive(threat_id, payload.value)
+    record_access(db, user_id=current_admin.id, action="flag_false_positive", resource=str(threat_id), purpose="Manual threat moderation")
+    db.commit()
+    return result
 
 
 @router.post(

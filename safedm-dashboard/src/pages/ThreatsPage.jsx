@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getThreats, updateThreatStatus } from "../services/adminApi";
+import { flagThreatFalsePositive, getThreats, updateThreatStatus } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
@@ -47,6 +47,19 @@ export default function ThreatsPage() {
     setBusyId(id);
     try {
       await updateThreatStatus(id, next);
+      await load(data.page || 1, { soft: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+
+  }
+
+  async function markFalsePositive(id) {
+    setBusyId(id);
+    try {
+      await flagThreatFalsePositive(id);
       await load(data.page || 1, { soft: true });
     } catch (err) {
       setError(err.message);
@@ -138,6 +151,7 @@ export default function ThreatsPage() {
                             {s}
                           </button>
                         ))}
+                        {!t.false_positive ? <button type="button" className="btn small danger" disabled={busyId === t.id} onClick={() => markFalsePositive(t.id)}>Faux positif</button> : <span className="pill">Faux positif</span>}
                       </td>
                     </tr>
                   ))}

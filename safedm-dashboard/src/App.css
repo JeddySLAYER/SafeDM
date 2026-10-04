@@ -722,6 +722,22 @@ tr:last-child td {
   margin-bottom: 0;
 }
 
+.operation-actions {
+  margin-top: 14px;
+}
+
+.policy-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.policy-form input {
+  min-width: 120px;
+  flex: 1;
+}
+
 /* Admin surfaces stay deliberately flat: hierarchy comes from spacing and color. */
 .panel,
 .stat-card,
