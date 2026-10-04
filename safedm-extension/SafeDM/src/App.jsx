@@ -215,13 +215,22 @@ function App() {
             </p>
           </div>
           {authed && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-xs font-medium text-[var(--safedm-blue)] hover:underline"
-            >
-              Déconnexion
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => chrome.runtime.openOptionsPage()}
+                className="text-xs font-medium text-[var(--safedm-blue)] hover:underline"
+              >
+                Paramètres
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-xs font-medium text-[var(--safedm-blue)] hover:underline"
+              >
+                Déconnexion
+              </button>
+            </div>
           )}
         </div>
       </header>

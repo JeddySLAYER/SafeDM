@@ -35,6 +35,7 @@ export default defineConfig(({ command }) => {
       rollupOptions: {
         input: {
           main: "./index.html",
+          options: "./options.html",
           background: "src/background/background.js",
           content: "src/content/content.js",
         },

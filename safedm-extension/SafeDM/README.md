@@ -5,6 +5,7 @@ Extension Chrome MV3 pour analyser des **liens** et **textes** via l’API SafeD
 ## Fonctionnalités
 
 - Popup : connexion (JWT) + analyse URL/texte
+- Page **Paramètres** : configuration API, statut de session et effacement local
 - Menu contextuel : **Vérifier avec SafeDM** (lien ou sélection) → bannière ALLOW / WARN / BLOCK
 - Branding SafeDM (bleu `#1769d4`)
 
@@ -47,6 +48,12 @@ les analyses qui n’expriment pas ce consentement.
 Pour un backend local : dans le popup → **API avancée** →  
 `http://127.0.0.1:8000/api/v1`  
 (ou stocker la clé `safedm_api_base` dans `chrome.storage.local`).
+
+La page **Paramètres** est accessible depuis le popup connecté ou depuis le menu
+des extensions Chrome. Elle accepte uniquement HTTPS pour les serveurs distants ;
+les adresses localhost restent autorisées pour le développement. Le JWT n’est
+jamais affiché dans cette page : « Effacer la session locale » supprime le token
+et le nom d’utilisateur mémorisés.
 
 Les requêtes expirent après 15 secondes. Une API distante doit utiliser HTTPS ;
 `localhost` et `127.0.0.1` restent autorisés pour le développement local.
