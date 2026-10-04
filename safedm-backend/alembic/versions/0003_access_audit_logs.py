@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0003_access_audit_logs"
-down_revision = ("0002_similarity_fingerprint_reports", "0002_link_gate_events")
+down_revision = ("0002_similarity_reports", "0002_link_gate_events")
 branch_labels = None
 depends_on = None
 

@@ -3,7 +3,7 @@
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0002_similarity_fingerprint_reports"
+revision = "0002_similarity_reports"
 down_revision = "0001_initial_schema"
 branch_labels = None
 depends_on = None

@@ -434,6 +434,11 @@ compatibilité avec Expo SDK 52.*
   après 183 jours est disponible via
   `scripts/purge_inactive_fingerprints.py`, prévue pour un Cloud Run Job
   déclenché par Cloud Scheduler.
+- Correction migration : l'identifiant Alembic historique
+  `0002_similarity_fingerprint_reports` dépassait la limite `VARCHAR(32)` de
+  la table `alembic_version`. Il est maintenant enregistré sous
+  `0002_similarity_reports`; la chaîne complète atteint bien
+  `0004_admin_operations`.
 - Validation Sprint 3 : **8 tests backend passent** dans `safedm-backend/.venv`
   (hash de similarité et schéma SQL), **9 tests mobile passent**, et
   `git diff --check` passe. Le lint ciblé des fichiers Sprint 3 est bloqué par
