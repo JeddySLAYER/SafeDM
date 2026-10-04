@@ -32,7 +32,7 @@ export default function handleReload() {
           console.log("Update received");
           location.reload();
         }
-      } catch (e) {
+      } catch {
         // Ignore non-JSON messages
       }
     };
@@ -60,5 +60,4 @@ export default function handleReload() {
     }
   });
 }
-
 

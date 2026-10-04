@@ -21,7 +21,21 @@ function formatDetail(detail) {
 
 async function resolveBaseUrl() {
   const override = await getApiBase();
-  return (override || DEFAULT_API_BASE).replace(/\/+$/, "");
+  const value = (override || DEFAULT_API_BASE).trim().replace(/\/+$/, "");
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new ApiError("URL API invalide.", 0, value);
+  }
+  const local =
+    parsed.hostname === "localhost" ||
+    parsed.hostname === "127.0.0.1" ||
+    parsed.hostname === "[::1]";
+  if (parsed.protocol !== "https:" && !local) {
+    throw new ApiError("L’API distante doit utiliser HTTPS.", 0, value);
+  }
+  return value;
 }
 
 export async function apiRequest(path, options = {}) {
@@ -30,6 +44,7 @@ export async function apiRequest(path, options = {}) {
     body,
     auth = true,
     headers: extraHeaders = {},
+    timeoutMs = 15000,
   } = options;
 
   const headers = {
@@ -50,18 +65,26 @@ export async function apiRequest(path, options = {}) {
 
   const base = await resolveBaseUrl();
   let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     response = await fetch(`${base}/${path.replace(/^\/+/, "")}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
-  } catch {
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new ApiError("Le serveur SafeDM met trop de temps à répondre.", 408, null);
+    }
     throw new ApiError(
       "Impossible de joindre le serveur SafeDM. Vérifiez la connexion.",
       0,
       null,
     );
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (response.status === 204) return null;
@@ -114,6 +137,7 @@ export function analyzeMessage(payload) {
       application_package: payload.application_package || null,
       title: payload.title || null,
       sender: payload.sender || null,
+      consent_external: true,
     },
   });
 }
@@ -187,7 +211,7 @@ export function normalizeResult(result, fallbackText = "") {
  * Analyse un lien (Link Gate) avec fallbacks comme le mobile.
  */
 export async function analyzeUrl(url) {
-  const body = { url };
+  const body = { url, consent_external: true };
   try {
     const result = await apiRequest("/analysis/link", { method: "POST", body });
     return normalizeResult(result, url);

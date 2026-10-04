@@ -28,7 +28,7 @@ export default function handleReload() {
           console.log("Reloading extension...");
           chrome.runtime.reload();
         } 
-      } catch (e) {
+      } catch {
         // Ignore non-JSON messages
       }
     };

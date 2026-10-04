@@ -6,7 +6,7 @@ import cleanMainFile from "./plugins/cleanMainFile.js";
 import tailwindcss from '@tailwindcss/vite'
 
 
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ command }) => {
   // Enable reload plugins only in dev mode (watch mode)
   const isDev =
     command === "build" && process.env.npm_lifecycle_event === "dev";

@@ -29,7 +29,7 @@ export default function handleReload() {
           console.log("Reloading page...");
           window.location.reload()
         } 
-      } catch (e) {
+      } catch {
         // Ignore non-JSON messages
       }
     };

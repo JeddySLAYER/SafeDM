@@ -40,9 +40,16 @@ Endpoints utilisés :
 - `POST /analysis`
 - `POST /analysis/link` (puis `/analysis/url`, puis fallback message)
 
+Une analyse lancée explicitement depuis le popup ou le menu contextuel transmet
+le contenu à l’API avec `consent_external: true`. Le backend refuse par défaut
+les analyses qui n’expriment pas ce consentement.
+
 Pour un backend local : dans le popup → **API avancée** →  
 `http://127.0.0.1:8000/api/v1`  
 (ou stocker la clé `safedm_api_base` dans `chrome.storage.local`).
+
+Les requêtes expirent après 15 secondes. Une API distante doit utiliser HTTPS ;
+`localhost` et `127.0.0.1` restent autorisés pour le développement local.
 
 ## Test rapide
 

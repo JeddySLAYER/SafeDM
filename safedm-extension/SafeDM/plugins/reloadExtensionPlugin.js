@@ -50,13 +50,11 @@ export default function reloadExtensionPlugin(reload = true) {
   const mode = reload ? "dev" : "build";
 
   let reloadExtension;
-  let updatePopup;
   let buildStartTime;
 
   async function initReloadServer() {
     const reloadServer = await import("../reload-server.js");
     reloadExtension = reloadServer.reloadExtension;
-    updatePopup = reloadServer.updatePopup;
     log("success", "PLUGIN", "Reload server initialized");
   }
 
