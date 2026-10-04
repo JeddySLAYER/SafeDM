@@ -204,7 +204,7 @@ function OperationsSheet({ type, data, policy, setPolicy, busy, onClose, onActio
   const Icon = content.icon;
   return (
     <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}>
-      <aside className="help-sheet operations-sheet" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+      <aside className={`help-sheet operations-sheet ${type === "history" ? "operations-sheet-history" : ""}`} role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
         <header className="help-sheet-header">
           <div className="ops-sheet-title"><Icon size={20} aria-hidden /><div><p className="eyebrow">Opérations</p><h2>{content.title}</h2><p className="muted">{content.subtitle}</p></div></div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer"><X size={18} aria-hidden /></button>
@@ -227,7 +227,7 @@ function PolicyForm({ policy, setPolicy, busy, onSubmit }) {
       {field("tenant_key", "Entreprise", { required: true, placeholder: "ex. acme" })}
       {field("region", "Région", { required: true, placeholder: "ex. eu-west" })}
     </div>
-    <div className="threshold-box"><p className="eyebrow">Seuils de score</p><p className="muted">Un score est compris entre 0 et 100. La valeur critique doit être supérieure aux deux autres.</p><div className="ops-field-grid">{field("safe_score", "Sûr", { required: true, type: "number", min: 0, max: 100 })}{field("suspicious_score", "Suspect", { required: true, type: "number", min: 0, max: 100 })}{field("critical_score", "Critique", { required: true, type: "number", min: 0, max: 100 })}{field("escalation_confidence", "Confiance (0–1)", { required: true, type: "number", min: 0, max: 1, step: 0.01 })}</div></div>
+    <div className="threshold-box"><p className="eyebrow">Comment lire la décision</p><p className="muted">Le score de risque va de 0 à 100 : en dessous de « sûr », le message est plutôt rassurant ; à partir de « suspect », il demande une vérification ; à partir de « critique », il est traité comme dangereux.</p><p className="muted">La confiance (0–1) mesure à quel point Jev distingue clairement ses hypothèses. Une confiance basse signifie que les probabilités sont réparties entre plusieurs verdicts : c’est l’incertitude, parfois appelée entropie. Elle ne change pas le score ; elle empêche simplement de considérer un résultat ambigu comme sûr.</p><div className="ops-field-grid">{field("safe_score", "Sûr", { required: true, type: "number", min: 0, max: 100 })}{field("suspicious_score", "Suspect", { required: true, type: "number", min: 0, max: 100 })}{field("critical_score", "Critique", { required: true, type: "number", min: 0, max: 100 })}{field("escalation_confidence", "Confiance minimale (0–1)", { required: true, type: "number", min: 0, max: 1, step: 0.01 })}</div></div>
     <button className="btn primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : <Check size={16} aria-hidden />} Enregistrer la politique</button>
   </form>;
 }

@@ -907,6 +907,18 @@ tr:last-child td {
   width: min(620px, 94vw);
 }
 
+.operations-sheet-history {
+  width: min(1040px, 96vw);
+}
+
+.operations-sheet-history .help-sheet-body {
+  overflow-x: auto;
+}
+
+.operations-sheet-history .history-stack {
+  min-width: 820px;
+}
+
 .ops-sheet-title {
   display: flex;
   gap: 12px;
@@ -1000,6 +1012,7 @@ tr:last-child td {
 
 .history-stack .table-wrap {
   min-height: auto;
+  overflow-x: auto;
 }
 
 .policy-form {
