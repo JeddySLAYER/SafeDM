@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FilePlus2, FolderPlus } from "lucide-react";
+import { FilePlus2, FolderPlus, Library, X } from "lucide-react";
 import {
   createArticle,
   createCategory,
@@ -31,6 +31,8 @@ export default function GuidePage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [editorTab, setEditorTab] = useState("article");
+  const [preview, setPreview] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [catForm, setCatForm] = useState({ title: "", description: "" });
   const [articleForm, setArticleForm] = useState(emptyArticle);
   const [editingId, setEditingId] = useState(null);
@@ -221,15 +223,22 @@ export default function GuidePage() {
         title="Guide"
         subtitle="Rédigez et publiez le contenu pédagogique visible dans l’app mobile — sans republier l’app."
         actions={
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => load()}
-            disabled={loading}
-          >
-            {loading ? <span className="btn-spinner" /> : null}
-            Actualiser
-          </button>
+          <>
+            <button type="button" className="btn" onClick={() => setCatalogOpen(true)}>
+              <Library size={16} aria-hidden />
+              Catégories
+              <span className="pill soft">{categories.length}</span>
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => load()}
+              disabled={loading}
+            >
+              {loading ? <span className="btn-spinner" /> : null}
+              Actualiser
+            </button>
+          </>
         }
       />
 
@@ -240,13 +249,18 @@ export default function GuidePage() {
         {message}
       </Alert>
 
-      <div className="guide-layout">
-        <section className="guide-catalog">
+      <div className="guide-layout guide-fullscreen">
+        {catalogOpen ? <div className="guide-sheet-backdrop" onClick={() => setCatalogOpen(false)} /> : null}
+        <section className={`guide-catalog ${catalogOpen ? "is-open" : ""}`}>
           <div className="guide-section-title">
-            <h2 style={{ margin: 0 }}>Catalogue</h2>
-            <span className="pill soft">
-              {categories.length} cat. · {articleCount} art.
-            </span>
+            <div>
+              <p className="eyebrow">Bibliothèque du guide</p>
+              <h2 style={{ margin: 0 }}>Catégories et articles</h2>
+              <p className="guide-cat-meta">{categories.length} catégories · {articleCount} articles</p>
+            </div>
+            <button type="button" className="icon-btn" onClick={() => setCatalogOpen(false)} aria-label="Fermer les catégories">
+              <X size={19} aria-hidden />
+            </button>
           </div>
 
           {loading ? (
@@ -408,17 +422,38 @@ export default function GuidePage() {
             <div className="tabs" role="tablist">
               <button
                 type="button"
-                className={editorTab === "article" ? "tab active" : "tab"}
-                onClick={() => setEditorTab("article")}
+                className={editorTab === "article" && !preview ? "tab active" : "tab"}
+                aria-selected={editorTab === "article" && !preview}
+                onClick={() => {
+                  setEditorTab("article");
+                  setPreview(false);
+                }}
               >
-                <FilePlus2 size={15} aria-hidden /> Article
+                <FilePlus2 size={17} aria-hidden />
+                <span><strong>Rédiger</strong><small>Écrire un article</small></span>
+              </button>
+              <button
+                type="button"
+                className={preview ? "tab active" : "tab"}
+                aria-selected={preview}
+                onClick={() => {
+                  setEditorTab("article");
+                  setPreview(true);
+                }}
+              >
+                <span><strong>Aperçu</strong><small>Voir le rendu final</small></span>
               </button>
               <button
                 type="button"
                 className={editorTab === "category" ? "tab active" : "tab"}
-                onClick={() => setEditorTab("category")}
+                aria-selected={editorTab === "category"}
+                onClick={() => {
+                  setEditorTab("category");
+                  setPreview(false);
+                }}
               >
-                <FolderPlus size={15} aria-hidden /> Catégorie
+                <FolderPlus size={17} aria-hidden />
+                <span><strong>Organiser</strong><small>Créer une catégorie</small></span>
               </button>
             </div>
 
@@ -463,6 +498,18 @@ export default function GuidePage() {
                 <Skeleton rows={4} />
               </div>
             ) : (
+              preview ? (
+                <div className="guide-preview">
+                  <div className="preview-toolbar">
+                    <span>Aperçu du guide</span>
+                    <button type="button" className="btn small ghost" onClick={() => setPreview(false)}>
+                      Revenir à l’édition
+                    </button>
+                  </div>
+                  <h1>{articleForm.title || "Titre de l’article"}</h1>
+                  <MarkdownPreview content={articleForm.content} />
+                </div>
+              ) : (
               <form className="form-grid" onSubmit={onSaveArticle}>
                 <p className="panel-note">
                   {editingId
@@ -552,10 +599,37 @@ export default function GuidePage() {
                   ) : null}
                 </div>
               </form>
+              )
             )}
           </div>
         </aside>
       </div>
     </div>
   );
+}
+
+function MarkdownPreview({ content }) {
+  const lines = String(content || "").split(/\r?\n/);
+  const blocks = [];
+  let list = [];
+  function flushList() {
+    if (list.length) {
+      blocks.push(<ul key={`list-${blocks.length}`}>{list}</ul>);
+      list = [];
+    }
+  }
+  lines.forEach((line, index) => {
+    if (line.trim().startsWith("- ")) {
+      list.push(<li key={`item-${index}`}>{line.trim().slice(2)}</li>);
+      return;
+    }
+    flushList();
+    if (!line.trim()) return;
+    if (line.startsWith("### ")) blocks.push(<h4 key={index}>{line.slice(4)}</h4>);
+    else if (line.startsWith("## ")) blocks.push(<h3 key={index}>{line.slice(3)}</h3>);
+    else if (line.startsWith("# ")) blocks.push(<h2 key={index}>{line.slice(2)}</h2>);
+    else blocks.push(<p key={index}>{line}</p>);
+  });
+  flushList();
+  return <div className="guide-preview-content">{blocks.length ? blocks : <p className="muted">Commencez à rédiger pour voir l’aperçu.</p>}</div>;
 }

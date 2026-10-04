@@ -79,6 +79,39 @@ export function Freshness({ updatedAt, refreshing }) {
   );
 }
 
+export function HelpSheet({ open, title, sections, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside
+        className="help-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-sheet-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="help-sheet-header">
+          <div>
+            <p className="eyebrow">Aide contextuelle</p>
+            <h2 id="help-sheet-title">{title}</h2>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer l’aide">
+            <X size={18} aria-hidden />
+          </button>
+        </header>
+        <div className="help-sheet-body">
+          {sections.map((section) => (
+            <section className="help-section" key={section.title}>
+              <h3>{section.title}</h3>
+              <p>{section.body}</p>
+            </section>
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 export function EmptyState({ title, description, action }) {
   return (
     <div className="empty-state">
@@ -97,3 +130,4 @@ export function LoadingOverlay({ show, label = "Actualisation…" }) {
     </div>
   );
 }
+import { X } from "lucide-react";

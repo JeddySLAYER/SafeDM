@@ -2,6 +2,8 @@
  * @format
  */
 
+/* global expect, jest */
+
 import React, { act } from "react";
 import { it } from "@jest/globals";
 import renderer from "react-test-renderer";
@@ -23,7 +25,10 @@ jest.mock("react-native-safe-area-context", () => {
 });
 
 jest.mock("@react-navigation/native", () => ({
-  NavigationContainer: ({ children }) => children,
+  NavigationContainer: require("react").forwardRef((props, ref) => {
+    void ref;
+    return props.children;
+  }),
   createNavigationContainerRef: () => ({
     isReady: () => false,
     navigate: jest.fn(),
@@ -100,7 +105,7 @@ import App from "../App";
 it("renders correctly", async () => {
   let tree;
   await act(async () => {
-    tree = renderer.create(<App />);
+    tree = renderer.create(React.createElement(App));
     await Promise.resolve();
   });
   expect(tree).toBeTruthy();

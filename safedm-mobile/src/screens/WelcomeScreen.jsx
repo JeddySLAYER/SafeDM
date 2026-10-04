@@ -13,7 +13,7 @@ const SLIDES = [
   },
   {
     title: "Analyse côté serveur",
-    body: "Gemini et VirusTotal restent sur le backend. Aucune clé API n’est stockée sur votre téléphone.",
+    body: "Jev (TypeSafe) et VirusTotal restent sur le backend. Aucune clé API n’est stockée sur votre téléphone.",
   },
   {
     title: "Vous gardez le contrôle",

@@ -235,5 +235,31 @@ La rétention des empreintes inactives est exécutée par
 
 ## Sécurité
 
-- Les clés `GEMINI_API_KEY` et `VIRUSTOTAL_API_KEY` restent **uniquement** dans `.env` backend.
+- Les clés `TYPESAFE_API_KEY` et `VIRUSTOTAL_API_KEY` restent **uniquement** dans `.env` backend.
 - Ne jamais logger le contenu des messages analysés.
+
+## Cycle local des modèles et patches
+
+L'entraînement local et le déploiement mobile sont deux étapes distinctes :
+
+1. `scripts/train_local_model.py` entraîne la régression sur les features 50,
+   choisit un seuil sur des prédictions hors pli et produit un patch JSON de
+   recherche/production avec des poids entiers.
+2. `scripts/export_tflite_model.py` exporte séparément le modèle destiné au
+   runtime Android. L'artefact `.tflite` doit être publié sur une URL HTTPS et
+   son SHA-256 doit être placé dans le manifeste.
+3. `scripts/generate_weekly_patch.py` agrège uniquement les métadonnées
+   anonymes des signalements actifs. Il ne réentraîne pas les poids et ne doit
+   pas être présenté comme un entraînement automatique.
+4. Le manifeste mobile doit être signé avec la clé RSA configurée dans
+   `MODEL_PATCH_SIGNING_KEY_PEM_B64`. Le mobile vérifie signature, URL HTTPS,
+   SHA-256 et groupe canary avant activation.
+5. Dans Opérations, l'approbation persiste l'état du patch et son rollout.
+   Un rollback rend le manifeste courant indisponible au mobile. La promotion
+   progressive au-delà du canary et l'exécution Cloud Run/Scheduler restent
+   à automatiser avant la production.
+
+Une politique tenant enregistrée dans Opérations est actuellement une
+configuration persistée et auditée. Elle n'est pas encore appliquée à la
+fusion d'analyse tant qu'un contexte tenant/région n'est pas fourni à
+`/analysis`.

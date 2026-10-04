@@ -12,7 +12,7 @@ export default function App() {
   useEffect(() => {
     updateModelFromManifest().catch((error) => {
       // The bundled model keeps the app fully functional when offline.
-      if (__DEV__) {
+      if (__DEV__ && process.env.NODE_ENV !== "test") {
         console.warn("Model update unavailable; bundled model retained", error?.message);
       }
     });

@@ -152,6 +152,24 @@ remplacer silencieusement par SimHash.
 
 ## Phase 1 — Démarrage immédiat (Sprint 1)
 
+## Audit produit — 2026-10-04
+
+- Le dashboard admin reste servi sous `/api/v1`; il n'existe pas de `/api/v2`.
+- Le fournisseur sémantique actif est Jev/TypeSafe; VirusTotal reste limité
+  aux URLs. Les anciens libellés Gemini ont été retirés des interfaces.
+- La page Opérations distingue maintenant résumé, actions rapides et détails
+  dans des sheets; les actions de patch affichent un état de chargement.
+- Le warning Fast Refresh du dashboard a été supprimé en séparant le contexte
+  et le hook `useAuth`.
+- L'entraînement local produit un patch JSON à poids entiers; l'export TFLite
+  est une étape séparée pour Android. Le job hebdomadaire actuel agrège des
+  métadonnées anonymes et ne réentraîne pas les poids.
+- Le manifeste `/api/v1/models/latest` tient compte de l'état de déploiement :
+  un patch rollbacké n'est plus servi et le rollout persistant est renvoyé.
+- Reste à faire avant une production de patches : brancher le job Cloud
+  Scheduler/Cloud Run, publier l'artefact TFLite signé, ajouter une promotion
+  canary explicite et appliquer les politiques tenant au contexte d'analyse.
+
 ### Tâches à effectuer :
 
 1. **Créer le répertoire** `safedm-mobile/src/features/` pour extraire le code de extraction
@@ -537,3 +555,19 @@ immédiat.
   métriques régionales depuis des événements portant une région fiable ;
 - verrouiller les transitions de patch avec une approbation multi-admin si la
   politique de déploiement l'exige.
+
+### Revue finale — cohérence, avertissements et commandes locales
+
+- `scripts/generate_weekly_patch.py` ajoute désormais le backend au chemin
+  d'import, donc `python scripts/generate_weekly_patch.py --help` et son
+  exécution fonctionnent depuis `safedm-backend`.
+- Le warning Fast Refresh du dashboard a été supprimé en séparant le contexte
+  d'authentification et son hook.
+- Le test mobile utilise un faux `NavigationContainer` compatible avec les
+  refs React et n'émet plus le warning de ref ; les erreurs attendues de mise à
+  jour du modèle ne sont pas journalisées pendant Jest.
+- Dashboard : build et lint validés. Backend : 38 tests ciblés validés.
+  Mobile : lint et 9 tests validés.
+- La page Operations indique explicitement que les seuils affichés sont les
+  seuils globaux de secours ; les politiques tenant/région enregistrées restent
+  auditées mais attendent le contexte tenant de `/analysis`.

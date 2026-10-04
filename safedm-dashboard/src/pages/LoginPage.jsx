@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import SafeDMLogo from "../components/SafeDMLogo";
-import { useAuth } from "../context/AuthContext";
-import { apiRequest } from "../services/api";
+import { useAuth } from "../context/useAuth";
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -10,13 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [apiOk, setApiOk] = useState(null);
-
-  useEffect(() => {
-    apiRequest("/health", { auth: false })
-      .then(() => setApiOk(true))
-      .catch(() => setApiOk(false));
-  }, []);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
@@ -41,14 +35,6 @@ export default function LoginPage() {
         </div>
         <h1>Espace admin</h1>
         <p className="muted">Connexion réservée aux comptes administrateurs.</p>
-        <p className={apiOk === null ? "muted" : apiOk ? "ok" : "error"}>
-          API :{" "}
-          {apiOk === null
-            ? "vérification…"
-            : apiOk
-              ? "joignable"
-              : "injoignable — démarrez le backend (:8000)"}
-        </p>
         <label>
           Identifiant
           <input
@@ -60,13 +46,23 @@ export default function LoginPage() {
         </label>
         <label>
           Mot de passe
-          <input
-            type="password"
+          <div className="password-field">
+            <input
+            type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
-          />
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            >
+              {showPassword ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+            </button>
+          </div>
         </label>
         {error ? <p className="error">{error}</p> : null}
         <button

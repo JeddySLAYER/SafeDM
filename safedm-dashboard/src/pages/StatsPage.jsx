@@ -47,6 +47,20 @@ export default function StatsPage() {
     );
   }
 
+  if (!stats) {
+    return (
+      <div>
+        <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
+        <Alert tone="error">
+          Les statistiques sont indisponibles. Vérifiez votre connexion et vos droits administrateur.
+        </Alert>
+        <button type="button" className="btn primary" onClick={() => refresh()}>
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
   const cards = [
     { label: "Utilisateurs", value: stats.users_count },
     { label: "Signalements actifs", value: stats.reports_active_count },
@@ -107,7 +121,7 @@ export default function StatsPage() {
           {health ? (
             <ul className="health-list">
               <li className="health-row">
-                <span>Gemini</span>
+                <span>Jev (TypeSafe)</span>
                 <span className={`health-badge ${health.jev_ok ? "ok" : "warn"}`}>
                   {health.jev_ok ? "OK" : "Manquant"}
                 </span>

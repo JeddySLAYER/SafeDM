@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AdminLayout from "./components/AdminLayout";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
+import { useAuth } from "./context/useAuth";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import GuidePage from "./pages/GuidePage";
 import LinkGatePage from "./pages/LinkGatePage";

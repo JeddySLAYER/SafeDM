@@ -21,7 +21,10 @@ En dev, Vite proxy `/api` → `http://127.0.0.1:8000` (évite les soucis CORS `l
 - Stats (`GET /admin/stats`)
 - Menaces (liste + changement de statut)
 - Utilisateurs (`GET /admin/users`)
-- Guide CMS (catégories / articles, publiés + brouillons)
+- Guide CMS plein écran (rédaction, aperçu, organisation et publication)
+- Operations (état du pipeline, seuils globaux, demandes d'agrégation, déploiements et audit)
+- Sheets d'aide contextuelle pour expliquer chaque page et chaque action
+- Formulaires avec états de chargement, validation et présentation mobile
 
 ## Stack
 

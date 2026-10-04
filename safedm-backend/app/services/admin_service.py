@@ -274,7 +274,7 @@ threats_under_review_count=threats_under_review,
                     "critical_score": settings.threshold_critical_score,
                     "escalation_confidence": settings.threshold_escalation_confidence,
                 },
-                "note": "Les seuils par entreprise/région nécessitent encore un stockage de configuration dédié.",
+                "note": "Les politiques tenant/région sont stockées et auditées; elles seront appliquées quand le contexte tenant sera transmis à /analysis.",
             },
             "retention": {
                 "inactive_months": 6,
