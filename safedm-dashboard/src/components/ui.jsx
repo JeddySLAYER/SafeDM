@@ -10,6 +10,45 @@ export function PageHeader({ title, subtitle, actions }) {
   );
 }
 
+export function DetailSheet({ open, title, eyebrow = "Fiche détaillée", loading = false, error = "", onClose, children }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside
+        className="detail-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-sheet-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="detail-sheet-header">
+          <div>
+            <p className="eyebrow">{eyebrow}</p>
+            <h2 id="detail-sheet-title">{title}</h2>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer la fiche">
+            <X size={18} aria-hidden />
+          </button>
+        </header>
+        <div className="detail-sheet-body">
+          {loading ? <Spinner label="Chargement de la fiche…" /> : null}
+          {error ? <Alert tone="error">{error}</Alert> : null}
+          {!loading && !error ? children : null}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 export function Alert({ tone = "error", children, onDismiss }) {
   if (!children) return null;
   return (
@@ -130,4 +169,5 @@ export function LoadingOverlay({ show, label = "Actualisation…" }) {
     </div>
   );
 }
+import { useEffect } from "react";
 import { X } from "lucide-react";

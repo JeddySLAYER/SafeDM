@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getUsers } from "../services/adminApi";
+import { getUser, getUsers } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
@@ -8,6 +8,7 @@ import {
   PageHeader,
   Skeleton,
   Spinner,
+  DetailSheet,
 } from "../components/ui";
 
 export default function UsersPage() {
@@ -15,6 +16,10 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   async function load(page = 1, { soft = false } = {}) {
     setError("");
@@ -33,6 +38,20 @@ export default function UsersPage() {
   useEffect(() => {
     load(1);
   }, []);
+
+  async function openDetail(id) {
+    setDetailId(id);
+    setDetail(null);
+    setDetailError("");
+    setDetailLoading(true);
+    try {
+      setDetail(await getUser(id));
+    } catch (err) {
+      setDetailError(err.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   return (
     <div>
@@ -86,9 +105,11 @@ export default function UsersPage() {
                           : "—"}
                       </td>
                       <td>
-                        <Link className="btn small" to={`/users/${u.id}`}>
-                          Fiche
-                        </Link>
+                        <button type="button" className="btn small" disabled={detailId === u.id && detailLoading} onClick={() => openDetail(u.id)}>
+                          {detailId === u.id && detailLoading ? <span className="btn-spinner" /> : null}
+                          {detailId === u.id && detailLoading ? "Ouverture…" : "Aperçu"}
+                        </button>
+                        <Link className="btn small ghost" to={`/users/${u.id}`}>Fiche complète</Link>
                       </td>
                     </tr>
                   ))}
@@ -121,6 +142,32 @@ export default function UsersPage() {
           </div>
         </>
       )}
+      <DetailSheet
+        open={detailId !== null}
+        title={detail ? detail.username : "Utilisateur"}
+        loading={detailLoading}
+        error={detailError}
+        onClose={() => setDetailId(null)}
+      >
+        {detail ? (
+          <>
+            <div className="detail-summary">
+              <span className="user-avatar">{detail.username.slice(0, 1).toUpperCase()}</span>
+              <div>
+                <strong>{detail.username}</strong>
+                <p className="muted">Compte #{detail.id} · {detail.is_admin ? "Administrateur" : "Utilisateur"}</p>
+              </div>
+            </div>
+            <dl className="details-list">
+              <div><dt>Signalements</dt><dd>{detail.reports_count}</dd></div>
+              <div><dt>Appareils</dt><dd>{detail.devices?.length || 0}</dd></div>
+              <div><dt>Applications surveillées</dt><dd>{detail.monitoring?.length || 0}</dd></div>
+              <div><dt>Créé le</dt><dd>{detail.created_at ? new Date(detail.created_at).toLocaleString("fr-FR") : "—"}</dd></div>
+            </dl>
+            <Link className="btn primary" to={`/users/${detail.id}`}>Ouvrir la fiche complète</Link>
+          </>
+        ) : null}
+      </DetailSheet>
     </div>
   );
 }

@@ -1352,6 +1352,71 @@ tr:last-child td {
   animation: sheet-in 0.2s ease-out;
 }
 
+.detail-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(620px, 94vw);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  padding: 24px;
+  overflow-y: auto;
+  animation: sheet-in 0.2s ease-out;
+}
+
+.detail-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-sheet-header h2 {
+  margin: 4px 0 0;
+  border: 0;
+  padding: 0;
+}
+
+.detail-sheet-body {
+  padding-top: 20px;
+}
+
+.detail-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--section);
+  border-radius: 10px;
+  margin-bottom: 18px;
+}
+
+.detail-summary p {
+  margin: 4px 0 0;
+}
+
+.detail-content-preview {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+
+.detail-content-preview h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+}
+
+.detail-content-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
 .help-sheet-header {
   display: flex;
   justify-content: space-between;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { flagThreatFalsePositive, getThreats, updateThreatStatus } from "../services/adminApi";
+import { flagThreatFalsePositive, getThreat, getThreats, updateThreatStatus } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
@@ -8,6 +8,7 @@ import {
   PageHeader,
   Skeleton,
   Spinner,
+  DetailSheet,
 } from "../components/ui";
 
 const STATUSES = ["ACTIVE", "UNDER_REVIEW", "DISMISSED"];
@@ -19,6 +20,10 @@ export default function ThreatsPage() {
   const [busyId, setBusyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const load = useCallback(async (page = 1, { soft = false } = {}) => {
     setError("");
@@ -42,6 +47,20 @@ export default function ThreatsPage() {
   useEffect(() => {
     load(1);
   }, [load]);
+
+  async function openDetail(id) {
+    setDetailId(id);
+    setDetail(null);
+    setDetailError("");
+    setDetailLoading(true);
+    try {
+      setDetail(await getThreat(id));
+    } catch (err) {
+      setDetailError(err.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   async function changeStatus(id, next) {
     setBusyId(id);
@@ -136,9 +155,11 @@ export default function ThreatsPage() {
                         {t.content}
                       </td>
                       <td className="actions">
-                        <Link className="btn small" to={`/threats/${t.id}`}>
-                          Détail
-                        </Link>
+                        <button type="button" className="btn small" disabled={detailId === t.id && detailLoading} onClick={() => openDetail(t.id)}>
+                          {detailId === t.id && detailLoading ? <span className="btn-spinner" /> : null}
+                          {detailId === t.id && detailLoading ? "Ouverture…" : "Aperçu"}
+                        </button>
+                        <Link className="btn small ghost" to={`/threats/${t.id}`}>Détail</Link>
                         {STATUSES.filter((s) => s !== t.status).map((s) => (
                           <button
                             key={s}
@@ -185,6 +206,36 @@ export default function ThreatsPage() {
           </div>
         </>
       )}
+      <DetailSheet
+        open={detailId !== null}
+        title={detail ? `Menace #${detail.id}` : "Menace"}
+        eyebrow="Aperçu de la menace"
+        loading={detailLoading}
+        error={detailError}
+        onClose={() => setDetailId(null)}
+      >
+        {detail ? (
+          <>
+            <div className="detail-summary">
+              <span className={`pill sev-${String(detail.severity).toLowerCase()}`}>{detail.severity}</span>
+              <div>
+                <strong>{detail.status}</strong>
+                <p className="muted">{detail.report_count} signalement(s) · score communauté {detail.community_score}</p>
+              </div>
+            </div>
+            <section className="detail-content-preview">
+              <h3>Contenu signalé</h3>
+              <p>{detail.content}</p>
+            </section>
+            <dl className="details-list">
+              <div><dt>Première vue</dt><dd>{detail.first_seen_at ? new Date(detail.first_seen_at).toLocaleString("fr-FR") : "—"}</dd></div>
+              <div><dt>Dernière vue</dt><dd>{detail.last_seen_at ? new Date(detail.last_seen_at).toLocaleString("fr-FR") : "—"}</dd></div>
+              <div><dt>URLs</dt><dd>{detail.urls?.length || 0}</dd></div>
+            </dl>
+            <Link className="btn primary" to={`/threats/${detail.id}`}>Ouvrir le détail complet</Link>
+          </>
+        ) : null}
+      </DetailSheet>
     </div>
   );
 }
