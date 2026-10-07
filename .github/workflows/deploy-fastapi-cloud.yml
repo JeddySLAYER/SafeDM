@@ -1,0 +1,66 @@
+# Deploy safedm-backend → FastAPI Cloud on push to main (or manual).
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   FASTAPI_CLOUD_TOKEN   — deploy token (dashboard → Deploy Tokens)
+#   FASTAPI_CLOUD_APP_ID  — UUID de l'app (header dashboard)
+#
+# Première fois en local (une seule fois) :
+#   cd safedm-backend
+#   uv run fastapi login
+#   uv run fastapi deploy          # crée l'app + .fastapicloud/
+#   # puis créer un deploy token dans le dashboard, ou :
+#   uv run fastapi cloud setup-ci --secrets-only
+#
+# Voir docs/DEPLOY_FASTAPI_CLOUD.md
+
+name: Deploy FastAPI Cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "safedm-backend/**"
+      - ".github/workflows/deploy-fastapi-cloud.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fastapi-cloud
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check secrets
+        env:
+          FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
+          FASTAPI_CLOUD_APP_ID: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
+        run: |
+          missing=0
+          if [ -z "$FASTAPI_CLOUD_TOKEN" ]; then
+            echo "::error::Secret FASTAPI_CLOUD_TOKEN manquant — voir docs/DEPLOY_FASTAPI_CLOUD.md"
+            missing=1
+          fi
+          if [ -z "$FASTAPI_CLOUD_APP_ID" ]; then
+            echo "::error::Secret FASTAPI_CLOUD_APP_ID manquant — voir docs/DEPLOY_FASTAPI_CLOUD.md"
+            missing=1
+          fi
+          exit $missing
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Deploy to FastAPI Cloud
+        env:
+          FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
+          FASTAPI_CLOUD_APP_ID: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
+        run: uv run fastapi deploy --app-id "$FASTAPI_CLOUD_APP_ID"

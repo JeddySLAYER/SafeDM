@@ -14,6 +14,8 @@ Application Android de cybersécurité qui détecte préventivement les messages
 
 ## Docs
 
+- [Déploiement FastAPI Cloud + secrets CI](./docs/DEPLOY_FASTAPI_CLOUD.md)
+- [CI mobile / APK](./docs/MOBILE_CI.md)
 - [Intégration API](./docs/INTEGRATION.md)
 - [Sécurité](./docs/SECURITY.md)
 - [QA Sprint 9](./docs/QA.md)

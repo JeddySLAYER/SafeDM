@@ -38,3 +38,6 @@ data/interim/*
 data/external/*
 !data/external/.gitkeep
 mlruns/
+
+# FastAPI Cloud local link (contains app id; token stays in secrets)
+.fastapicloud/

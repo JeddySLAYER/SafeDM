@@ -65,6 +65,15 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Resolved APP_VERSION=$V"
 
+      - name: Check EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Secret EXPO_TOKEN manquant. Crée un token sur https://expo.dev/settings/access-tokens puis ajoute-le dans Settings → Secrets → Actions. Voir docs/MOBILE_CI.md"
+            exit 1
+          fi
+
       - name: Install deps
         run: npm ci --ignore-scripts
 
