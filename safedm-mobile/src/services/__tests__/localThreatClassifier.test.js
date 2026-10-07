@@ -29,10 +29,7 @@ describe("local TFLite classifier", () => {
 
     expect(result.decision).toBe("DANGEROUS");
     expect(result.riskScore).toBe(90);
-    expect(loadTensorflowModel).toHaveBeenCalledWith(
-      { url: expect.anything() },
-      [],
-    );
+    expect(loadTensorflowModel).toHaveBeenCalledWith(expect.anything());
   });
 
   test("extracts the native vector before inference", async () => {

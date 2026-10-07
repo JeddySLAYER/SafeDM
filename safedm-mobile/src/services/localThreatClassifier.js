@@ -17,12 +17,17 @@ async function loadModel() {
       // Lazy require keeps Expo/Jest usable when the native dev client is not
       // installed. The production build must provide a valid model URI.
       const { loadTensorflowModel } = require("react-native-fast-tflite");
-      return loadTensorflowModel({ url: modelUri }, []);
+      // v2 API: source = require() asset id | { url }; delegate optional (default CPU)
+      const source =
+        typeof modelUri === "number" || typeof modelUri === "string"
+          ? modelUri
+          : { url: modelUri };
+      return loadTensorflowModel(source);
     })().catch(async (error) => {
       modelPromise = undefined;
       if (modelUri !== bundledModel) {
         const { loadTensorflowModel } = require("react-native-fast-tflite");
-        return loadTensorflowModel({ url: bundledModel }, []);
+        return loadTensorflowModel(bundledModel);
       }
       throw error;
     });
