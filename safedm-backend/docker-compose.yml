@@ -1,0 +1,53 @@
+# PostgreSQL local + API optionnelle.
+# Usage :
+#   docker compose up -d postgres     # DB seule (dev classique)
+#   docker compose up -d --build      # postgres + api
+#   make docker-up
+#
+# Migrations Alembic lisent DATABASE_URL dans .env ; le service postgres
+# utilise le même couple identifiants pour que les deux se parlent.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: safedm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: safedm
+      POSTGRES_PASSWORD: safedm
+      POSTGRES_DB: safedm
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "55432:5432"
+    volumes:
+      - safedm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safedm -d safedm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.api
+    container_name: safedm-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DEBUG: "false"
+      DATABASE_URL: postgresql+psycopg2://safedm:safedm@postgres:5432/safedm
+      SECRET_KEY: change-me-docker-compose-dev-only-not-for-prod
+      ANALYSIS_DEMO_MODE: "true"
+    volumes:
+      - ./models/artifacts:/app/models/artifacts
+      - ./outputs/logs:/app/outputs/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  safedm-pgdata:

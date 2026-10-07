@@ -1,0 +1,46 @@
+[project]
+name = "safedm-backend"
+version = "0.1.0"
+description = "SafeDM API - détection préventive de messages suspects"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+
+dependencies = [
+    "fastapi[standard]==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "sqlalchemy==2.0.40",
+    "psycopg2-binary==2.9.10",
+    "alembic==1.15.2",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.9.1",
+    "python-jose[cryptography]==3.4.0",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.0.1",
+    "httpx==0.28.1",
+    "python-multipart==0.0.20",
+    "email-validator==2.2.0",
+    "typesafe-sdk==0.7.2",
+    "scikit-learn==1.7.2",
+]
+
+[dependency-groups]
+dev = [
+    "numpy>=2.5.3",
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "ruff>=0.16.10",
+]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+ignore = [
+  "E501",   # line length — gradual
+  "RUF046", # int(round(...)) intentional for quantisation
+  "B008",   # FastAPI Depends() in defaults is idiomatic
+]

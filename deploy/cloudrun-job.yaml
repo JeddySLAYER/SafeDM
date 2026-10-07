@@ -1,0 +1,18 @@
+# Reference configuration for the weekly Cloud Run Job.
+# Substitute project, region, image and secret references during deployment.
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: safedm-weekly-patch
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          containers:
+            - image: REGION-docker.pkg.dev/PROJECT/safedm/backend:TAG
+              command: ["python", "scripts/generate_weekly_patch.py"]
+              env:
+                - name: PATCH_OUTPUT_DIR
+                  value: /tmp/weekly
+          maxRetries: 2

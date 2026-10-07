@@ -1,0 +1,146 @@
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.models import User
+from app.models.enums import ReportStatus, ThreatSeverity
+from app.repositories.report_repository import ReportRepository
+from app.repositories.threat_repository import ThreatRepository
+from app.schemas.report import (
+    ReportCreateRequest,
+    ReportCreateResponse,
+    FingerprintReportRequest,
+    FingerprintEnvelopeRequest,
+    ReportResponse,
+    UserReportItem,
+    UserReportListResponse,
+)
+from app.core.config import get_settings
+from app.services.fingerprint_envelope import (
+    FingerprintEnvelopeError,
+    decrypt_fingerprint_envelope,
+)
+
+
+class ReportService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.reports = ReportRepository(db)
+        self.threats = ThreatRepository(db)
+
+    def list_mine(self, user: User, *, active_only: bool = True) -> UserReportListResponse:
+        items = self.reports.list_for_user(user.id, active_only=active_only)
+        mapped: list[UserReportItem] = []
+        for report in items:
+            threat = report.threat
+            preview = ((threat.content or "") if threat else "")[:160]
+            mapped.append(
+                UserReportItem(
+                    id=report.id,
+                    threat_id=report.threat_id,
+                    source=report.source,
+                    status=report.status,
+                    created_at=report.created_at,
+                    withdrawn_at=report.withdrawn_at,
+                    severity=threat.severity if threat else ThreatSeverity.MEDIUM,
+                    threat_preview=preview,
+                    report_count=threat.report_count if threat else 0,
+                )
+            )
+        return UserReportListResponse(items=mapped, total=len(mapped))
+
+    def create(self, user: User, payload: ReportCreateRequest) -> ReportCreateResponse:
+        content = payload.content.strip()
+        threat, created_threat = self.threats.get_or_create_from_content(
+            content=content,
+            severity=payload.severity,
+        )
+
+        existing = self.reports.get_by_user_threat(user.id, threat.id)
+        if existing and existing.status == ReportStatus.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Vous avez déjà signalé cette menace",
+            )
+
+        if existing and existing.status == ReportStatus.WITHDRAWN:
+            report = self.reports.reactivate(existing, payload.source)
+        else:
+            report = self.reports.create(
+                user_id=user.id,
+                threat_id=threat.id,
+                source=payload.source,
+            )
+
+        self.threats.recount_active_reports(threat)
+        self.db.commit()
+        self.db.refresh(report)
+        self.db.refresh(threat)
+
+        return ReportCreateResponse(
+            report=ReportResponse.model_validate(report),
+            threat_id=threat.id,
+            created_threat=created_threat,
+            content_stored=True,
+        )
+
+    def create_fingerprint(
+        self,
+        user: User,
+        payload: FingerprintReportRequest,
+    ) -> ReportCreateResponse:
+        threat, created_threat = self.threats.get_or_create_from_similarity_hash(
+            similarity_hash=payload.similarity_hash.lower(),
+            severity=payload.severity,
+        )
+        existing = self.reports.get_by_user_threat(user.id, threat.id)
+        if existing and existing.status == ReportStatus.ACTIVE:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Vous avez déjà signalé cette menace")
+        report = (
+            self.reports.reactivate(existing, payload.source)
+            if existing and existing.status == ReportStatus.WITHDRAWN
+            else self.reports.create(user_id=user.id, threat_id=threat.id, source=payload.source)
+        )
+        self.threats.recount_active_reports(threat)
+        self.db.commit()
+        self.db.refresh(report)
+        self.db.refresh(threat)
+        return ReportCreateResponse(
+            report=ReportResponse.model_validate(report),
+            threat_id=threat.id,
+            created_threat=created_threat,
+            content_stored=False,
+        )
+
+    def create_encrypted_fingerprint(
+        self,
+        user: User,
+        envelope: FingerprintEnvelopeRequest,
+    ) -> ReportCreateResponse:
+        private_key = get_settings().fingerprint_private_key_pem_b64
+        if not private_key:
+            raise HTTPException(status_code=503, detail="Fingerprint encryption is not configured")
+        try:
+            import base64
+
+            private_pem = base64.b64decode(private_key, validate=True).decode()
+            payload = FingerprintReportRequest.model_validate(
+                decrypt_fingerprint_envelope(envelope.model_dump(), private_pem)
+            )
+        except (FingerprintEnvelopeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid fingerprint envelope") from exc
+        return self.create_fingerprint(user, payload)
+
+    def withdraw(self, user: User, report_id: int) -> ReportResponse:
+        report = self.reports.get_by_id(report_id)
+        if report is None or report.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Signalement introuvable")
+        if report.status == ReportStatus.WITHDRAWN:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Signalement déjà retiré")
+
+        self.reports.withdraw(report)
+        threat = self.threats.get_by_id(report.threat_id)
+        if threat:
+            self.threats.recount_active_reports(threat)
+        self.db.commit()
+        self.db.refresh(report)
+        return ReportResponse.model_validate(report)

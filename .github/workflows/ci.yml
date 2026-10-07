@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, "review/**", "feat/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - name: Sync + test
+        run: |
+          uv sync --group dev
+          uv run pytest -q
+
+  mobile:
+    name: Mobile lint & tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: safedm-mobile/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test -- --ci --watchAll=false

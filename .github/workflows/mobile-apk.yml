@@ -1,0 +1,130 @@
+# Build a versioned Android APK via EAS and attach it to a GitHub Release.
+#
+# Secrets required (repo Settings → Secrets → Actions):
+#   EXPO_TOKEN  — create at https://expo.dev/accounts/[account]/settings/access-tokens
+#
+# Triggers:
+#   - push tag: mobile-v1.2.3  (recommended)
+#   - workflow_dispatch (manual) with optional version input
+#
+# Example:
+#   git tag mobile-v1.0.1 && git push origin mobile-v1.0.1
+
+name: Mobile APK (EAS)
+
+on:
+  push:
+    tags:
+      - "mobile-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "App version (e.g. 1.0.1) — used when not tagging"
+        required: false
+        default: ""
+      profile:
+        description: "EAS build profile"
+        type: choice
+        options:
+          - preview
+          - apk
+        default: preview
+
+concurrency:
+  group: mobile-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    name: EAS Android APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-mobile
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: safedm-mobile/package-lock.json
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]]; then
+            V="${GITHUB_REF#refs/tags/mobile-v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            V="${{ inputs.version }}"
+          else
+            V="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved APP_VERSION=$V"
+
+      - name: Install deps
+        run: npm ci --ignore-scripts
+
+      - name: Setup Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: EAS build (APK)
+        id: eas
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+          APP_ENV: production
+          EAS_BUILD_PROFILE: ${{ inputs.profile || 'preview' }}
+        run: |
+          PROFILE="${{ inputs.profile || 'preview' }}"
+          # Non-interactive remote build; wait for artifact URL
+          eas build \
+            --platform android \
+            --profile "$PROFILE" \
+            --non-interactive \
+            --wait \
+            --json > /tmp/eas-build.json
+          # Prefer first build entry URL
+          APK_URL=$(node -e '
+            const fs = require("fs");
+            const raw = fs.readFileSync("/tmp/eas-build.json","utf8");
+            let data; try { data = JSON.parse(raw); } catch { data = JSON.parse(raw.trim().split("\n").pop()); }
+            const b = Array.isArray(data) ? data[0] : data;
+            const url = b?.artifacts?.buildUrl || b?.artifact?.url || b?.url || "";
+            if (!url) { console.error(raw); process.exit(1); }
+            process.stdout.write(url);
+          ')
+          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
+          echo "APK URL: $APK_URL"
+
+      - name: Download APK
+        run: |
+          mkdir -p /tmp/artifacts
+          curl -L --fail "${{ steps.eas.outputs.apk_url }}" -o "/tmp/artifacts/SafeDM-${{ steps.ver.outputs.version }}.apk"
+          ls -lh /tmp/artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-v${{ steps.ver.outputs.version }}
+          name: SafeDM Mobile ${{ steps.ver.outputs.version }}
+          body: |
+            ## SafeDM Android APK
+
+            - Version: `${{ steps.ver.outputs.version }}`
+            - Profile EAS: `${{ inputs.profile || 'preview' }}`
+            - Commit: `${{ github.sha }}`
+
+            Install on a device (dev client / preview). Grant **notification access**
+            and review battery restrictions for OEM survival.
+          files: /tmp/artifacts/SafeDM-${{ steps.ver.outputs.version }}.apk
+          draft: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

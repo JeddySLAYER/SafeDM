@@ -1,0 +1,24 @@
+{
+  "name": "safedm_labeled_messages",
+  "description": "Messages labellisés pour entraînement du classifieur local 50-dim",
+  "fields": [
+    { "name": "message", "type": "string", "required": true },
+    {
+      "name": "expected",
+      "type": "string",
+      "required": true,
+      "enum": [
+        "legitimate",
+        "benign_marketing",
+        "phishing",
+        "scam",
+        "malware"
+      ]
+    }
+  ],
+  "feature_vector": {
+    "count": 50,
+    "dtype": "uint8",
+    "source": "app.utils.feature_extraction.extract_features"
+  }
+}
