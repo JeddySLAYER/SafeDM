@@ -80,14 +80,41 @@ cp .env.example .env
 # Éditer .env (DATABASE_URL, SECRET_KEY, clés API)
 ```
 
+## Structure (ML pragmatique)
+
+```text
+app/                 # FastAPI runtime (API inchangée /api/v1)
+ml/                  # training / evaluation / registry offline
+config/model.yaml
+data/{raw,processed}/
+models/{artifacts,metadata}/
+deployment/docker/Dockerfile.api
+Makefile
+```
+
+## Makefile
+
+```bash
+make install      # uv sync
+make test         # pytest
+make serve        # API reload :8000
+make migrate      # alembic upgrade head
+make train        # artefact JSON signé + registry
+make evaluate     # métriques CV + parity features
+make docker-up    # postgres + api
+make lint         # ruff (ml + modules hardening)
+```
+
 ## Lancer l’API
 
 ```bash
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+make serve
+# ou : uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 - Docs : http://localhost:8000/docs
 - Health : http://localhost:8000/api/v1/health
+- Ready : http://localhost:8000/api/v1/health/ready
 
 ## Migrations
 

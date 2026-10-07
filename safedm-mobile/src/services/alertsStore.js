@@ -90,6 +90,21 @@ export async function getAlertById(id) {
   return items.find((a) => a.id === id) || null;
 }
 
+/** Efface tout l'historique local d'alertes (textes inclus). */
+export async function clearAllAlerts() {
+  return enqueueWrite(async () => {
+    await writeAll([]);
+  });
+}
+
+/** Rétention affichée dans les réglages. */
+export function getAlertsRetentionSummary() {
+  return {
+    maxAgeDays: Math.round(RETENTION_MS / (24 * 60 * 60 * 1000)),
+    maxAlerts: MAX_ALERTS,
+  };
+}
+
 export async function updateAlert(id, patch) {
   return enqueueWrite(async () => {
     const items = await readAll();

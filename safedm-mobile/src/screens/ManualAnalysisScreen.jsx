@@ -19,6 +19,7 @@ import {
   classifyLocalFeatures,
   extractLocalFeatures,
 } from "../services/localThreatClassifier";
+import { ensureContentUploadConsent } from "../utils/cloudConsent";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 1000;
@@ -118,9 +119,21 @@ export default function ManualAnalysisScreen({ navigation, route }) {
         });
         return;
       }
+      const allowed = await ensureContentUploadConsent({
+        title: "Analyse cloud",
+        message:
+          "Le modèle local n’est pas disponible. Autoriser l’envoi du texte à l’API SafeDM ?",
+      });
+      if (!allowed) {
+        setError(
+          "Analyse cloud refusée. Activez l’analyse cloud dans Paramètres ou réessayez avec le modèle local.",
+        );
+        return;
+      }
       const result = await analyzeMessage({
         content: text,
         source: "MANUAL",
+        consentExternal: true,
       });
       await addAlertFromManualAnalysis({ content: text, result });
       navigation.navigate("AnalysisResult", {

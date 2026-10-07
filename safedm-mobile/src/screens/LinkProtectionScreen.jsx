@@ -5,6 +5,7 @@ import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import { useAuth } from "../context/AuthContext";
 import {
   isDefaultBrowser,
   openDefaultAppsSettings,
@@ -16,7 +17,9 @@ import { colors, radii } from "../theme/tokens";
  * Explique pourquoi Chrome « mange » les clics, et active SafeDM
  * comme filtre (rôle navigateur) ou via Partager.
  */
-export default function LinkProtectionScreen({ navigation }) {
+export default function LinkProtectionScreen({ navigation, route }) {
+  const onboarding = route?.params?.onboarding === true;
+  const { completeSetup } = useAuth();
   const [isDefault, setIsDefault] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -50,11 +53,20 @@ export default function LinkProtectionScreen({ navigation }) {
     }
   }
 
+  async function finishOnboarding() {
+    await completeSetup();
+    navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+  }
+
   return (
-    <Screen scroll>
+    <Screen scroll style={{ backgroundColor: colors.canvas || "#F2F4F7" }}>
       <ScreenHeader
         title="Protection des liens"
-        onBack={() => navigation.goBack()}
+        onBack={
+          onboarding
+            ? undefined
+            : () => navigation.goBack()
+        }
       />
 
       <View style={styles.hero}>
@@ -129,6 +141,14 @@ export default function LinkProtectionScreen({ navigation }) {
         }
         style={{ marginTop: 8 }}
       />
+
+      {onboarding ? (
+        <Button
+          label="Terminer et ouvrir SafeDM"
+          onPress={finishOnboarding}
+          style={{ marginTop: 20 }}
+        />
+      ) : null}
     </Screen>
   );
 }

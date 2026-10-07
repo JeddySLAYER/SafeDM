@@ -43,7 +43,7 @@ export default function Screen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   flex: {
     flex: 1,

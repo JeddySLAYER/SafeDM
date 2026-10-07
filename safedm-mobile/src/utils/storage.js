@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 const KEYS = {
   token: "safedm_access_token",
@@ -10,7 +11,28 @@ const KEYS = {
   // « pas de consentement, pas d'appel a un tiers ». Voir consent_external
   // dans AnalysisRequest.
   cloudConsent: "safedm_cloud_consent",
+  hideSensitivePreview: "safedm_hide_sensitive_preview",
 };
+
+async function secureGet(key) {
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+}
+
+async function secureSet(key, value) {
+  try {
+    if (value == null) {
+      await SecureStore.deleteItemAsync(key);
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  } catch {
+    // Device may lack secure storage in some test environments.
+  }
+}
 
 /** L'utilisateur a-t-il autorise l'envoi de ses messages a l'analyse cloud ? */
 export async function getCloudConsent() {
@@ -25,16 +47,41 @@ export async function setCloudConsent(enabled) {
   }
 }
 
+/** Masquer le texte des alertes dans les listes / apercus. */
+export async function getHideSensitivePreview() {
+  return (await AsyncStorage.getItem(KEYS.hideSensitivePreview)) === "true";
+}
+
+export async function setHideSensitivePreview(enabled) {
+  if (enabled) {
+    await AsyncStorage.setItem(KEYS.hideSensitivePreview, "true");
+  } else {
+    await AsyncStorage.removeItem(KEYS.hideSensitivePreview);
+  }
+}
+
 export async function getToken() {
-  return AsyncStorage.getItem(KEYS.token);
+  const secure = await secureGet(KEYS.token);
+  if (secure) return secure;
+
+  // Migration one-shot depuis AsyncStorage (pre-Sprint 9).
+  const legacy = await AsyncStorage.getItem(KEYS.token);
+  if (legacy) {
+    await secureSet(KEYS.token, legacy);
+    await AsyncStorage.removeItem(KEYS.token);
+    return legacy;
+  }
+  return null;
 }
 
 export async function setToken(token) {
   if (token == null) {
+    await secureSet(KEYS.token, null);
     await AsyncStorage.removeItem(KEYS.token);
     return;
   }
-  await AsyncStorage.setItem(KEYS.token, token);
+  await secureSet(KEYS.token, token);
+  await AsyncStorage.removeItem(KEYS.token);
 }
 
 export async function getStoredUser() {
@@ -58,6 +105,7 @@ export async function setStoredUser(user) {
 }
 
 export async function clearSession() {
+  await secureSet(KEYS.token, null);
   await AsyncStorage.multiRemove([KEYS.token, KEYS.user]);
 }
 

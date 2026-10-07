@@ -58,7 +58,7 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <Screen scroll>
-      <BrandMark size={48} centered />
+      <BrandMark size={32} wordmark centered />
       <Text style={styles.title}>Créer mon compte</Text>
       <Text style={styles.subtitle}>Protégez vos conversations dès maintenant</Text>
 

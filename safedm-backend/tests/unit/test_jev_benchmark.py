@@ -26,7 +26,7 @@ pytestmark = pytest.mark.jev_benchmark
 
 MALICIOUS = {"phishing", "scam_financial", "social_engineering"}
 BASELINE = json.loads(
-    (Path(__file__).parent / "fixtures" / "jev_benchmark_baseline.json").read_text()
+    (Path(__file__).resolve().parents[1] / "fixtures" / "jev_benchmark_baseline.json").read_text()
 )
 # Tolerance sur l'exactitude du verdict. La baseline est a 16/28.
 MIN_EXACT = 15

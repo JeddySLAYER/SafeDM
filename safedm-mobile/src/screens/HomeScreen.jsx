@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -9,7 +10,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { ApiError } from "../api/client";
-import { analyzeMessage } from "../api/analysis";
+import { analyzeFeatureVector, analyzeMessage } from "../api/analysis";
 import * as usersApi from "../api/users";
 import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
@@ -25,10 +26,16 @@ import {
   listAlerts,
 } from "../services/alertsStore";
 import {
+  classifyLocalFeatures,
+  extractLocalFeatures,
+} from "../services/localThreatClassifier";
+import {
   getEnabledPackageNames,
   isNotificationAccessEnabled,
   syncMonitoredPackages,
 } from "../services/notificationBridge";
+import { ensureContentUploadConsent } from "../utils/cloudConsent";
+import { getHideSensitivePreview } from "../utils/storage";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 1000;
@@ -50,6 +57,7 @@ export default function HomeScreen({ navigation }) {
   const [draft, setDraft] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [captureError, setCaptureError] = useState("");
+  const [hidePreview, setHidePreview] = useState(false);
 
   const refreshAlerts = useCallback(async () => {
     const items = await listAlerts();
@@ -73,9 +81,11 @@ export default function HomeScreen({ navigation }) {
           getEnabledPackageNames(),
           isNotificationAccessEnabled(),
         ]);
+        const hide = await getHideSensitivePreview();
         if (!active) return;
         setEnabledApps(packages);
         setAccessOn(enabled);
+        setHidePreview(hide);
         await refreshAlerts();
       })();
       return () => {
@@ -136,9 +146,90 @@ export default function HomeScreen({ navigation }) {
     }
     setAnalyzing(true);
     try {
+      const features = await extractLocalFeatures(text);
+      const local = features
+        ? await classifyLocalFeatures(features)
+        : { decision: "UNAVAILABLE", confidence: null, riskScore: null };
+
+      if (local.decision !== "UNAVAILABLE") {
+        if (local.decision === "UNCERTAIN") {
+          const remoteResult = await new Promise((resolve) => {
+            Alert.alert(
+              "Analyse complémentaire",
+              "Le modèle local est incertain. Avec votre accord, seuls 50 paramètres numériques seront transmis. Le texte ne sera pas envoyé.",
+              [
+                {
+                  text: "Refuser",
+                  style: "cancel",
+                  onPress: () => resolve(null),
+                },
+                {
+                  text: "Autoriser",
+                  onPress: () =>
+                    analyzeFeatureVector(features)
+                      .then(resolve)
+                      .catch(() => resolve(null)),
+                },
+              ],
+            );
+          });
+          if (remoteResult) {
+            await addAlertFromManualAnalysis({
+              content: text,
+              result: remoteResult,
+            });
+            setDraft("");
+            navigation.navigate("AnalysisResult", {
+              result: remoteResult,
+              originalContent: text,
+            });
+            return;
+          }
+        }
+        const result = {
+          status:
+            local.decision === "DANGEROUS"
+              ? "DANGEROUS"
+              : local.decision === "SAFE"
+                ? "SAFE"
+                : "PARTIAL",
+          risk_score: local.riskScore,
+          severity:
+            local.decision === "DANGEROUS"
+              ? "HIGH"
+              : local.decision === "UNCERTAIN"
+                ? "MEDIUM"
+                : "LOW",
+          reasons: ["Décision produite hors ligne par le modèle local"],
+          recommendations: [],
+          urls: [],
+          providers: { local: { available: true } },
+          content_stored: false,
+        };
+        await addAlertFromManualAnalysis({ content: text, result });
+        setDraft("");
+        navigation.navigate("AnalysisResult", {
+          result,
+          originalContent: text,
+        });
+        return;
+      }
+
+      const allowed = await ensureContentUploadConsent({
+        title: "Analyse cloud",
+        message:
+          "Le modèle local n’est pas disponible. Autoriser l’envoi du texte à l’API SafeDM ?",
+      });
+      if (!allowed) {
+        setCaptureError(
+          "Analyse cloud refusée. Activez l’analyse cloud dans Paramètres.",
+        );
+        return;
+      }
       const result = await analyzeMessage({
         content: text,
         source: "MANUAL",
+        consentExternal: true,
       });
       await addAlertFromManualAnalysis({ content: text, result });
       setDraft("");
@@ -158,7 +249,7 @@ export default function HomeScreen({ navigation }) {
   return (
     <Screen scroll edges={["top", "left", "right"]}>
       <View style={styles.topBar}>
-        <BrandMark size={32} compact />
+        <BrandMark size={36} compact />
         <Pressable
           onPress={() => navigation.navigate("Alerts")}
           hitSlop={10}
@@ -194,11 +285,24 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       {!accessOn ? (
-        <Button
-          label="Activer l’accès notifications"
-          onPress={() => navigation.navigate("Permissions")}
-          style={{ marginBottom: 16 }}
-        />
+        <View style={styles.warnBanner}>
+          <Text style={styles.warnTitle}>Protection incomplète</Text>
+          <Text style={styles.warnBody}>
+            L’accès notifications n’est pas actif. Les messages ne sont pas
+            analysés automatiquement.
+          </Text>
+          <Button
+            label="Activer l’accès notifications"
+            onPress={() => navigation.navigate("Permissions")}
+            style={{ marginTop: 12 }}
+          />
+          <Button
+            label="Batterie / arrière-plan"
+            variant="outline"
+            onPress={() => navigation.navigate("BatteryOptimization")}
+            style={{ marginTop: 8 }}
+          />
+        </View>
       ) : null}
 
       <View style={styles.captureCard}>
@@ -281,7 +385,9 @@ export default function HomeScreen({ navigation }) {
                 <RiskBadge level={alert.level || "unknown"} />
               </View>
               <Text style={styles.alertPreview} numberOfLines={1}>
-                {alert.preview}
+                {hidePreview
+                  ? "Contenu masqué (Paramètres → confidentialité)"
+                  : alert.preview}
               </Text>
               <Text style={styles.alertWhen}>
                 {formatAlertWhen(alert.createdAt)}
@@ -338,13 +444,26 @@ const styles = StyleSheet.create({
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
   statusSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  warnBanner: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.danger,
+  },
+  warnTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
+  warnBody: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 6,
+    lineHeight: 19,
+  },
   captureCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radii.lg,
     padding: 16,
     marginBottom: 22,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   captureTitle: {
     fontSize: 16,

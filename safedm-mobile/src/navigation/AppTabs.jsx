@@ -6,7 +6,9 @@ import { useAuth } from "../context/AuthContext";
 import AlertsScreen from "../screens/AlertsScreen";
 import AnalysisResultScreen from "../screens/AnalysisResultScreen";
 import AppsScreen from "../screens/AppsScreen";
+import BatteryOptimizationScreen from "../screens/BatteryOptimizationScreen";
 import CommunityScreen from "../screens/CommunityScreen";
+import DiagnosticsScreen from "../screens/DiagnosticsScreen";
 import DirectReportScreen from "../screens/DirectReportScreen";
 import GuideArticleScreen from "../screens/GuideArticleScreen";
 import GuideScreen from "../screens/GuideScreen";
@@ -19,11 +21,14 @@ import PermissionsScreen from "../screens/PermissionsScreen";
 import ReportsScreen from "../screens/ReportsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import { colors } from "../theme/tokens";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function Tabs() {
+  const insets = useSafeAreaInsets();
+  const tabPad = Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
       screenOptions={{
@@ -31,10 +36,10 @@ function Tabs() {
         tabBarActiveTintColor: colors.bluePrimary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
-          height: 62,
-          paddingBottom: 8,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.borderSubtle,
+          height: 56 + tabPad,
+          paddingBottom: tabPad,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
@@ -46,7 +51,7 @@ function Tabs() {
         options={{
           title: "Accueil",
           tabBarIcon: ({ color }) => (
-            <IconGlyph name="home" color={color} size={18} />
+            <IconGlyph name="home" color={color} size={22} />
           ),
         }}
       />
@@ -56,7 +61,7 @@ function Tabs() {
         options={{
           title: "Alertes",
           tabBarIcon: ({ color }) => (
-            <IconGlyph name="alerts" color={color} size={18} />
+            <IconGlyph name="alerts" color={color} size={22} />
           ),
         }}
       />
@@ -66,7 +71,7 @@ function Tabs() {
         options={{
           title: "Signalements",
           tabBarIcon: ({ color }) => (
-            <IconGlyph name="reports" color={color} size={18} />
+            <IconGlyph name="reports" color={color} size={22} />
           ),
         }}
       />
@@ -76,7 +81,7 @@ function Tabs() {
         options={{
           title: "Paramètres",
           tabBarIcon: ({ color }) => (
-            <IconGlyph name="settings" color={color} size={18} />
+            <IconGlyph name="settings" color={color} size={22} />
           ),
         }}
       />
@@ -103,6 +108,12 @@ export default function AppStack() {
         component={PermissionsScreen}
         initialParams={{ onboarding: needsSetup }}
       />
+      <Stack.Screen
+        name="BatteryOptimization"
+        component={BatteryOptimizationScreen}
+        initialParams={{ onboarding: needsSetup }}
+      />
+      <Stack.Screen name="Diagnostics" component={DiagnosticsScreen} />
       <Stack.Screen name="ManualAnalysis" component={ManualAnalysisScreen} />
       <Stack.Screen name="DirectReport" component={DirectReportScreen} />
       <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />

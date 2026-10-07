@@ -6,8 +6,10 @@ from starlette.responses import Response
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
+from app.core.logging_setup import configure_logging
 
 settings = get_settings()
+configure_logging(json_logs=settings.json_logs, level=settings.log_level)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

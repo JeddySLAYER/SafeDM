@@ -64,6 +64,18 @@ jest.mock("expo-clipboard", () => ({
   setStringAsync: jest.fn(async () => {}),
 }));
 
+jest.mock("expo-splash-screen", () => ({
+  preventAutoHideAsync: jest.fn(() => Promise.resolve()),
+  hideAsync: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock("@react-native-community/netinfo", () => ({
+  fetch: jest.fn(() =>
+    Promise.resolve({ isConnected: true, isInternetReachable: true })
+  ),
+  addEventListener: jest.fn(() => jest.fn()),
+}));
+
 jest.mock("expo-linking", () => ({
   getInitialURL: jest.fn(async () => null),
   addEventListener: jest.fn(() => ({ remove: jest.fn() })),

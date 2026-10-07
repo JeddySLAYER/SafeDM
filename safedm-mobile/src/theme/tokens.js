@@ -1,4 +1,7 @@
-import { API_BASE_URL } from "../config";
+/**
+ * Design tokens — SafeDM mobile (not API config).
+ * Prefer surface backgrounds + section lists over bordered web cards.
+ */
 
 export const colors = {
   blue50: "#EAF3FE",
@@ -9,25 +12,29 @@ export const colors = {
   blue800: "#14549E",
   white: "#FFFFFF",
   black: "#000000",
-  section: "#FFFFFF",
-  surface: "#F7F9FC",
-  border: "#E5E7EB",
-  textSecondary: "#666666",
+  canvas: "#F2F4F7",
+  surface: "#FFFFFF",
+  surfaceMuted: "#EEF2F6",
+  border: "#E4E7EC",
+  borderSubtle: "#F2F4F7",
+  textSecondary: "#667085",
   textMuted: "#98A2B3",
-  textPrimary: "#111111",
+  textPrimary: "#101828",
+  danger: "#F04438",
+  success: "#12B76A",
   risk: {
     low: { fg: "#FFFFFF", bg: "#12B76A", label: "Faible" },
     medium: { fg: "#FFFFFF", bg: "#2F8AF2", label: "Moyen" },
-    high: { fg: "#FFFFFF", bg: "#000000", label: "Élevé" },
+    high: { fg: "#FFFFFF", bg: "#101828", label: "Élevé" },
     unknown: { fg: "#667085", bg: "#F2F4F7", label: "Inconnu" },
   },
 };
 
 export const radii = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
   pill: 999,
 };
 
@@ -37,21 +44,33 @@ export const spacing = {
   md: 16,
   lg: 24,
   xl: 32,
+  xxl: 40,
 };
 
 export const typography = {
-  brand: { fontSize: 28, fontWeight: "700" },
-  title: { fontSize: 28, fontWeight: "700", color: colors.textPrimary },
+  brand: { fontSize: 26, fontWeight: "700", letterSpacing: -0.3 },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    letterSpacing: -0.4,
+  },
   subtitle: {
     fontSize: 15,
     fontWeight: "400",
     color: colors.textSecondary,
     lineHeight: 22,
   },
-  section: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
-  body: { fontSize: 15, fontWeight: "400", color: colors.textPrimary },
-  label: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
-  caption: { fontSize: 13, fontWeight: "400", color: colors.textSecondary },
+  section: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  body: { fontSize: 15, fontWeight: "400", color: colors.textPrimary, lineHeight: 22 },
+  label: { fontSize: 15, fontWeight: "600", color: colors.textPrimary },
+  caption: { fontSize: 13, fontWeight: "400", color: colors.textSecondary, lineHeight: 18 },
 };
 
 /** Packages surveillés par le NotificationListener (Android). */
@@ -64,7 +83,3 @@ export const monitoredPackages = {
   ],
   Email: ["com.google.android.gm", "com.microsoft.office.outlook"],
 };
-
-export const apiBaseUrl = API_BASE_URL;
-
-export const appVersion = "1.0.0";

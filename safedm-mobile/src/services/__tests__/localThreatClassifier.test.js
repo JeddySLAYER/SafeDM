@@ -11,7 +11,7 @@ jest.mock("../../config", () => ({ LOCAL_MODEL_URI: null }));
 
 jest.mock("react-native", () => ({
   NativeModules: {
-    SafeDMNotificationsModule: {
+    SafeDMNotifications: {
       extractFeatures: jest.fn(async () => new Array(50).fill(3)),
     },
   },

@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     # Mode demo local (sans cles API) — ne pas utiliser en production
     analysis_demo_mode: bool = False
 
+    # Logging JSON sur stdout (Cloud Run / containers)
+    json_logs: bool = False
+    log_level: str = "INFO"
+
+    # Rate limiting (in-memory ; désactiver en tests si besoin)
+    rate_limit_enabled: bool = True
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

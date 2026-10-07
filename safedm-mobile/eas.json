@@ -1,17 +1,28 @@
 {
   "cli": {
     "version": ">= 21.7.1",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_ENV": "development",
+        "EAS_BUILD_PROFILE": "development"
+      }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "APP_ENV": "production",
+        "EAS_BUILD_PROFILE": "preview"
       }
     },
     "apk": {
@@ -19,14 +30,20 @@
       "android": {
         "buildType": "apk"
       },
+      "autoIncrement": true,
       "env": {
-        "EAS_BUILD_PROFILE": "production"
+        "APP_ENV": "production",
+        "EAS_BUILD_PROFILE": "apk"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "APP_ENV": "production",
+        "EAS_BUILD_PROFILE": "production"
       }
     }
   },

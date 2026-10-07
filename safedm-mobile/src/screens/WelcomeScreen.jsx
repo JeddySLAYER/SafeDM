@@ -4,20 +4,20 @@ import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
 import Screen from "../components/Screen";
 import { useAuth } from "../context/AuthContext";
-import { colors } from "../theme/tokens";
+import { colors, spacing, typography } from "../theme/tokens";
 
 const SLIDES = [
   {
     title: "Protégez vos messages",
-    body: "SafeDM détecte les messages suspects WhatsApp, SMS et e-mails avant qu’ils ne deviennent un risque.",
+    body: "SafeDM lit localement les notifications WhatsApp, SMS et e-mails pour repérer les messages suspects — sans les bloquer ni les modifier.",
   },
   {
-    title: "Analyse côté serveur",
-    body: "Jev (TypeSafe) et VirusTotal restent sur le backend. Aucune clé API n’est stockée sur votre téléphone.",
+    title: "D’abord sur l’appareil",
+    body: "L’analyse locale tourne sur votre téléphone. L’enrichissement cloud (serveur SafeDM) n’est activé que si vous l’autorisez dans Paramètres.",
   },
   {
     title: "Vous gardez le contrôle",
-    body: "Choisissez les apps à surveiller. Les messages ne sont stockés que si vous les signalez.",
+    body: "Choisissez les apps à surveiller. Les alertes restent 7 jours sur l’appareil (historique local). Un signalement volontaire envoie le contenu au serveur.",
   },
 ];
 
@@ -33,8 +33,8 @@ export default function WelcomeScreen({ navigation }) {
   }
 
   return (
-    <Screen contentStyle={styles.content}>
-      <BrandMark size={48} />
+    <Screen contentStyle={styles.content} style={styles.canvas}>
+      <BrandMark size={40} />
       <View style={styles.hero}>
         <Text style={styles.title}>{slide.title}</Text>
         <Text style={styles.body}>{slide.body}</Text>
@@ -47,23 +47,29 @@ export default function WelcomeScreen({ navigation }) {
           />
         ))}
       </View>
-      <Button label={isLast ? "Commencer" : "Suivant"} onPress={() => (isLast ? finish() : setIndex((v) => v + 1))} />
-      <Button label="Passer" variant="ghost" onPress={finish} style={styles.ghost} />
+      <View style={styles.footer}>
+        <Button
+          label={isLast ? "Commencer" : "Suivant"}
+          onPress={() => (isLast ? finish() : setIndex((v) => v + 1))}
+        />
+        <Button label="Passer" variant="ghost" onPress={finish} style={styles.ghost} />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  canvas: { backgroundColor: colors.canvas },
   content: { justifyContent: "space-between" },
-  hero: { flex: 1, justifyContent: "center", paddingVertical: 24 },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: 12,
+  hero: { flex: 1, justifyContent: "center", paddingVertical: spacing.lg },
+  title: { ...typography.title, marginBottom: spacing.md },
+  body: { ...typography.subtitle, fontSize: 16, lineHeight: 24 },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: spacing.lg,
   },
-  body: { fontSize: 16, lineHeight: 24, color: colors.textSecondary },
-  dots: { flexDirection: "row", gap: 8, marginBottom: 20 },
   dot: {
     width: 8,
     height: 8,
@@ -71,5 +77,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dotActive: { backgroundColor: colors.bluePrimary, width: 20 },
+  footer: { gap: 4 },
   ghost: { marginTop: 4 },
 });

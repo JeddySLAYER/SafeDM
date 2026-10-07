@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
-"""Export the trained SafeDM 50-feature classifier to TensorFlow Lite.
+"""Optional TFLite export for the Expo runtime (float32).
 
-This is a build-time tool. TensorFlow is intentionally not a backend runtime
-dependency: the API does not train or execute this model.
+Official signed artefact remains the integer logistic JSON from
+``scripts/train_local_model.py`` / ``ml.models.training``.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 
-from train_local_model import load_dataset
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from ml.data.loaders import load_labeled_messages  # noqa: E402
 
 
 def main() -> int:
@@ -31,7 +34,7 @@ def main() -> int:
             "Utilisez un environnement Python 3.11/3.12 de build."
         ) from exc
 
-    features, labels, _ = load_dataset()
+    features, labels, _ = load_labeled_messages()
     classifier = LogisticRegression(
         C=0.5,
         max_iter=2000,
@@ -76,6 +79,7 @@ def main() -> int:
         },
         "dataset_samples": int(features.shape[0]),
         "training": "scikit-learn LogisticRegression mirrored in Keras Dense(sigmoid)",
+        "official_artefact": "signed_json_logistic (see make train)",
     }
     metadata_path = args.metadata or args.out.with_suffix(".json")
     metadata_path.write_text(

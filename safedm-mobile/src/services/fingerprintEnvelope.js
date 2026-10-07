@@ -12,9 +12,17 @@ function base64ToBytes(value) {
   return Uint8Array.from(Buffer.from(value, "base64"));
 }
 
+export function isFingerprintCryptoConfigured() {
+  return Boolean(FINGERPRINT_PUBLIC_KEY);
+}
+
 export async function encryptPayload(payload) {
   if (!FINGERPRINT_PUBLIC_KEY || !globalThis.crypto?.subtle) {
-    throw new Error("Le chiffrement des signalements n'est pas configuré.");
+    const err = new Error(
+      "Chiffrement indisponible : FINGERPRINT_PUBLIC_KEY manquante dans la config.",
+    );
+    err.code = "FINGERPRINT_KEY_MISSING";
+    throw err;
   }
 
   const publicKey = await crypto.subtle.importKey(

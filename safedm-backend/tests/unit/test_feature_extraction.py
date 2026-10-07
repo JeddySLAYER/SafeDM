@@ -32,7 +32,7 @@ from app.utils.feature_extraction import (
     vector_hash,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "feature_vectors.json"
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "feature_vectors.json"
 
 
 # --------------------------------------------------------------- structure

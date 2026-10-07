@@ -571,3 +571,113 @@ immédiat.
 - La page Operations indique explicitement que les seuils affichés sont les
   seuils globaux de secours ; les politiques tenant/région enregistrées restent
   auditées mais attendent le contexte tenant de `/analysis`.
+
+## Sprint 9 — Mobile démo-bloquant (P0 / P1 privacy)
+
+**Livré (2026-10-07) :**
+- Bridge natif corrigé : `NativeModules.SafeDMNotifications` (aligné sur
+  `SafeDMNotificationsModule.NAME`) + mocks Jest.
+- Plugin `withSafeDMNotifications` : copie Kotlin par package déclaré
+  (`features` / `notifications` / `safedm.nls`) ; exclus `*Check.kt` de l’APK ;
+  imports `FeatureExtraction` ajoutés côté NLS/module.
+- Consentement contenu : Home / Manuel / détail alerte passent par
+  `ensureContentUploadConsent` ou opt-in Paramètres avant `consent_external`.
+- Confidentialité : masquer aperçus, « Tout effacer », note honnête sur
+  stockage local plaintext ; rétention 7 j / 200 alertes.
+- JWT migré vers `expo-secure-store` (migration AsyncStorage one-shot).
+- README mobile : setup démo, prebuild, EAS preview.
+
+**Validation :**
+- `cd safedm-mobile && npm test` → 9 passed
+- `npm run lint` → OK
+
+**Écarts restants :** APK non généré ici ; modèle TFLite toy ; chiffrement
+AsyncStorage des textes d’alertes non implémenté (effacement + masquage
+seulement).
+
+## Sprint 10 — Restructure backend (layout + Makefile + Docker)
+
+**Livré :**
+- Package offline `ml/` (`data`, `features`, `models`, `evaluation`) ; API
+  FastAPI reste sous `app/` (contrat `/api/v1` intact).
+- Dossiers `config/`, `data/`, `models/artifacts|metadata`, `notebooks/`,
+  `outputs/`, `deployment/docker/Dockerfile.api`.
+- Tests migrés vers `tests/unit/` et `tests/integration/` (fixtures inchangées).
+- `Makefile` (`help`, `install`, `test`, `lint`, `train`, `evaluate`, `serve`,
+  `migrate`, `docker-up`).
+- `docker-compose.yml` : postgres + service `api`.
+
+**Validation :** `uv run pytest -q` (suite verte après migration chemins fixtures).
+
+## Sprint 11 — Cycle ML (train / evaluate / registry)
+
+**Livré :**
+- `ml.models.training.train_and_export` + wrapper `scripts/train_local_model.py`.
+- `make train` → patch JSON signé + `models/metadata/model_registry.json`.
+- `make evaluate` → métriques CV + smoke parity 50-dim.
+- Dataset stable : `data/processed/labeled_messages.json` (préféré) /
+  `data/raw/…`.
+- Artefact officiel = logistic JSON signé ; TFLite = export optionnel
+  (`scripts/export_tflite_model.py`).
+- `docs/model_card.md`, `docs/model_training.md`.
+
+**Note :** avec ~28 samples le verdict reste souvent « research / non
+deployable » — attendu.
+
+## Sprint 12 — Qualité backend légère
+
+**Livré :**
+- Rate limiting in-memory auth + `/analysis` (`RATE_LIMIT_ENABLED`, désactivé
+  en pytest).
+- `GET /api/v1/health/ready` (ping DB, 503 si down).
+- Gardes `analyze_features` alignées sur `analyze` (demo mode / clé manquante).
+- Logging JSON optionnel (`JSON_LOGS`).
+- Docs backend `docs/architecture.md` + README Makefile.
+
+**Bilan programme mobile + backend :** Sprints 9–12 livrés. Hors scope
+volontaire : Streamlit, MLflow, k8s, GE, dashboard/extension.
+
+## Sprint 13 — Restructure & ménage mobile
+
+**Livré :**
+- Suppression `scripts/`, `src/features/`, `localThreatBenchmark.js`, logos
+  inutilisés, `safedm_v3.json` orphelin.
+- Plugin : exclus FastText + LocalTextClassifier + `*Check.kt`.
+- Config hors theme (`API_BASE_URL` / `APP_VERSION` via `config.js`).
+- `.env.example` complet (APP_ENV, fingerprint, OTA).
+
+## Sprint 14 — Full fonctionnel
+
+**Livré :**
+- Cleartext limité (prod/EAS apk|production off ; network_security localhost).
+- Soft-fail fingerprint crypto (`FINGERPRINT_KEY_MISSING`).
+- Apps : sync native local-first si API down.
+- Écran Diagnostic.
+- CI GitHub : `ci.yml` + `mobile-apk.yml` (EAS → Release APK versionné).
+- Doc `docs/MOBILE_CI.md`.
+
+## Sprint 15 — Autorisations / OEM
+
+**Livré :**
+- Onboarding : Apps → NLS → Batterie → Link protection → MainTabs.
+- Banner Accueil si NLS inactif + liens réglages.
+- Plus de « setup done » immédiat après NLS seul.
+
+## Sprint 16 — UX native
+
+**Livré :**
+- Tokens canvas/surface, Welcome honnête (local-first + rétention 7 j).
+- Alertes en liste (pas cartes web), tab bar safe-area, Screen canvas.
+- CTA bas d’écran sur permissions / batterie / welcome.
+
+## Sprint 17 — Polish CI
+
+**Livré avec 14–16 :** workflows CI + release APK, README mobile, diagnostic.
+
+**Suite branding + offline :**
+- Kit `src/assets/brand/` (simplify / full / text / icon) + `icon.png` /
+  `adaptive-icon.png` (1024²) + `splash.png`.
+- `SafeDMLogo` / `BrandMark` (icon | full | text) ; `app.config` icon/splash ;
+  `expo-splash-screen` hide après bootstrap.
+- Bannière `OfflineBanner` (NetInfo) — analyse locale OK, cloud indispo.
+Filtres alertes avancés restent améliorations futures.

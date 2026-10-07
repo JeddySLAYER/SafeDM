@@ -1,17 +1,18 @@
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import BrandMark from "./BrandMark";
-import { appVersion, colors } from "../theme/tokens";
+import { APP_VERSION } from "../config";
+import { colors } from "../theme/tokens";
 
 export default function SplashView() {
   return (
     <View style={styles.root}>
       <View style={styles.center}>
-        <BrandMark size={64} showTagline centered />
+        <BrandMark size={48} showTagline centered />
       </View>
       <View style={styles.footer}>
         <ActivityIndicator color={colors.bluePrimary} style={styles.spinner} />
-        <Text style={styles.version}>v{appVersion}</Text>
+        <Text style={styles.version}>v{APP_VERSION}</Text>
       </View>
     </View>
   );
@@ -25,6 +26,7 @@ const styles = StyleSheet.create({
   },
   center: {
     alignItems: "center",
+    paddingHorizontal: 32,
   },
   footer: {
     position: "absolute",

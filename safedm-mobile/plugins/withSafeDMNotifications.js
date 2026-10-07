@@ -13,26 +13,49 @@ const PACKAGE_ADD = "packages.add(SafeDMNotificationsPackage())";
 const MAIN_ACTIVITY_IMPORT =
   "import com.safedmmobile.notifications.SafeDMNotificationsModule\nimport android.content.Intent";
 
+/** Harnesses + unused classifiers — never ship in the app source set. */
+const SKIP_KOTLIN = new Set([
+  "FastTextRuntime.kt",
+  "LocalTextClassifier.kt",
+]);
+
+function shouldSkipKotlinSource(fileName) {
+  return fileName.endsWith("Check.kt") || SKIP_KOTLIN.has(fileName);
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+function packageToRelPath(packageName) {
+  return packageName.split(".").join(path.sep);
+}
+
+function readKotlinPackage(filePath) {
+  const head = fs.readFileSync(filePath, "utf8").slice(0, 4000);
+  const match = head.match(/^\s*package\s+([a-zA-Z0-9_.]+)/m);
+  return match ? match[1] : "com.safedmmobile.notifications";
+}
+
 function copyKotlinSources(projectRoot, platformProjectRoot) {
   const srcDir = path.join(projectRoot, "plugins", "safedm-nls", "android");
-  const destDir = path.join(
+  const javaRoot = path.join(
     platformProjectRoot,
     "app",
     "src",
     "main",
     "java",
-    "com",
-    "safedmmobile",
-    "notifications",
   );
-  ensureDir(destDir);
+
   for (const file of fs.readdirSync(srcDir)) {
     if (!file.endsWith(".kt")) continue;
-    fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+    if (shouldSkipKotlinSource(file)) continue;
+
+    const srcPath = path.join(srcDir, file);
+    const pkg = readKotlinPackage(srcPath);
+    const destDir = path.join(javaRoot, packageToRelPath(pkg));
+    ensureDir(destDir);
+    fs.copyFileSync(srcPath, path.join(destDir, file));
   }
 
   const xmlSrc = path.join(
@@ -122,7 +145,17 @@ function addNotificationListenerService(androidManifest) {
     });
   }
 
-  app.$["android:usesCleartextTraffic"] = "true";
+  // Cleartext only when Expo build-properties allow it (dev). Release APKs
+  // must talk HTTPS (or localhost via network_security_config exceptions).
+  const allowCleartext =
+    process.env.APP_ENV !== "production" &&
+    process.env.EAS_BUILD_PROFILE !== "production" &&
+    process.env.EAS_BUILD_PROFILE !== "apk";
+  if (allowCleartext) {
+    app.$["android:usesCleartextTraffic"] = "true";
+  } else {
+    delete app.$["android:usesCleartextTraffic"];
+  }
   app.$["android:networkSecurityConfig"] = "@xml/network_security_config";
   return androidManifest;
 }

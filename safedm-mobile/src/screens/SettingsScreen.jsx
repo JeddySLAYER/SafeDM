@@ -5,8 +5,18 @@ import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import SettingRow from "../components/SettingRow";
 import { useAuth } from "../context/AuthContext";
-import { getCloudConsent, setCloudConsent } from "../utils/storage";
-import { appVersion, colors, radii } from "../theme/tokens";
+import {
+  clearAllAlerts,
+  getAlertsRetentionSummary,
+} from "../services/alertsStore";
+import {
+  getCloudConsent,
+  getHideSensitivePreview,
+  setCloudConsent,
+  setHideSensitivePreview,
+} from "../utils/storage";
+import { APP_VERSION } from "../config";
+import { colors, radii } from "../theme/tokens";
 
 export default function SettingsScreen({ navigation }) {
   const { user, logout } = useAuth();
@@ -14,15 +24,20 @@ export default function SettingsScreen({ navigation }) {
     const name = user?.username || "?";
     return name.slice(0, 2).toUpperCase();
   }, [user]);
+  const retention = useMemo(() => getAlertsRetentionSummary(), []);
 
   const [cloudConsent, setConsent] = useState(false);
   const [consentLoaded, setConsentLoaded] = useState(false);
+  const [hidePreview, setHidePreview] = useState(false);
 
   useEffect(() => {
-    getCloudConsent().then((value) => {
-      setConsent(value);
-      setConsentLoaded(true);
-    });
+    Promise.all([getCloudConsent(), getHideSensitivePreview()]).then(
+      ([consent, hide]) => {
+        setConsent(consent);
+        setHidePreview(hide);
+        setConsentLoaded(true);
+      },
+    );
   }, []);
 
   const toggleCloudConsent = useCallback((next) => {
@@ -35,6 +50,29 @@ export default function SettingsScreen({ navigation }) {
           "analysé. Désactivée, l'analyse reste 100 % sur l'appareil.",
       );
     }
+  }, []);
+
+  const toggleHidePreview = useCallback((next) => {
+    setHidePreview(next);
+    setHideSensitivePreview(next);
+  }, []);
+
+  const onClearAlerts = useCallback(() => {
+    Alert.alert(
+      "Effacer l’historique",
+      "Supprimer toutes les alertes locales (y compris les textes stockés) ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Tout effacer",
+          style: "destructive",
+          onPress: async () => {
+            await clearAllAlerts();
+            Alert.alert("Historique effacé", "Les alertes locales ont été supprimées.");
+          },
+        },
+      ],
+    );
   }, []);
 
   return (
@@ -65,6 +103,26 @@ export default function SettingsScreen({ navigation }) {
         switchValue={consentLoaded ? cloudConsent : false}
         onSwitchChange={toggleCloudConsent}
       />
+
+      <Text style={styles.section}>Confidentialité</Text>
+      <SettingRow
+        icon="doc"
+        title="Masquer les aperçus"
+        subtitle="Cache le texte des alertes dans les listes et le détail"
+        switchValue={consentLoaded ? hidePreview : false}
+        onSwitchChange={toggleHidePreview}
+      />
+      <SettingRow
+        icon="flag"
+        title="Tout effacer l’historique"
+        subtitle={`Rétention : ${retention.maxAgeDays} jours · max ${retention.maxAlerts} alertes`}
+        onPress={onClearAlerts}
+        showChevron
+      />
+      <Text style={styles.privacyNote}>
+        Les textes d’alertes sont stockés localement sur l’appareil (pas un
+        coffre chiffré). Effacez l’historique pour les supprimer.
+      </Text>
 
       <Text style={styles.section}>Surveillance</Text>
       <SettingRow
@@ -107,11 +165,26 @@ export default function SettingsScreen({ navigation }) {
         showChevron
       />
 
+      <Text style={styles.section}>Système</Text>
+      <SettingRow
+        icon="shield"
+        title="Diagnostic"
+        subtitle="NLS, API, clé crypto, modèle"
+        onPress={() => navigation.navigate("Diagnostics")}
+        showChevron
+      />
+      <SettingRow
+        icon="bell"
+        title="Batterie / arrière-plan"
+        onPress={() => navigation.navigate("BatteryOptimization")}
+        showChevron
+      />
+
       <Text style={styles.section}>À propos</Text>
       <SettingRow
         icon="doc"
         title="Version de l’application"
-        valueText={appVersion}
+        valueText={APP_VERSION}
       />
       <SettingRow icon="globe" title="Langue" valueText="Français" />
 
@@ -160,5 +233,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 10,
     marginTop: 8,
+  },
+  privacyNote: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginBottom: 8,
+    marginTop: -4,
   },
 });

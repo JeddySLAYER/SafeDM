@@ -1,34 +1,44 @@
 import React from "react";
-import { Image } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
+import { brandAspect, brandImages } from "../assets/brand";
 
 /**
- * Icône marque Safeguard DM (simplify-logo).
- * variant="full" = logo complet avec wordmark.
+ * Marque Safeguard DM.
+ * @param {'icon'|'full'|'text'} variant
+ * @param {number} size — height in dp (width from aspect; icon is square)
  */
 export default function SafeDMLogo({ size = 40, variant = "icon" }) {
-  if (variant === "full") {
-    const height = size;
-    const width = Math.round(size * (512 / 128));
-    return (
-      <Image
-        source={require("../assets/full-logo.png")}
-        style={{ width, height, borderRadius: Math.min(8, size * 0.12) }}
-        resizeMode="contain"
-        accessibilityLabel="Safeguard DM"
-      />
-    );
-  }
+  const source = brandImages[variant] || brandImages.icon;
+  const aspect = brandAspect[variant] || brandAspect.icon;
+  const height = size;
+  const width = Math.round(size * aspect);
+
+  // Full / text can be wide — cap width so headers don't overflow.
+  const maxWidth = variant === "icon" ? size : Math.round(size * 4.2);
+  const finalWidth = Math.min(width, maxWidth);
+  const finalHeight =
+    variant === "icon" ? size : Math.round(finalWidth / aspect);
 
   return (
-    <Image
-      source={require("../assets/simplify-logo.png")}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: Math.min(10, size * 0.18),
-      }}
-      resizeMode="contain"
-      accessibilityLabel="Safeguard DM"
-    />
+    <View style={{ width: finalWidth, height: finalHeight }}>
+      <Image
+        source={source}
+        style={[
+          styles.img,
+          {
+            width: finalWidth,
+            height: finalHeight,
+          },
+        ]}
+        resizeMode="contain"
+        accessibilityLabel="SafeDM"
+      />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  img: {
+    // Source PNGs are transparent — no white box behind the mark.
+  },
+});

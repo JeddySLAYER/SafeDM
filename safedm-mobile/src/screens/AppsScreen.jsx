@@ -277,14 +277,26 @@ export default function AppsScreen({ navigation, route }) {
         }));
       }
 
-      if (preferences.length > 0) {
-        await usersApi.updateMonitoring(preferences);
-      }
+      // Always sync natively first so NLS works offline / without API.
       await syncMonitoredPackages(enabledItems.map((i) => i.package_name));
+
+      let cloudOk = true;
+      if (preferences.length > 0) {
+        try {
+          await usersApi.updateMonitoring(preferences);
+        } catch (err) {
+          cloudOk = false;
+          setError(
+            err instanceof ApiError
+              ? `${err.message} — sélection enregistrée sur l’appareil.`
+              : "API indisponible — sélection enregistrée sur l’appareil.",
+          );
+        }
+      }
 
       if (onboarding) {
         navigation.replace("Permissions", { onboarding: true });
-      } else {
+      } else if (cloudOk) {
         navigation.goBack?.();
       }
     } catch (err) {

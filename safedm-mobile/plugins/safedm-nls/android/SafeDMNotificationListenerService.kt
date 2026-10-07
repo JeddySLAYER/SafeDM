@@ -3,6 +3,7 @@ package com.safedmmobile.notifications
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import com.safedmmobile.features.FeatureExtraction
 
 /**
  * Capture les notifications des packages surveillés (WhatsApp / SMS / Email).

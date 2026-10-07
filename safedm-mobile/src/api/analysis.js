@@ -32,10 +32,9 @@ function gateFromMessageAnalysis(result, url) {
  *
  * `consentExternal` doit refleter un consentement REEL de l'utilisateur, jamais
  * un `true` par defaut : le serveur refuse tout appel a un tiers sans ce
- * drapeau. Le flux automatique des notifications passe par
- * `getCloudConsent()` (opt-in dans les reglages), et une analyse manuelle
- * declenchee au doigt passe `true` puisque l'utilisateur vient de demander
- * l'analyse.
+ * drapeau. Les écrans Home / Manuel / Détail doivent passer
+ * `consentExternal` seulement après `getCloudConsent()` ou un prompt
+ * explicite (`ensureContentUploadConsent`).
  */
 export function analyzeMessage(payload) {
   return apiRequest("/analysis", {

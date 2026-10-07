@@ -1,0 +1,394 @@
+[
+  {
+    "index": 1,
+    "expected": "phishing",
+    "got": "phishing",
+    "score": 100,
+    "confidence": 1.0,
+    "nouls": {
+      "credential_request": 0.4,
+      "sensitive_data_request": 0.4,
+      "link_deception": 0.92
+    },
+    "difficulty": "clair",
+    "message": "Votre compte bancaire est suspendu. Verifiez immediatement vos identifiants sur http://bit.ly/banque228"
+  },
+  {
+    "index": 2,
+    "expected": "legitimate",
+    "got": "legitimate",
+    "score": 25,
+    "confidence": 0.69,
+    "nouls": {
+      "credential_request": 0.45,
+      "sensitive_data_request": 0.15,
+      "link_deception": 0.58
+    },
+    "difficulty": "frontiere",
+    "message": "Code OTP 884213 pour votre carte. Ne le communiquez a PERSONNE. Un conseiller vous le reclame au tel? Appelez le 110."
+  },
+  {
+    "index": 3,
+    "expected": "legitimate",
+    "got": "legitimate",
+    "score": 12,
+    "confidence": 0.85,
+    "nouls": {
+      "credential_request": 0.48,
+      "sensitive_data_request": 0.12,
+      "link_deception": 0.26
+    },
+    "difficulty": "frontiere",
+    "message": "Orange Money: votre code de confirmation est 551209. Vous n'avez pas demande cette operation? Composez *155#"
+  },
+  {
+    "index": 4,
+    "expected": "phishing",
+    "got": "phishing",
+    "score": 100,
+    "confidence": 1.0,
+    "nouls": {
+      "credential_request": 0.87,
+      "sensitive_data_request": 0.86,
+      "link_deception": 0.54
+    },
+    "difficulty": "clair",
+    "message": "ALERTE SECURITY: tentative de connexion suspecte. Confirmez votre mot de passe immediatement: https://ecobank-secure.tg/login"
+  },
+  {
+    "index": 5,
+    "expected": "phishing",
+    "got": "phishing",
+    "score": 98,
+    "confidence": 0.97,
+    "nouls": {
+      "credential_request": 0.77,
+      "sensitive_data_request": 0.73,
+      "link_deception": 0.75
+    },
+    "difficulty": "clair",
+    "message": "Votre RIB a ete modifie. Merci de confirmer vos coordonnees bancaires sur https://secure-verif.tg/rib"
+  },
+  {
+    "index": 6,
+    "expected": "scam_financial",
+    "got": "scam_financial",
+    "score": 100,
+    "confidence": 1.0,
+    "nouls": {
+      "credential_request": 0.17,
+      "sensitive_data_request": 0.9,
+      "link_deception": 0.82
+    },
+    "difficulty": "clair",
+    "message": "FELICITATIONS! Vous avez gagne 5 000 000 FCFA. Envoyez 5000 FCFA au 90 12 34 56 pour recevoir votre lot."
+  },
+  {
+    "index": 7,
+    "expected": "phishing",
+    "got": "phishing",
+    "score": 99,
+    "confidence": 0.99,
+    "nouls": {
+      "credential_request": 0.2,
+      "sensitive_data_request": 0.19,
+      "link_deception": 0.92
+    },
+    "difficulty": "clair",
+    "message": "Votre carte Orange Money est bloquee. Validez votre compte ici: http://bit.ly/3xKm9p"
+  },
+  {
+    "index": 8,
+    "expected": "scam_financial",
+    "got": "scam_financial",
+    "score": 100,
+    "confidence": 0.96,
+    "nouls": {
+      "credential_request": 0.14,
+      "sensitive_data_request": 0.14,
+      "link_deception": 0.69
+    },
+    "difficulty": "clair",
+    "message": "Le ministre vous a attribue 10 millions. Cliquez ici pour les recevoir: https://gagne-million.tg"
+  },
+  {
+    "index": 9,
+    "expected": "social_engineering",
+    "got": "scam_financial",
+    "score": 83,
+    "confidence": 0.73,
+    "nouls": {
+      "credential_request": 0.33,
+      "sensitive_data_request": 0.32,
+      "link_deception": 0.25
+    },
+    "difficulty": "frontiere",
+    "message": "Votre prochain remboursement de 50000 FCFA est disponible. Transfert sur le compte 123456789"
+  },
+  {
+    "index": 10,
+    "expected": "social_engineering",
+    "got": "scam_financial",
+    "score": 99,
+    "confidence": 0.38,
+    "nouls": {
+      "credential_request": 0.22,
+      "sensitive_data_request": 0.61,
+      "link_deception": 0.59
+    },
+    "difficulty": "clair",
+    "message": "URGENT votre abonnement interrompu dans 24h. Composez *888# pour eviter la coupure. Reglement immediat"
+  },
+  {
+    "index": 11,
+    "expected": "social_engineering",
+    "got": "phishing",
+    "score": 97,
+    "confidence": 0.37,
+    "nouls": {
+      "credential_request": 0.16,
+      "sensitive_data_request": 0.44,
+      "link_deception": 0.41
+    },
+    "difficulty": "clair",
+    "message": "Dernier avertissement: suspendu de teleadministration. Regularisez vos impayes sous 48h via le lien"
+  },
+  {
+    "index": 12,
+    "expected": "social_engineering",
+    "got": "social_engineering",
+    "score": 100,
+    "confidence": 0.73,
+    "nouls": {
+      "credential_request": 0.31,
+      "sensitive_data_request": 0.89,
+      "link_deception": 0.64
+    },
+    "difficulty": "clair",
+    "message": "Maman je suis en prison a Lome, envoie vite 20000 FCFA sur ce numero, ne parle pas a papa"
+  },
+  {
+    "index": 13,
+    "expected": "benign_marketing",
+    "got": "legitimate",
+    "score": 39,
+    "confidence": 0.37,
+    "nouls": {
+      "credential_request": 0.19,
+      "sensitive_data_request": 0.09,
+      "link_deception": 0.25
+    },
+    "difficulty": "frontiere",
+    "message": "Cher client, votre abonnement Togocom expire ce soir. Renouvelez vite avant la desactivation de votre ligne."
+  },
+  {
+    "index": 14,
+    "expected": "social_engineering",
+    "got": "scam_financial",
+    "score": 100,
+    "confidence": 0.98,
+    "nouls": {
+      "credential_request": 0.19,
+      "sensitive_data_request": 0.89,
+      "link_deception": 0.32
+    },
+    "difficulty": "clair",
+    "message": "Votre colis est bloque en douane. Payez 3000 FCFA de frais via Orange Money et recevez-le demain."
+  },
+  {
+    "index": 15,
+    "expected": "phishing",
+    "got": "phishing",
+    "score": 97,
+    "confidence": 0.96,
+    "nouls": {
+      "credential_request": 0.2,
+      "sensitive_data_request": 0.12,
+      "link_deception": 0.82
+    },
+    "difficulty": "clair",
+    "message": "Support Orange: nous pouvons vous aider a reinitialiser votre code. Lien: https://or-help.tg"
+  },
+  {
+    "index": 16,
+    "expected": "social_engineering",
+    "got": "scam_financial",
+    "score": 100,
+    "confidence": 0.97,
+    "nouls": {
+      "credential_request": 0.13,
+      "sensitive_data_request": 0.12,
+      "link_deception": 0.48
+    },
+    "difficulty": "frontiere",
+    "message": "Petit job a distance 15000 FCFA/jour. Pas de diplome requis. Reponds OUI pour recevoir le lien de recrutement"
+  },
+  {
+    "index": 17,
+    "expected": "social_engineering",
+    "got": "scam_financial",
+    "score": 100,
+    "confidence": 0.97,
+    "nouls": {
+      "credential_request": 0.2,
+      "sensitive_data_request": 0.87,
+      "link_deception": 0.17
+    },
+    "difficulty": "clair",
+    "message": "Ma belle, je suis tombe amoureux de toi. Envoie moi 50000 FCFA pour le billet d'avion et je viens te voir"
+  },
+  {
+    "index": 18,
+    "expected": "benign_marketing",
+    "got": "benign_marketing",
+    "score": 21,
+    "confidence": 0.58,
+    "nouls": {
+      "credential_request": 0.17,
+      "sensitive_data_request": 0.1,
+      "link_deception": 0.27
+    },
+    "difficulty": "clair",
+    "message": "Orange: offre speciale ce week-end, 2x data illimitee pour 500 FCFA. validez dans votre espace client."
+  },
+  {
+    "index": 19,
+    "expected": "benign_marketing",
+    "got": "legitimate",
+    "score": 0,
+    "confidence": 0.87,
+    "nouls": {
+      "credential_request": 0.15,
+      "sensitive_data_request": 0.07,
+      "link_deception": 0.24
+    },
+    "difficulty": "clair",
+    "message": "Togocom: pensez a recharger votre credit avant samedi pour eviter l interruption des appels."
+  },
+  {
+    "index": 20,
+    "expected": "legitimate",
+    "got": "legitimate",
+    "score": 0,
+    "confidence": 0.76,
+    "nouls": {
+      "credential_request": 0.27,
+      "sensitive_data_request": 0.07,
+      "link_deception": 0.23
+    },
+    "difficulty": "clair",
+    "message": "Bonjour, votre commande a ete livree aujourd'hui. Merci de vos achats."
+  },
+  {
+    "index": 21,
+    "expected": "legitimate",
+    "got": "legitimate",
+    "score": 1,
+    "confidence": 0.82,
+    "nouls": {
+      "credential_request": 0.23,
+      "sensitive_data_request": 0.06,
+      "link_deception": 0.27
+    },
+    "difficulty": "clair",
+    "message": "Rendez-vous confirmes demain a 14h au cabinet. N'oubliez pas vos analyses."
+  },
+  {
+    "index": 22,
+    "expected": "legitimate",
+    "got": "none",
+    "score": 0,
+    "confidence": 0.35,
+    "nouls": {
+      "credential_request": 0.11,
+      "sensitive_data_request": 0.04,
+      "link_deception": 0.2
+    },
+    "difficulty": "clair",
+    "message": "Le cours de change EUR/XOF est de 604,85 aujourd'hui."
+  },
+  {
+    "index": 23,
+    "expected": "legitimate",
+    "got": "none",
+    "score": 0,
+    "confidence": 0.93,
+    "nouls": {
+      "credential_request": 0.09,
+      "sensitive_data_request": 0.03,
+      "link_deception": 0.17
+    },
+    "difficulty": "clair",
+    "message": "Salut, tu es disponible demain pour le match? On joue a 17h au stade de K\u00e9gu\u00e9."
+  },
+  {
+    "index": 24,
+    "expected": "legitimate",
+    "got": "legitimate",
+    "score": 1,
+    "confidence": 0.96,
+    "nouls": {
+      "credential_request": 0.27,
+      "sensitive_data_request": 0.08,
+      "link_deception": 0.23
+    },
+    "difficulty": "frontiere",
+    "message": "Votre facture electricity de ce mois est disponible. Montant: 12500 FCFA, echeance le 25."
+  },
+  {
+    "index": 25,
+    "expected": "legitimate",
+    "got": "legitimate",
+    "score": 1,
+    "confidence": 0.99,
+    "nouls": {
+      "credential_request": 0.41,
+      "sensitive_data_request": 0.04,
+      "link_deception": 0.2
+    },
+    "difficulty": "frontiere",
+    "message": "Merci pour votre achat de 45 000 FCFA. Guichetier 214. CONSERVEZ CE RECU."
+  },
+  {
+    "index": 26,
+    "expected": "social_engineering",
+    "got": "phishing",
+    "score": 98,
+    "confidence": 0.64,
+    "nouls": {
+      "credential_request": 0.26,
+      "sensitive_data_request": 0.26,
+      "link_deception": 0.32
+    },
+    "difficulty": "frontiere",
+    "message": "Cher client, nous avons detecte une activite inhabituelle. Par s\u00e9curit\u00e9, confirmez vos informations dans les 2h sinon acces bloque."
+  },
+  {
+    "index": 27,
+    "expected": "social_engineering",
+    "got": "social_engineering",
+    "score": 100,
+    "confidence": 0.98,
+    "nouls": {
+      "credential_request": 0.14,
+      "sensitive_data_request": 0.16,
+      "link_deception": 0.39
+    },
+    "difficulty": "frontiere",
+    "message": "Bonjour, c'est le comptable de l'entreprise. Peux-tu m'envoyer le fichier de facture confidentiel sur WhatsApp? Urgent."
+  },
+  {
+    "index": 28,
+    "expected": "scam_financial",
+    "got": "phishing",
+    "score": 100,
+    "confidence": 0.69,
+    "nouls": {
+      "credential_request": 0.56,
+      "sensitive_data_request": 0.89,
+      "link_deception": 0.37
+    },
+    "difficulty": "frontiere",
+    "message": "Votre numero a ete selectionne pour un remboursement. Envoyez vos nom, prenom et numero de carte pour verification."
+  }
+]

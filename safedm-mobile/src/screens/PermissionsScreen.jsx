@@ -4,16 +4,14 @@ import { useFocusEffect } from "@react-navigation/native";
 import Button from "../components/Button";
 import { IconBadge } from "../components/Icons";
 import Screen from "../components/Screen";
-import { useAuth } from "../context/AuthContext";
 import {
   isNotificationAccessEnabled,
   openNotificationListenerSettings,
 } from "../services/notificationBridge";
-import { colors, radii } from "../theme/tokens";
+import { colors, spacing, typography } from "../theme/tokens";
 
 export default function PermissionsScreen({ navigation, route }) {
   const onboarding = route?.params?.onboarding === true;
-  const { completeSetup } = useAuth();
   const [enabled, setEnabled] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -30,17 +28,24 @@ export default function PermissionsScreen({ navigation, route }) {
     }, [refresh]),
   );
 
-  async function continueNext() {
+  function continueNext() {
     if (onboarding) {
-      await completeSetup();
-      navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+      if (!enabled) {
+        // Soft continue but mark incomplete via next screens + Home banner.
+        navigation.replace("BatteryOptimization", {
+          onboarding: true,
+          nlsSkipped: true,
+        });
+        return;
+      }
+      navigation.replace("BatteryOptimization", { onboarding: true });
       return;
     }
     navigation.goBack();
   }
 
   return (
-    <Screen contentStyle={styles.content}>
+    <Screen contentStyle={styles.content} style={styles.canvas}>
       <View style={styles.hero}>
         <View style={styles.circle}>
           <IconBadge name="bell" size={72} />
@@ -48,65 +53,66 @@ export default function PermissionsScreen({ navigation, route }) {
             <IconBadge name="shield" size={36} />
           </View>
         </View>
-        <Text style={styles.title}>Activez l’accès aux notifications</Text>
+        <Text style={styles.title}>Accès aux notifications</Text>
         <Text style={styles.body}>
-          SafeDM lit localement les notifications des apps choisies pour
-          détecter les messages suspects. Aucun message n’est modifié ni bloqué.
+          SafeDM lit localement les notifications des apps choisies. Aucun
+          message n’est modifié ni bloqué. Sans cet accès, la protection
+          automatique est inactive.
         </Text>
         <Text style={styles.status}>
           Statut :{" "}
-          <Text style={{ color: enabled ? colors.bluePrimary : colors.textSecondary, fontWeight: "700" }}>
+          <Text
+            style={{
+              color: enabled ? colors.success : colors.danger,
+              fontWeight: "700",
+            }}
+          >
             {enabled ? "Autorisé" : "Non autorisé"}
           </Text>
         </Text>
       </View>
 
-      <Button
-        label="Autoriser l’accès"
-        onPress={() => openNotificationListenerSettings()}
-      />
-      <Button
-        label={enabled || onboarding ? (enabled ? "Continuer" : "Plus tard") : "Retour"}
-        variant="outline"
-        onPress={continueNext}
-        style={{ marginTop: 12 }}
-      />
+      <View style={styles.footer}>
+        <Button
+          label="Autoriser l’accès"
+          onPress={() => openNotificationListenerSettings()}
+        />
+        <Button
+          label={
+            onboarding
+              ? enabled
+                ? "Continuer"
+                : "Continuer sans (déconseillé)"
+              : "Retour"
+          }
+          variant="outline"
+          onPress={continueNext}
+          style={{ marginTop: 12 }}
+        />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  canvas: { backgroundColor: colors.canvas },
   content: { justifyContent: "space-between" },
-  hero: { flex: 1, justifyContent: "center", alignItems: "center" },
-  circle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: colors.blueSoft,
-    alignItems: "center",
+  hero: {
+    flex: 1,
     justifyContent: "center",
-    marginBottom: 28,
+    alignItems: "center",
   },
-  shield: {
-    position: "absolute",
-    right: 8,
-    bottom: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.white,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    textAlign: "center",
-    marginBottom: 12,
-  },
+  circle: { position: "relative", marginBottom: spacing.lg },
+  shield: { position: "absolute", right: -8, bottom: -8 },
+  title: { ...typography.title, textAlign: "center", marginTop: spacing.md },
   body: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textSecondary,
+    ...typography.subtitle,
     textAlign: "center",
-    marginBottom: 16,
+    marginTop: spacing.md,
+    fontSize: 16,
+    lineHeight: 24,
+    paddingHorizontal: spacing.sm,
   },
-  status: { fontSize: 14, color: colors.textSecondary },
+  status: { ...typography.label, marginTop: spacing.lg },
+  footer: { paddingBottom: spacing.sm },
 });

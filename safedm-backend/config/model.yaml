@@ -1,0 +1,24 @@
+# Paramètres modèle local SafeDM (référence documentation / training)
+feature_count: 50
+model_version: 1
+official_format: signed_json_logistic
+optional_runtime_export: tflite_float32
+
+training:
+  C: 0.5
+  max_iter: 2000
+  class_weight: balanced
+  solver: liblinear
+  max_fpr: 0.10
+  min_recall: 0.60
+  canary_percent: 5
+
+thresholds_ui:
+  # Alignés avec le mobile TFLite actuel (scores 0–1)
+  safe_below: 0.40
+  dangerous_at_or_above: 0.85
+
+dataset:
+  # Source par défaut (fixtures de tests). Copier vers data/processed pour figer.
+  default: tests/fixtures/jev_benchmark_baseline.json
+  preferred_processed: data/processed/labeled_messages.json

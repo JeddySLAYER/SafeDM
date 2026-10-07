@@ -20,6 +20,7 @@ import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.safedmmobile.features.FeatureExtraction
 import java.io.File
 import java.io.FileOutputStream
 import java.util.ArrayList

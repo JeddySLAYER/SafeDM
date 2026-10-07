@@ -21,13 +21,16 @@ seul aller-retour.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
 from typesafe_sdk import (
+    Choice,
+    Noul,
+    Score,
     TypeSafeAPIConnectionError,
     TypeSafeAPIError,
     TypeSafeAPITimeoutError,
+    TypeSafeClient,
 )
 
 from app.core.config import Settings, get_settings
@@ -143,8 +146,8 @@ class JevService:
 
     def __init__(
         self,
-        settings: Optional[Settings] = None,
-        client: Optional[TypeSafeClient] = None,
+        settings: Settings | None = None,
+        client: TypeSafeClient | None = None,
     ):
         self.settings = settings or get_settings()
         self._client = client
@@ -168,7 +171,7 @@ class JevService:
     def analyze(
         self,
         content: str,
-        urls: Optional[list[str]] = None,
+        urls: list[str] | None = None,
     ) -> SemanticResult:
         """Juge un message. `urls` alimente l'etat pour `link_deception`.
 
@@ -217,19 +220,38 @@ class JevService:
 
     def analyze_features(self, features: list[int]) -> SemanticResult:
         """Analyse le vecteur engineered sans transmettre le contenu textuel."""
+        if self.settings.analysis_demo_mode and not self.settings.typesafe_api_key:
+            from app.services.demo_providers import demo_jev_analyze
+
+            logger.warning("Jev feature analysis running in ANALYSIS_DEMO_MODE")
+            summary = (
+                f"feature_vector len={len(features)} "
+                f"nonzero={sum(1 for v in features if int(v) > 0)}"
+            )
+            return demo_jev_analyze(summary)
+
+        if not self.settings.typesafe_api_key:
+            logger.warning("TypeSafe API key missing - feature analysis unavailable")
+            return SemanticResult(available=False, error="TYPESAFE_API_KEY_MISSING")
+
         try:
             response = self._get_client().system_one(
                 state={"features": features},
                 questions=_SEMANTIC_QUESTIONS,
                 model=self.settings.typesafe_model,
             )
-        except (
-            TypeSafeAPITimeoutError,
-            TypeSafeAPIConnectionError,
-            TypeSafeAPIError,
-        ) as exc:
-            logger.error("Jev feature analysis failed: %s", type(exc).__name__)
-            return SemanticResult(available=False, error="TYPESAFE_FEATURE_ANALYSIS_FAILED")
+        except TypeSafeAPITimeoutError:
+            logger.error("Jev feature analysis timeout")
+            return SemanticResult(available=False, error="TYPESAFE_TIMEOUT")
+        except TypeSafeAPIConnectionError:
+            logger.error("Jev feature analysis network error")
+            return SemanticResult(available=False, error="TYPESAFE_NETWORK_ERROR")
+        except TypeSafeAPIError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.error("Jev feature analysis API error status=%s", status)
+            if status is not None:
+                return SemanticResult(available=False, error=f"TYPESAFE_HTTP_{status}")
+            return SemanticResult(available=False, error="TYPESAFE_API_ERROR")
         except Exception:
             logger.exception("Jev feature analysis unexpected error")
             return SemanticResult(available=False, error="TYPESAFE_FEATURE_ANALYSIS_FAILED")

@@ -57,7 +57,8 @@ export async function classifyLocalMessage(text, packageName = null) {
 }
 
 export async function extractLocalFeatures(text, packageName = null) {
-  const bridge = NativeModules.SafeDMNotificationsModule;
+  // Must match SafeDMNotificationsModule.NAME ("SafeDMNotifications").
+  const bridge = NativeModules.SafeDMNotifications;
   if (!bridge?.extractFeatures) {
     return null;
   }

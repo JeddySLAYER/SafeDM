@@ -221,6 +221,16 @@ def test_missing_api_key_degrades_without_calling_api():
     assert client.calls == []
 
 
+def test_analyze_features_missing_api_key_degrades_without_calling_api():
+    service, client = _service(typesafe_api_key="")
+
+    result = service.analyze_features([0] * 50)
+
+    assert result.available is False
+    assert result.error == "TYPESAFE_API_KEY_MISSING"
+    assert client.calls == []
+
+
 def test_malformed_answer_degrades_gracefully():
     """Une reponse sans `verdict` ne doit jamais lever : elle degrade."""
     service, _ = _service(response=SimpleNamespace(model="jev-1.13.0", answers={}, usage=None))

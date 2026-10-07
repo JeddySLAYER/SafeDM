@@ -1,4 +1,4 @@
-import { apiBaseUrl } from "../theme/tokens";
+import { API_BASE_URL } from "../config";
 import { clearSession, getToken } from "../utils/storage";
 
 export class ApiError extends Error {
@@ -52,7 +52,7 @@ export async function apiRequest(path, options = {}) {
   let response;
   try {
     response = await fetch(
-      `${apiBaseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`,
+      `${API_BASE_URL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`,
       {
         method,
         headers,

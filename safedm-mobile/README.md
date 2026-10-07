@@ -1,61 +1,63 @@
 # SafeDM Mobile (Expo)
 
-Application Android SafeDM — **Expo SDK 52** + React Navigation (écrans Sprint 5–7) + NotificationListenerService via config plugin.
+Application Android SafeDM — **Expo SDK 52** + NotificationListenerService.
 
-> Le module NLS nécessite un **development build** (`expo run:android`). Expo Go ne suffit pas.
-
-## Charte graphique
-
-| Token | Valeur |
-|-------|--------|
-| Fond | `#FFFFFF` |
-| Primaire | `#2F8AF2` |
-| Badges risque | Élevé = noir, Moyen = bleu |
-| Tabs | Accueil · Alertes · Signalements · Paramètres |
+> NLS = **development build** (`expo run:android` / EAS). Expo Go ne suffit pas.
 
 ## Setup
 
 ```bash
 cd safedm-mobile
 npm install
-copy .env.example .env
+cp .env.example .env
 npx expo start
 ```
 
-Build natif (émulateur / device) :
+Natif :
 
 ```bash
 npx expo prebuild --platform android
 npx expo run:android
 ```
 
-Backend : `API_BASE_URL` dans `.env` (lu par `app.config.js`) puis API sur `:8000`.
+## APK versionné (CI)
 
-Émulateur → `http://10.0.2.2:8000/api/v1`  
-Device physique → IP LAN du PC.
+Voir [`docs/MOBILE_CI.md`](../docs/MOBILE_CI.md).
 
-## NotificationListener
+```bash
+git tag mobile-v1.0.1 && git push origin mobile-v1.0.1
+# → GitHub Release + SafeDM-1.0.1.apk (secret EXPO_TOKEN requis)
+```
 
-1. Paramètres → **Accès notifications** → autoriser SafeDM  
-2. Sources WhatsApp / SMS / Email  
-3. Historique local 7 jours (Alertes)
+Local EAS :
 
-Sources natives (prébuild) : `plugins/safedm-nls/` + `plugins/withSafeDMNotifications.js`.
+```bash
+APP_ENV=production npx eas build -p android --profile preview
+```
+
+## Onboarding (Sprint 15)
+
+1. Apps surveillées (sync native même si API down)  
+2. Accès notifications  
+3. Batterie / OEM  
+4. Protection des liens (ou collage / Partager)
 
 ## Structure
 
 ```text
-App.jsx / index.js          # entrée Expo
-src/screens/                # écrans conservés
-src/navigation/
-src/api/ src/services/
-plugins/safedm-nls/         # Kotlin NLS + network security
-plugins/withSafeDMNotifications.js
-app.config.js
+src/
+  screens/     # UI (Welcome, Home, Alerts, Permissions, Battery, Diagnostics…)
+  services/    # NLS bridge, TFLite, alerts
+  api/ theme/ utils/ components/ navigation/ context/
+plugins/safedm-nls/   # Kotlin (sans FastText / *Check.kt dans l’APK)
 ```
 
-## Notes
+## Confidentialité
 
-- Clés Jev (TypeSafe) / VirusTotal : jamais dans l’app  
-- NLS ne bloque / ne modifie aucun message  
-- Voir [`docs/INTEGRATION.md`](../docs/INTEGRATION.md)
+- JWT : SecureStore  
+- Alertes : stockage local 7 j (masquable / effaçable)  
+- Cloud : opt-in Paramètres  
+
+## Runtime ML
+
+**Un seul chemin :** features natives → TFLite bundle (`assets/models/safedm_v3.tflite`).

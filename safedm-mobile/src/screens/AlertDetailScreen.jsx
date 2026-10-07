@@ -11,11 +11,13 @@ import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
 import { fallbackIconForSource } from "../services/appIcons";
 import { getAlertById, updateAlert } from "../services/alertsStore";
+import { ensureContentUploadConsent } from "../utils/cloudConsent";
 import {
   riskDescription,
   riskHeadline,
   statusToLevel,
 } from "../utils/risk";
+import { getHideSensitivePreview } from "../utils/storage";
 import { colors, radii } from "../theme/tokens";
 
 export default function AlertDetailScreen({ navigation, route }) {
@@ -25,11 +27,16 @@ export default function AlertDetailScreen({ navigation, route }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [hidePreview, setHidePreview] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const item = await getAlertById(alertId);
+    const [item, hide] = await Promise.all([
+      getAlertById(alertId),
+      getHideSensitivePreview(),
+    ]);
     setAlert(item);
+    setHidePreview(hide);
     setLoading(false);
   }, [alertId]);
 
@@ -45,10 +52,20 @@ export default function AlertDetailScreen({ navigation, route }) {
     setError("");
     try {
       const content = alert.fullText || alert.preview;
+      const allowed = await ensureContentUploadConsent({
+        title: "Réanalyser en cloud",
+        message:
+          "Le texte de l’alerte sera envoyé à l’API SafeDM. Continuer ?",
+      });
+      if (!allowed) {
+        setError("Analyse cloud refusée.");
+        return;
+      }
       const result = await analyzeMessage({
         content,
         source: "NOTIFICATION",
         application_package: alert.packageName,
+        consentExternal: true,
       });
       const patched = await updateAlert(alert.id, {
         level: statusToLevel(result.status, result.severity),
@@ -140,7 +157,11 @@ export default function AlertDetailScreen({ navigation, route }) {
         {alert.riskScore != null ? (
           <Text style={styles.score}>Score : {alert.riskScore}/100</Text>
         ) : null}
-        <Text style={styles.body}>{alert.fullText || alert.preview}</Text>
+        <Text style={styles.body}>
+          {hidePreview
+            ? "Contenu masqué. Désactivez « Masquer les aperçus » dans Paramètres pour l’afficher."
+            : alert.fullText || alert.preview}
+        </Text>
         <Text style={styles.meta}>
           {new Date(alert.createdAt).toLocaleString("fr-FR")}
         </Text>

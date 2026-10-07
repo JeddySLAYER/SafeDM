@@ -25,35 +25,47 @@ const API_BASE_URL = (
   process.env.API_BASE_URL || "http://10.0.2.2:8000/api/v1"
 ).replace(/\/+$/, "");
 
-// Release local: $env:APP_ENV="production" puis gradlew assembleRelease
-// (évite d’embarquer expo-dev-client dans l’APK release)
+// Release: APP_ENV=production or EAS profile production/apk
 const isProduction =
   process.env.APP_ENV === "production" ||
   process.env.EAS_BUILD_PROFILE === "production" ||
   process.env.EAS_BUILD_PROFILE === "apk";
 
+// Cleartext only for local/dev emulators — never in release APKs.
+const allowCleartext = !isProduction;
+
 module.exports = {
   expo: {
     name: "SafeDM",
     slug: "safedm-mobile",
-    version: "1.0.0",
+    version: process.env.APP_VERSION || "1.1.0",
     orientation: "portrait",
-    icon: "./src/assets/simplify-logo.png",
+    icon: "./src/assets/icon.png",
     scheme: "safedm",
     userInterfaceStyle: "light",
     newArchEnabled: false,
+    splash: {
+      image: "./src/assets/splash.png",
+      resizeMode: "contain",
+      backgroundColor: "#FFFFFF",
+    },
     ios: {
       supportsTablet: false,
       bundleIdentifier: "com.safedmmobile",
     },
     android: {
       package: "com.safedmmobile",
+      versionCode: Number(process.env.ANDROID_VERSION_CODE || 1),
       adaptiveIcon: {
-        foregroundImage: "./src/assets/simplify-logo.png",
-        backgroundColor: "#000000",
+        foregroundImage: "./src/assets/adaptive-icon.png",
+        backgroundColor: "#FFFFFF",
       },
-      permissions: ["INTERNET"],
-      // SafeDM comme filtre de liens (navigateur / partage)
+      splash: {
+        image: "./src/assets/splash.png",
+        resizeMode: "contain",
+        backgroundColor: "#FFFFFF",
+      },
+      permissions: ["INTERNET", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"],
       intentFilters: [
         {
           action: "VIEW",
@@ -76,12 +88,14 @@ module.exports = {
       ...(isProduction ? [] : ["expo-dev-client"]),
       "expo-asset",
       "expo-font",
+      "expo-secure-store",
+      "expo-splash-screen",
       "react-native-fast-tflite",
       [
         "expo-build-properties",
         {
           android: {
-            usesCleartextTraffic: true,
+            usesCleartextTraffic: allowCleartext,
             minSdkVersion: 24,
             compileSdkVersion: 35,
             targetSdkVersion: 34,
@@ -92,7 +106,8 @@ module.exports = {
     ],
     extra: {
       apiBaseUrl: API_BASE_URL,
-      appVersion: "1.0.0",
+      appVersion: process.env.APP_VERSION || "1.1.0",
+      appEnv: isProduction ? "production" : "development",
       localModelUri: process.env.LOCAL_MODEL_URI || null,
       fingerprintPublicKey: process.env.FINGERPRINT_PUBLIC_KEY || null,
       modelManifestPublicKey: process.env.MODEL_MANIFEST_PUBLIC_KEY || null,

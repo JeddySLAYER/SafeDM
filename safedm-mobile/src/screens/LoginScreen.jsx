@@ -33,7 +33,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <Screen scroll contentStyle={styles.content}>
-      <BrandMark size={52} centered />
+      <BrandMark size={36} wordmark centered />
       <Text style={styles.title}>Se connecter</Text>
       <Text style={styles.subtitle}>Accédez à votre espace de protection</Text>
 

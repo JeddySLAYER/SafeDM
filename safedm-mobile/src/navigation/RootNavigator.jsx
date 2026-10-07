@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { View } from "react-native";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import * as ExpoLinking from "expo-linking";
 import { useAuth } from "../context/AuthContext";
@@ -7,6 +8,7 @@ import {
   getLaunchUrl,
   subscribeToLinkIntents,
 } from "../services/notificationBridge";
+import OfflineBanner from "../components/OfflineBanner";
 import SplashView from "../components/SplashView";
 import AppStack from "./AppTabs";
 import AuthStack from "./AuthStack";
@@ -98,9 +100,12 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <LinkIntentBridge />
-      {isAuthenticated ? <AppStack /> : <AuthStack />}
-    </NavigationContainer>
+    <View style={{ flex: 1 }}>
+      <OfflineBanner />
+      <NavigationContainer ref={navigationRef}>
+        <LinkIntentBridge />
+        {isAuthenticated ? <AppStack /> : <AuthStack />}
+      </NavigationContainer>
+    </View>
   );
 }
