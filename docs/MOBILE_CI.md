@@ -6,13 +6,18 @@ Dans le dépôt → **Settings → Secrets and variables → Actions** :
 
 | Secret | Rôle |
 |--------|------|
-| `EXPO_TOKEN` | Token Expo (https://expo.dev/settings/access-tokens) pour EAS Build |
-| `FASTAPI_CLOUD_TOKEN` | Deploy backend (voir [DEPLOY_FASTAPI_CLOUD.md](./DEPLOY_FASTAPI_CLOUD.md)) |
-| `FASTAPI_CLOUD_APP_ID` | UUID app FastAPI Cloud |
+| `EXPO_TOKEN` | Token Expo (https://expo.dev/settings/access-tokens) pour EAS Build — **déjà requis pour l’APK** |
+| `FASTAPI_CLOUD_TOKEN` | Deploy backend (optionnel tant que le deploy GitHub est manuel) |
+| `FASTAPI_CLOUD_APP_ID` | UUID app FastAPI Cloud (idem) |
 
-Sans `EXPO_TOKEN`, le workflow `mobile-apk.yml` échoue immédiatement avec un message explicite.  
-Sans les secrets FastAPI Cloud, `deploy-fastapi-cloud.yml` échoue de la même façon.  
-Le workflow `ci.yml` (lint/tests) reste indépendant.
+Clés mobile **optionnelles** (soft-fail si absentes) — pas des secrets GitHub :
+`FINGERPRINT_PUBLIC_KEY`, `MODEL_MANIFEST_PUBLIC_KEY` dans `.env` / EAS env.
+
+Runtime mobile : **TFLite** (`react-native-fast-tflite` + `assets/models/safedm_v3.tflite`) = chemin officiel.  
+FastText Kotlin reste dans `plugins/` pour parity/tests mais **n’est pas copié dans l’APK**.
+
+Sans `EXPO_TOKEN`, le workflow `mobile-apk.yml` échoue immédiatement.  
+`ci.yml` (lint/tests) reste indépendant.
 
 ## Workflows
 

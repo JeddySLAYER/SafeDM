@@ -1,6 +1,6 @@
 # Déployer le backend sur FastAPI Cloud
 
-URL de prod actuelle (mobile) : `https://safedm-backend.fastapicloud.dev/api/v1`
+URL de prod actuelle (mobile) : `https://safedmnew-back.fastapicloud.dev/api/v1`
 
 ## 0. Secrets GitHub (checklist)
 
@@ -79,12 +79,13 @@ uv run fastapi cloud setup-ci --secrets-only   # pousse les secrets via gh
 ## 3. Vérifier le déploiement
 
 ```bash
-curl -sS https://safedm-backend.fastapicloud.dev/api/v1/health
+curl -sS https://safedmnew-back.fastapicloud.dev/api/v1/health
 # optionnel ready :
-curl -sS https://safedm-backend.fastapicloud.dev/api/v1/health/ready
+curl -sS https://safedmnew-back.fastapicloud.dev/api/v1/health/ready
 ```
 
-Mobile : `API_BASE_URL` dans `.env` / EAS doit pointer vers cette URL `/api/v1`.
+Mobile : `API_BASE_URL` dans `.env` / profils EAS (`preview`/`apk`/`production`)
+pointe déjà vers cette URL `/api/v1`.
 
 ## 4. Logs
 

@@ -22,7 +22,8 @@
       },
       "env": {
         "APP_ENV": "production",
-        "EAS_BUILD_PROFILE": "preview"
+        "EAS_BUILD_PROFILE": "preview",
+        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1"
       }
     },
     "apk": {
@@ -33,7 +34,8 @@
       "autoIncrement": true,
       "env": {
         "APP_ENV": "production",
-        "EAS_BUILD_PROFILE": "apk"
+        "EAS_BUILD_PROFILE": "apk",
+        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1"
       }
     },
     "production": {
@@ -43,7 +45,8 @@
       },
       "env": {
         "APP_ENV": "production",
-        "EAS_BUILD_PROFILE": "production"
+        "EAS_BUILD_PROFILE": "production",
+        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1"
       }
     }
   },

@@ -38,7 +38,7 @@ module.exports = {
   expo: {
     name: "SafeDM",
     slug: "safedm-mobile",
-    version: process.env.APP_VERSION || "1.1.0",
+    version: process.env.APP_VERSION || "1.1.1",
     orientation: "portrait",
     icon: "./src/assets/icon.png",
     scheme: "safedm",
@@ -106,7 +106,7 @@ module.exports = {
     ],
     extra: {
       apiBaseUrl: API_BASE_URL,
-      appVersion: process.env.APP_VERSION || "1.1.0",
+      appVersion: process.env.APP_VERSION || "1.1.1",
       appEnv: isProduction ? "production" : "development",
       localModelUri: process.env.LOCAL_MODEL_URI || null,
       fingerprintPublicKey: process.env.FINGERPRINT_PUBLIC_KEY || null,
