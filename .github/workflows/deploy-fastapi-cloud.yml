@@ -15,13 +15,15 @@
 
 name: Deploy FastAPI Cloud
 
+# Manuel tant que FASTAPI_CLOUD_* ne sont pas dans les secrets du repo.
+# Après setup (docs/DEPLOY_FASTAPI_CLOUD.md), tu peux réactiver le bloc `push:` ci-dessous.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "safedm-backend/**"
-      - ".github/workflows/deploy-fastapi-cloud.yml"
   workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "safedm-backend/**"
+  #     - ".github/workflows/deploy-fastapi-cloud.yml"
 
 concurrency:
   group: deploy-fastapi-cloud

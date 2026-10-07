@@ -53,8 +53,12 @@ DATABASE_URL='postgresql+psycopg2://…?sslmode=require' uv run alembic upgrade 
 
 Workflow : `.github/workflows/deploy-fastapi-cloud.yml`
 
-- **Auto** : push sur `main` qui touche `safedm-backend/**`
-- **Manuel** : Actions → **Deploy FastAPI Cloud** → Run workflow
+**Ordre important :** d’abord un `fastapi deploy` local (section 1) pour créer
+l’app + App ID + Deploy Token, **puis** les secrets GitHub, **puis** Actions.
+
+- **Manuel** : Actions → **Deploy FastAPI Cloud** → Run workflow  
+  (le trigger auto sur `main` est commenté jusqu’à ce que les secrets existent —
+  décommente le bloc `push:` dans le workflow quand tu es prêt)
 
 Équivalent local :
 
