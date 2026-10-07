@@ -22,8 +22,9 @@ from app.services.fusion_service import _severity_from_score, _status_from_score
 # --------------------------------------------------------------- SECRET_KEY
 
 
-def test_secret_key_has_no_usable_default() -> None:
+def test_secret_key_has_no_usable_default(monkeypatch) -> None:
     """Plus aucune valeur par defaut exploitable pour signer des JWT."""
+    monkeypatch.delenv("SECRET_KEY", raising=False)
     s = Settings(_env_file=None)
     assert s.secret_key == "", "secret_key ne doit pas avoir de defaut code en dur"
 
@@ -31,7 +32,8 @@ def test_secret_key_has_no_usable_default() -> None:
 @pytest.mark.parametrize(
     "weak", ["", "change-me-to-a-long-random-string", "secret", "change-me"]
 )
-def test_production_refuses_weak_secret(weak: str) -> None:
+def test_production_refuses_weak_secret(weak: str, monkeypatch) -> None:
+    monkeypatch.delenv("SECRET_KEY", raising=False)
     with pytest.raises(ValueError, match="SECRET_KEY"):
         Settings(app_env="production", secret_key=weak, _env_file=None)
 
@@ -41,14 +43,16 @@ def test_production_accepts_strong_secret() -> None:
     assert s.is_production is True
 
 
-def test_production_refuses_absent_secret() -> None:
+def test_production_refuses_absent_secret(monkeypatch) -> None:
     """Le cas le plus dangerous : `.env` oublie en production."""
+    monkeypatch.delenv("SECRET_KEY", raising=False)
     with pytest.raises(ValueError, match="SECRET_KEY"):
         Settings(app_env="production", _env_file=None)
 
 
-def test_development_tolerates_missing_secret(caplog) -> None:
+def test_development_tolerates_missing_secret(caplog, monkeypatch) -> None:
     """Un novice ne doit pas etre bloque par un garde-fou en local."""
+    monkeypatch.delenv("SECRET_KEY", raising=False)
     with caplog.at_level("WARNING"):
         s = Settings(app_env="development", secret_key="", _env_file=None)
     assert s.secret_key == ""

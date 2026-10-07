@@ -32,7 +32,6 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg2://safedm:safedm@localhost:5432/safedm
-      SECRET_KEY: ci-test-secret-key-at-least-16
       ANALYSIS_DEMO_MODE: "true"
       RATE_LIMIT_ENABLED: "false"
       APP_ENV: development
@@ -42,6 +41,8 @@ jobs:
         with:
           enable-cache: true
       - name: Sync + migrate + test
+        env:
+          SECRET_KEY: ci-test-secret-key-at-least-16
         run: |
           uv sync --group dev
           uv run alembic upgrade head
