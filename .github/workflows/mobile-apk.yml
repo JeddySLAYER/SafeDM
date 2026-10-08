@@ -4,8 +4,8 @@
 #   EXPO_TOKEN  — create at https://expo.dev/accounts/[account]/settings/access-tokens
 #
 # Triggers:
-#   - push to main (the check sits next to the green CI checks)
-#   - push tag: mobile-v1.2.3  (also publishes a GitHub Release)
+#   - push to main: builds the APK and publishes a GitHub Release
+#   - push tag: mobile-v1.2.3  (release uses that exact tag)
 #   - workflow_dispatch on main, with optional version input
 #
 # Example:
@@ -67,6 +67,15 @@ jobs:
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Resolved APP_VERSION=$V"
+          if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            TAG="mobile-v${{ inputs.version }}"
+          else
+            TAG="mobile-v${V}-b${{ github.run_number }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag=$TAG"
 
       - name: Check EXPO_TOKEN
         env:
@@ -130,10 +139,9 @@ jobs:
           if-no-files-found: error
 
       - name: Create GitHub Release
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mobile-v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: mobile-v${{ steps.ver.outputs.version }}
+          tag_name: ${{ steps.ver.outputs.tag }}
           name: SafeDM Mobile ${{ steps.ver.outputs.version }}
           body: |
             ## SafeDM Android APK
