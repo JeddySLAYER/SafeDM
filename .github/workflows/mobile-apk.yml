@@ -4,7 +4,8 @@
 #   EXPO_TOKEN  — create at https://expo.dev/accounts/[account]/settings/access-tokens
 #
 # Triggers:
-#   - push tag: mobile-v1.2.3  (recommended)
+#   - push on the same branches as CI (the check sits next to the green ones)
+#   - push tag: mobile-v1.2.3  (also publishes a GitHub Release)
 #   - workflow_dispatch (manual) with optional version input
 #
 # Example:
@@ -14,6 +15,7 @@ name: Mobile APK (EAS)
 
 on:
   push:
+    branches: [main, master, "review/**", "feat/**"]
     tags:
       - "mobile-v*"
   workflow_dispatch:
@@ -32,7 +34,7 @@ on:
 
 concurrency:
   group: mobile-apk-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-apk:
@@ -90,9 +92,9 @@ jobs:
           APP_VERSION: ${{ steps.ver.outputs.version }}
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           APP_ENV: production
-          EAS_BUILD_PROFILE: ${{ inputs.profile || 'preview' }}
+          EAS_BUILD_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'apk' }}
         run: |
-          PROFILE="${{ inputs.profile || 'preview' }}"
+          PROFILE="${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'apk' }}"
           # Non-interactive remote build; wait for artifact URL
           eas build \
             --platform android \
@@ -119,7 +121,15 @@ jobs:
           curl -L --fail "${{ steps.eas.outputs.apk_url }}" -o "/tmp/artifacts/SafeDM-${{ steps.ver.outputs.version }}.apk"
           ls -lh /tmp/artifacts
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SafeDM-${{ steps.ver.outputs.version }}
+          path: /tmp/artifacts/SafeDM-${{ steps.ver.outputs.version }}.apk
+          if-no-files-found: error
+
       - name: Create GitHub Release
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mobile-v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-v${{ steps.ver.outputs.version }}
@@ -128,7 +138,7 @@ jobs:
             ## SafeDM Android APK
 
             - Version: `${{ steps.ver.outputs.version }}`
-            - Profile EAS: `${{ inputs.profile || 'preview' }}`
+            - Profile EAS: `${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'apk' }}`
             - Commit: `${{ github.sha }}`
 
             Install on a device (dev client / preview). Grant **notification access**
