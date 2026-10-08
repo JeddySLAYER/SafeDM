@@ -88,6 +88,7 @@ jobs:
         id: eas
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
           APP_ENV: production
           EAS_BUILD_PROFILE: ${{ inputs.profile || 'preview' }}
         run: |
