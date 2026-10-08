@@ -13,6 +13,7 @@ _LIMITS: dict[str, tuple[int, int]] = {
     "/auth/register": (10, 60),
     "/auth/login": (20, 60),
     "/auth/login/form": (20, 60),
+    "/auth/firebase": (20, 60),
     "/analysis": (60, 60),
 }
 

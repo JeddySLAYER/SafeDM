@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import Button from "../components/Button";
 import { IconBadge } from "../components/Icons";
 import Screen from "../components/Screen";
+import SetupSteps from "../components/SetupSteps";
 import {
   isNotificationAccessEnabled,
   openNotificationListenerSettings,
@@ -46,47 +47,45 @@ export default function PermissionsScreen({ navigation, route }) {
 
   return (
     <Screen contentStyle={styles.content} style={styles.canvas}>
+      {onboarding ? <SetupSteps step={1} /> : null}
       <View style={styles.hero}>
         <View style={styles.circle}>
-          <IconBadge name="bell" size={72} />
-          <View style={styles.shield}>
-            <IconBadge name="shield" size={36} />
-          </View>
+          <IconBadge name={enabled ? "shield" : "bell"} size={72} />
         </View>
-        <Text style={styles.title}>Accès aux notifications</Text>
-        <Text style={styles.body}>
-          SafeDM lit localement les notifications des apps choisies. Aucun
-          message n’est modifié ni bloqué. Sans cet accès, la protection
-          automatique est inactive.
+        <Text style={styles.title}>
+          {enabled ? "Notifications autorisées" : "Accès aux notifications"}
         </Text>
-        <Text style={styles.status}>
-          Statut :{" "}
-          <Text
-            style={{
-              color: enabled ? colors.success : colors.danger,
-              fontWeight: "700",
-            }}
-          >
-            {enabled ? "Autorisé" : "Non autorisé"}
-          </Text>
+        <Text style={styles.body}>
+          {enabled
+            ? "SafeDM peut lire les notifications des applications choisies. Les messages ne sont ni modifiés ni bloqués."
+            : "Sans cet accès, SafeDM ne voit pas les nouveaux messages. Rien n'est modifié ni bloqué."}
         </Text>
       </View>
 
       <View style={styles.footer}>
-        <Button
-          label="Autoriser l’accès"
-          onPress={() => openNotificationListenerSettings()}
-        />
+        {enabled ? (
+          <Button
+            label={onboarding ? "Continuer" : "C'est bon"}
+            onPress={continueNext}
+          />
+        ) : (
+          <Button
+            label="Autoriser l'accès"
+            onPress={() => openNotificationListenerSettings()}
+          />
+        )}
         <Button
           label={
-            onboarding
-              ? enabled
-                ? "Continuer"
-                : "Continuer sans (déconseillé)"
-              : "Retour"
+            enabled
+              ? "Modifier l'accès"
+              : onboarding
+                ? "Continuer sans (déconseillé)"
+                : "Retour"
           }
           variant="outline"
-          onPress={continueNext}
+          onPress={
+            enabled ? () => openNotificationListenerSettings() : continueNext
+          }
           style={{ marginTop: 12 }}
         />
       </View>

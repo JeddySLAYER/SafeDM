@@ -4,6 +4,7 @@ import java.security.KeyFactory
 import java.security.MessageDigest
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -227,11 +228,25 @@ fun canonical(root: JSONObject): String {
                 val value = root.get(key)
                 val rendered = when (value) {
                     is JSONObject -> canonical(value)
-                    else -> JSONObject.valueToString(value)
+                    else -> renderJsonValue(value)
                 }
                 "\"$key\":$rendered"
             }
             return pieces.joinToString(",", prefix = "{", postfix = "}")
+        }
+
+        /**
+         * Equivalent de `JSONObject.valueToString`, qui est package-private
+         * dans l'org.json Android (d'ou l'echec compileReleaseKotlin sur EAS).
+         * `numberToString` et `quote` sont publics et reproduisent le meme format.
+         */
+        private fun renderJsonValue(value: Any): String = when {
+            value === JSONObject.NULL -> "null"
+            value is JSONArray -> value.toString()
+            value is Number -> JSONObject.numberToString(value)
+            value is Boolean -> value.toString()
+            value is String -> JSONObject.quote(value)
+            else -> JSONObject.quote(value.toString())
         }
 
         private fun hexToBytes(hex: String): ByteArray? {

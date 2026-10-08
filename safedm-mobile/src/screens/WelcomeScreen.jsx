@@ -2,22 +2,26 @@ import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
+import OnboardingArt from "../components/OnboardingArt";
 import Screen from "../components/Screen";
 import { useAuth } from "../context/AuthContext";
 import { colors, spacing, typography } from "../theme/tokens";
 
 const SLIDES = [
   {
-    title: "Protégez vos messages",
-    body: "SafeDM lit localement les notifications WhatsApp, SMS et e-mails pour repérer les messages suspects — sans les bloquer ni les modifier.",
+    art: "phone",
+    title: "Vos messages, sur votre téléphone",
+    body: "SafeDM lit les notifications des applications que vous choisissez. Rien n'est modifié, rien n'est bloqué.",
   },
   {
-    title: "D’abord sur l’appareil",
-    body: "L’analyse locale tourne sur votre téléphone. L’enrichissement cloud (serveur SafeDM) n’est activé que si vous l’autorisez dans Paramètres.",
+    art: "message",
+    title: "Un contrôle avant le doute",
+    body: "Collez un SMS, un message ou un e-mail. Le premier avis est calculé ici, sans envoyer le texte.",
   },
   {
-    title: "Vous gardez le contrôle",
-    body: "Choisissez les apps à surveiller. Les alertes restent 7 jours sur l’appareil (historique local). Un signalement volontaire envoie le contenu au serveur.",
+    art: "link",
+    title: "Les liens aussi",
+    body: "Un lien inattendu peut être vérifié avant ouverture. Vous décidez ensuite.",
   },
 ];
 
@@ -34,26 +38,21 @@ export default function WelcomeScreen({ navigation }) {
 
   return (
     <Screen contentStyle={styles.content} style={styles.canvas}>
-      <BrandMark size={40} />
+      <BrandMark size={32} compact />
       <View style={styles.hero}>
+        <OnboardingArt name={slide.art} />
         <Text style={styles.title}>{slide.title}</Text>
         <Text style={styles.body}>{slide.body}</Text>
       </View>
       <View style={styles.dots}>
         {SLIDES.map((item, i) => (
-          <View
-            key={item.title}
-            style={[styles.dot, i === index && styles.dotActive]}
-          />
+          <View key={item.title} style={[styles.dot, i === index && styles.dotActive]} />
         ))}
       </View>
-      <View style={styles.footer}>
-        <Button
-          label={isLast ? "Commencer" : "Suivant"}
-          onPress={() => (isLast ? finish() : setIndex((v) => v + 1))}
-        />
-        <Button label="Passer" variant="ghost" onPress={finish} style={styles.ghost} />
-      </View>
+      <Button
+        label={isLast ? "Continuer" : "Suivant"}
+        onPress={() => (isLast ? finish() : setIndex((value) => value + 1))}
+      />
     </Screen>
   );
 }
@@ -61,8 +60,8 @@ export default function WelcomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   canvas: { backgroundColor: colors.canvas },
   content: { justifyContent: "space-between" },
-  hero: { flex: 1, justifyContent: "center", paddingVertical: spacing.lg },
-  title: { ...typography.title, marginBottom: spacing.md },
+  hero: { flex: 1, justifyContent: "center", alignItems: "flex-start" },
+  title: { ...typography.title, marginTop: spacing.md, marginBottom: spacing.sm },
   body: { ...typography.subtitle, fontSize: 16, lineHeight: 24 },
   dots: {
     flexDirection: "row",
@@ -77,6 +76,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dotActive: { backgroundColor: colors.bluePrimary, width: 20 },
-  footer: { gap: 4 },
-  ghost: { marginTop: 4 },
 });

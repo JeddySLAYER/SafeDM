@@ -94,7 +94,7 @@ export default function RegisterScreen({ navigation }) {
           ? "8 caractères minimum"
           : password.length < 8
             ? "Trop court"
-            : "8 caractères minimum — bonne longueur"}
+            : "8 caractères minimum. Bonne longueur."}
       </Text>
 
       <TextField

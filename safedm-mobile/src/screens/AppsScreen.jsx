@@ -14,6 +14,7 @@ import Button from "../components/Button";
 import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import SettingRow from "../components/SettingRow";
+import SetupSteps from "../components/SetupSteps";
 import {
   getAppIcon,
   listInstalledApps,
@@ -287,9 +288,7 @@ export default function AppsScreen({ navigation, route }) {
         } catch (err) {
           cloudOk = false;
           setError(
-            err instanceof ApiError
-              ? `${err.message} — sélection enregistrée sur l’appareil.`
-              : "API indisponible — sélection enregistrée sur l’appareil.",
+            "Sélection enregistrée sur l'appareil. La copie distante n'a pas été mise à jour.",
           );
         }
       }
@@ -357,6 +356,7 @@ export default function AppsScreen({ navigation, route }) {
         scroll
         contentStyle={{ paddingBottom: 96 + fabBottom }}
       >
+        {onboarding ? <SetupSteps step={0} /> : null}
         <Text style={styles.title}>Applications surveillées</Text>
         <Text style={styles.subtitle}>
           Choisissez n’importe quelle application installée. SafeDM analysera ses
@@ -411,7 +411,7 @@ export default function AppsScreen({ navigation, route }) {
                 <Text style={styles.emptyText}>
                   {query
                     ? "Aucun résultat pour cette recherche."
-                    : "Liste des apps indisponible (rebuild Android requis) — utilisez l’ajout manuel ci-dessus."}
+                    : "Liste des applications indisponible. Utilisez l'ajout manuel ci-dessus."}
                 </Text>
               </View>
             ) : (

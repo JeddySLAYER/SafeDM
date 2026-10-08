@@ -28,7 +28,7 @@ export default function OfflineBanner() {
   return (
     <View style={styles.banner} accessibilityRole="alert">
       <Text style={styles.text}>
-        Hors ligne — analyse locale active ; cloud indisponible
+        Hors ligne. L'analyse sur le téléphone reste active.
       </Text>
     </View>
   );

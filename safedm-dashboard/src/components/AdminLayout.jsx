@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   BookOpen,
+  FileText,
   Flag,
   HelpCircle,
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   Settings2,
   ShieldAlert,
   Smartphone,
+  BrainCircuit,
   Users,
 } from "lucide-react";
 import SafeDMLogo from "./SafeDMLogo";
@@ -24,7 +26,9 @@ const LINKS = [
   { to: "/applications", label: "Apps", icon: Smartphone },
   { to: "/users", label: "Utilisateurs", icon: Users },
   { to: "/guide", label: "Guide", icon: BookOpen },
+  { to: "/policies", label: "Politiques", icon: FileText },
   { to: "/operations", label: "Opérations", icon: Settings2 },
+  { to: "/training", label: "Entraînement", icon: BrainCircuit },
 ];
 
 export default function AdminLayout() {
@@ -103,10 +107,29 @@ function getHelpContent(pathname) {
     return {
       title: "Comprendre les opérations",
       sections: [
-        { title: "Patches & canary", body: "Un patch est une version de modèle. Le pourcentage Canary indique la part du trafic qui le teste. Approuver valide son déploiement ; Rollback revient à la version précédente." },
+        { title: "Patches & canary", body: "Un patch est une version de modèle. Le pourcentage Canary indique la part du trafic qui le teste. Approuver valide son déploiement ; Rollback revient à la version précédente. Pas besoin de Play Store staged rollout pour l’instant." },
         { title: "Agrégation", body: "L’agrégation prépare des métriques anonymisées pour le prochain cycle de modèle. Demander une agrégation crée une demande ; cela ne lance pas encore le job Cloud Run automatiquement." },
         { title: "Seuils", body: "Les scores vont de 0 à 100 et doivent rester dans l’ordre sûr < suspect < critique. La confiance d’escalade est une valeur entre 0 et 1." },
         { title: "Rétention & audit", body: "La rétention indique les signatures candidates au nettoyage. Le journal d’audit garde la trace des actions sensibles des administrateurs." },
+      ],
+    };
+  }
+  if (pathname === "/training") {
+    return {
+      title: "Entraînement modèle",
+      sections: [
+        { title: "Datasets", body: "Uploadez un JSON [{message, expected}] ou CSV message,expected. Seed built-in importe le jeu repo. Les données sont stockées en Postgres (adapté à FastAPI Cloud)." },
+        { title: "Train", body: "Le bouton lance un train synchrone (sklearn logistic + patch signé). Pour de gros jobs, utilisez GitHub Actions train-model." },
+        { title: "Canary", body: "Promote copie l’artefact vers MODEL_PATCH_MANIFEST_PATH. Ensuite, page Opérations → Approuver avec un % canary. Firebase arrivera plus tard (Auth puis Storage)." },
+      ],
+    };
+  }
+  if (pathname === "/policies") {
+    return {
+      title: "Politiques affichées dans l'app",
+      sections: [
+        { title: "Deux textes", body: "La confidentialité et les conditions sont lues dans l'application au login, puis à nouveau quand quelqu'un accepte une analyse en ligne." },
+        { title: "Nouvelle version", body: "Enregistrer un texte modifié augmente la version. Les téléphones redemandent l'accord." },
       ],
     };
   }

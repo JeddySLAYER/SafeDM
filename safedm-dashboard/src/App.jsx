@@ -9,6 +9,8 @@ import LoginPage from "./pages/LoginPage";
 import OperationsPage from "./pages/OperationsPage";
 import ReportsPage from "./pages/ReportsPage";
 import StatsPage from "./pages/StatsPage";
+import PoliciesPage from "./pages/PoliciesPage";
+import TrainingPage from "./pages/TrainingPage";
 import ThreatDetailPage from "./pages/ThreatDetailPage";
 import ThreatsPage from "./pages/ThreatsPage";
 import UserDetailPage from "./pages/UserDetailPage";
@@ -44,7 +46,9 @@ export default function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="users/:userId" element={<UserDetailPage />} />
             <Route path="guide" element={<GuidePage />} />
+            <Route path="policies" element={<PoliciesPage />} />
             <Route path="operations" element={<OperationsPage />} />
+            <Route path="training" element={<TrainingPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

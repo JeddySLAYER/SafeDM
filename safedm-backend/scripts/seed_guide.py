@@ -58,6 +58,60 @@ GUIDE_SEED = [
                     "un mot de passe ou un code OTP par WhatsApp, SMS ou e-mail non sollicité."
                 ),
             },
+            {
+                "title": "Un livreur ou un colis inattendu",
+                "display_order": 2,
+                "content": (
+                    "Un SMS qui parle d'un colis, de frais de douane ou d'une livraison "
+                    "ratée est souvent un piège. N'ouvrez pas le lien. Vérifiez le suivi "
+                    "dans l'application officielle du transporteur, avec le numéro que vous "
+                    "connaissez déjà."
+                ),
+            },
+            {
+                "title": "Un lien raccourci",
+                "display_order": 3,
+                "content": (
+                    "Un lien très court cache l'adresse réelle. S'il arrive dans un message "
+                    "inattendu, collez-le dans SafeDM avant de l'ouvrir. En cas de doute, "
+                    "demandez à l'expéditeur par un autre moyen."
+                ),
+            },
+        ],
+    },
+    {
+        "title": "En parler autour de soi",
+        "description": "Aider un proche sans le noyer de détails techniques.",
+        "display_order": 3,
+        "articles": [
+            {
+                "title": "Quelqu'un vous demande un code reçu par SMS",
+                "display_order": 1,
+                "content": (
+                    "Ce code sert à prouver que le téléphone est le vôtre. Personne d'autre "
+                    "n'en a besoin, même un proche, une banque ou un soi-disant support. "
+                    "Raccrochez et rappelez le numéro officiel."
+                ),
+            },
+            {
+                "title": "Si vous avez déjà cliqué",
+                "display_order": 2,
+                "content": (
+                    "Ne saisissez rien de plus. Fermez la page. Changez le mot de passe "
+                    "du compte concerné depuis l'application officielle, pas depuis le lien "
+                    "du message. Prévenez votre banque si vous avez entré une carte. "
+                    "Signalez le message dans SafeDM."
+                ),
+            },
+            {
+                "title": "Aider un parent ou un ami",
+                "display_order": 3,
+                "content": (
+                    "Montrez-lui trois réflexes : ne pas se presser, ne pas donner un code, "
+                    "coller le message dans SafeDM. Restez disponible s'il reçoit une alerte. "
+                    "La peur et l'urgence sont les outils du message, pas la vôtre."
+                ),
+            },
         ],
     },
 ]

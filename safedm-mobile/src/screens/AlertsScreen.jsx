@@ -47,7 +47,7 @@ export default function AlertsScreen() {
     <Screen scroll>
       <Text style={styles.title}>Alertes</Text>
       <Text style={styles.subtitle}>
-        Historique local 7 jours. Textes sur l’appareil — Paramètres pour
+        Historique local 7 jours. Textes sur l'appareil. Paramètres pour
         masquer ou tout effacer.
       </Text>
       <View style={styles.filters}>

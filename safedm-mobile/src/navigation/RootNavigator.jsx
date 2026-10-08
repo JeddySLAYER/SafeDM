@@ -8,8 +8,11 @@ import {
   getLaunchUrl,
   subscribeToLinkIntents,
 } from "../services/notificationBridge";
+import AppDialogHost from "../components/AppDialogHost";
+import PolicyConsentHost from "../components/PolicyConsentHost";
 import OfflineBanner from "../components/OfflineBanner";
 import SplashView from "../components/SplashView";
+import { isIgnorableLaunchUrl } from "../utils/launchUrl";
 import AppStack from "./AppTabs";
 import AuthStack from "./AuthStack";
 
@@ -35,7 +38,7 @@ function extractHttpUrl(url) {
 }
 
 function routeToGate(httpUrl, isAuthenticated, queueUrl) {
-  if (!httpUrl) return;
+  if (!httpUrl || isIgnorableLaunchUrl(httpUrl)) return;
   if (!isAuthenticated) {
     queueUrl(httpUrl);
     return;
@@ -102,6 +105,8 @@ export default function RootNavigator() {
   return (
     <View style={{ flex: 1 }}>
       <OfflineBanner />
+      <AppDialogHost />
+      <PolicyConsentHost />
       <NavigationContainer ref={navigationRef}>
         <LinkIntentBridge />
         {isAuthenticated ? <AppStack /> : <AuthStack />}

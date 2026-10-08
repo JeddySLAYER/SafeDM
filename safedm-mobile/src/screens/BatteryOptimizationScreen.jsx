@@ -3,6 +3,7 @@ import { Linking, Platform, StyleSheet, Text, View } from "react-native";
 import Button from "../components/Button";
 import { IconBadge } from "../components/Icons";
 import Screen from "../components/Screen";
+import SetupSteps from "../components/SetupSteps";
 import { colors, spacing, typography } from "../theme/tokens";
 
 /**
@@ -38,6 +39,7 @@ export default function BatteryOptimizationScreen({ navigation, route }) {
 
   return (
     <Screen contentStyle={styles.content} style={styles.canvas}>
+      {onboarding ? <SetupSteps step={2} /> : null}
       <View style={styles.hero}>
         <IconBadge name="shield" size={72} />
         <Text style={styles.title}>Gardez SafeDM actif</Text>
@@ -47,7 +49,7 @@ export default function BatteryOptimizationScreen({ navigation, route }) {
         </Text>
         {nlsSkipped ? (
           <Text style={styles.warn}>
-            L’accès notifications n’est pas encore accordé — activez-le dans
+            L'accès aux notifications n'est pas encore accordé. Activez-le dans
             Paramètres pour une protection réelle.
           </Text>
         ) : null}

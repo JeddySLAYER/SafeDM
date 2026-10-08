@@ -6,15 +6,15 @@ function gateFromMessageAnalysis(result, url) {
   const severity = (result?.severity || "").toUpperCase();
   const score = result?.risk_score ?? 0;
   let decision = "WARN";
-  let headline = "Lien suspect ou non vérifié — prudence";
+  let headline = "Lien suspect ou non vérifié. Prudence.";
   let can_open = true;
   if (status === "DANGEROUS" || severity === "HIGH" || severity === "CRITICAL" || score >= 65) {
     decision = "BLOCK";
-    headline = "Lien dangereux — ouverture bloquée";
+    headline = "Lien dangereux. Ouverture bloquée.";
     can_open = false;
   } else if (status === "SAFE" && score < 35 && severity === "LOW") {
     decision = "ALLOW";
-    headline = "Aucun signal critique — ouverture autorisée";
+    headline = "Aucun signal critique. Ouverture autorisée.";
     can_open = true;
   }
   return {

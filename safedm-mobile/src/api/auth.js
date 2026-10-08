@@ -15,3 +15,11 @@ export function login(username, password) {
     body: { username, password },
   });
 }
+
+export function loginWithFirebaseToken(idToken) {
+  return apiRequest("/auth/firebase", {
+    method: "POST",
+    auth: false,
+    body: { id_token: idToken },
+  });
+}

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -9,8 +10,6 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
-import { ApiError } from "../api/client";
-import { analyzeFeatureVector, analyzeMessage } from "../api/analysis";
 import * as usersApi from "../api/users";
 import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
@@ -18,28 +17,25 @@ import AppLogo from "../components/AppLogo";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
-import { fallbackIconForSource } from "../services/appIcons";
+import { appDisplayName, fallbackIconForSource } from "../services/appIcons";
 import { subscribeAlertsChanged } from "../services/alertsEvents";
 import {
   addAlertFromManualAnalysis,
   formatAlertWhen,
   listAlerts,
 } from "../services/alertsStore";
-import {
-  classifyLocalFeatures,
-  extractLocalFeatures,
-} from "../services/localThreatClassifier";
+import { analyzePastedText } from "../services/messageAnalysis";
 import {
   getEnabledPackageNames,
   isNotificationAccessEnabled,
   syncMonitoredPackages,
 } from "../services/notificationBridge";
-import { ensureContentUploadConsent } from "../utils/cloudConsent";
 import { getHideSensitivePreview } from "../utils/storage";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 1000;
 const MIN_ANALYZE = 8;
+const VISIBLE_APPS = 4;
 
 function QuickCard({ icon, label, onPress }) {
   return (
@@ -54,10 +50,12 @@ export default function HomeScreen({ navigation }) {
   const [alerts, setAlerts] = useState([]);
   const [enabledApps, setEnabledApps] = useState([]);
   const [accessOn, setAccessOn] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
   const [draft, setDraft] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [captureError, setCaptureError] = useState("");
   const [hidePreview, setHidePreview] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(false);
 
   const refreshAlerts = useCallback(async () => {
     const items = await listAlerts();
@@ -85,6 +83,7 @@ export default function HomeScreen({ navigation }) {
         if (!active) return;
         setEnabledApps(packages);
         setAccessOn(enabled);
+        setAccessChecked(true);
         setHidePreview(hide);
         await refreshAlerts();
       })();
@@ -96,18 +95,8 @@ export default function HomeScreen({ navigation }) {
 
   useEffect(() => subscribeAlertsChanged(refreshAlerts), [refreshAlerts]);
 
-  const monitoringLabel =
-    enabledApps.length === 0
-      ? "Aucune app sélectionnée"
-      : enabledApps
-          .map((p) => {
-            if (p.includes("whatsapp")) return "WhatsApp";
-            if (p.includes("messaging") || p.includes("mms")) return "SMS";
-            if (p.includes("gm") || p.includes("outlook")) return "Email";
-            return p;
-          })
-          .filter((v, i, a) => a.indexOf(v) === i)
-          .join(" · ");
+  const visibleApps = enabledApps.slice(0, VISIBLE_APPS);
+  const hiddenCount = Math.max(0, enabledApps.length - VISIBLE_APPS);
 
   async function onPaste() {
     setCaptureError("");
@@ -146,100 +135,20 @@ export default function HomeScreen({ navigation }) {
     }
     setAnalyzing(true);
     try {
-      const features = await extractLocalFeatures(text);
-      const local = features
-        ? await classifyLocalFeatures(features)
-        : { decision: "UNAVAILABLE", confidence: null, riskScore: null };
-
-      if (local.decision !== "UNAVAILABLE") {
-        if (local.decision === "UNCERTAIN") {
-          const remoteResult = await new Promise((resolve) => {
-            Alert.alert(
-              "Analyse complémentaire",
-              "Le modèle local est incertain. Avec votre accord, seuls 50 paramètres numériques seront transmis. Le texte ne sera pas envoyé.",
-              [
-                {
-                  text: "Refuser",
-                  style: "cancel",
-                  onPress: () => resolve(null),
-                },
-                {
-                  text: "Autoriser",
-                  onPress: () =>
-                    analyzeFeatureVector(features)
-                      .then(resolve)
-                      .catch(() => resolve(null)),
-                },
-              ],
-            );
-          });
-          if (remoteResult) {
-            await addAlertFromManualAnalysis({
-              content: text,
-              result: remoteResult,
-            });
-            setDraft("");
-            navigation.navigate("AnalysisResult", {
-              result: remoteResult,
-              originalContent: text,
-            });
-            return;
-          }
-        }
-        const result = {
-          status:
-            local.decision === "DANGEROUS"
-              ? "DANGEROUS"
-              : local.decision === "SAFE"
-                ? "SAFE"
-                : "PARTIAL",
-          risk_score: local.riskScore,
-          severity:
-            local.decision === "DANGEROUS"
-              ? "HIGH"
-              : local.decision === "UNCERTAIN"
-                ? "MEDIUM"
-                : "LOW",
-          reasons: ["Décision produite hors ligne par le modèle local"],
-          recommendations: [],
-          urls: [],
-          providers: { local: { available: true } },
-          content_stored: false,
-        };
-        await addAlertFromManualAnalysis({ content: text, result });
-        setDraft("");
-        navigation.navigate("AnalysisResult", {
-          result,
-          originalContent: text,
-        });
+      const outcome = await analyzePastedText(text);
+      if (outcome.error) {
+        setCaptureError(outcome.error);
         return;
       }
-
-      const allowed = await ensureContentUploadConsent({
-        title: "Analyse cloud",
-        message:
-          "Le modèle local n’est pas disponible. Autoriser l’envoi du texte à l’API SafeDM ?",
-      });
-      if (!allowed) {
-        setCaptureError(
-          "Analyse cloud refusée. Activez l’analyse cloud dans Paramètres.",
-        );
-        return;
-      }
-      const result = await analyzeMessage({
-        content: text,
-        source: "MANUAL",
-        consentExternal: true,
-      });
-      await addAlertFromManualAnalysis({ content: text, result });
+      await addAlertFromManualAnalysis({ content: text, result: outcome.result });
       setDraft("");
       navigation.navigate("AnalysisResult", {
-        result,
+        result: outcome.result,
         originalContent: text,
       });
-    } catch (err) {
+    } catch {
       setCaptureError(
-        err instanceof ApiError ? err.message : "Analyse impossible.",
+        "Analyse impossible pour le moment. Le message reste sur le téléphone.",
       );
     } finally {
       setAnalyzing(false);
@@ -249,7 +158,7 @@ export default function HomeScreen({ navigation }) {
   return (
     <Screen scroll edges={["top", "left", "right"]}>
       <View style={styles.topBar}>
-        <BrandMark size={36} compact />
+        <BrandMark size={30} compact />
         <Pressable
           onPress={() => navigation.navigate("Alerts")}
           hitSlop={10}
@@ -278,13 +187,64 @@ export default function HomeScreen({ navigation }) {
         />
         <View style={{ flex: 1 }}>
           <Text style={styles.statusTitle}>
-            {accessOn ? "Surveillance active" : "Surveillance inactive"}
+            {accessOn ? "Protection locale active" : "Protection locale inactive"}
           </Text>
-          <Text style={styles.statusSub}>{monitoringLabel}</Text>
+          <Text style={styles.statusSub}>
+            {enabledApps.length === 0
+              ? "Aucune application choisie"
+              : "Messages lus uniquement sur ce téléphone"}
+          </Text>
+          {enabledApps.length > 0 ? (
+            <View style={styles.appRow}>
+              {visibleApps.map((pkg) => (
+                <View key={pkg} style={styles.appChip}>
+                  <AppLogo packageName={pkg} size={22} fallbackIcon="bell" />
+                  <Text style={styles.appChipLabel} numberOfLines={1}>
+                    {appDisplayName(pkg)}
+                  </Text>
+                </View>
+              ))}
+              {hiddenCount > 0 ? (
+                <Pressable style={styles.moreChip} onPress={() => setAppsOpen(true)}>
+                  <Text style={styles.moreChipLabel}>+{hiddenCount}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </View>
 
-      {!accessOn ? (
+      <Modal
+        visible={appsOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAppsOpen(false)}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={() => setAppsOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Applications surveillées</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {enabledApps.map((pkg) => (
+                <View key={pkg} style={styles.sheetRow}>
+                  <AppLogo packageName={pkg} size={36} fallbackIcon="bell" />
+                  <Text style={styles.sheetName}>{appDisplayName(pkg)}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <Button
+              label="Modifier"
+              variant="outline"
+              onPress={() => {
+                setAppsOpen(false);
+                navigation.navigate("Apps");
+              }}
+              style={{ marginTop: 8 }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {accessChecked && !accessOn ? (
         <View style={styles.warnBanner}>
           <Text style={styles.warnTitle}>Protection incomplète</Text>
           <Text style={styles.warnBody}>
@@ -303,13 +263,25 @@ export default function HomeScreen({ navigation }) {
             style={{ marginTop: 8 }}
           />
         </View>
+      ) : accessChecked && enabledApps.length === 0 ? (
+        <View style={styles.warnBanner}>
+          <Text style={styles.warnTitle}>Choisissez les applications</Text>
+          <Text style={styles.warnBody}>
+            La protection locale est prête. Indiquez quelles applications SafeDM
+            doit surveiller.
+          </Text>
+          <Button
+            label="Choisir les applications"
+            onPress={() => navigation.navigate("Apps")}
+            style={{ marginTop: 12 }}
+          />
+        </View>
       ) : null}
 
       <View style={styles.captureCard}>
         <Text style={styles.captureTitle}>Vérifier un message</Text>
         <Text style={styles.captureHint}>
-          Collez un SMS, WhatsApp, e-mail ou un lien suspect — analyse en un
-          geste.
+          Collez un SMS, un message WhatsApp, un e-mail ou un lien suspect.
         </Text>
         <TextInput
           value={draft}
@@ -444,13 +416,51 @@ const styles = StyleSheet.create({
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
   statusSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  appRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+  appChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "46%",
+    backgroundColor: colors.white,
+    borderRadius: radii.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  appChipLabel: { fontSize: 12, fontWeight: "600", color: colors.textPrimary, flexShrink: 1 },
+  moreChip: {
+    minWidth: 36,
+    height: 30,
+    borderRadius: radii.pill,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  moreChipLabel: { fontWeight: "700", color: colors.bluePrimary, fontSize: 13 },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(16, 24, 40, 0.45)",
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: 20,
+    paddingBottom: 28,
+    maxHeight: "70%",
+  },
+  sheetTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary, marginBottom: 12 },
+  sheetRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
+  sheetName: { fontSize: 15, fontWeight: "600", color: colors.textPrimary },
   warnBanner: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     padding: 16,
     marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.danger,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   warnTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
   warnBody: {
