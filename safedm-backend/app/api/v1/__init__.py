@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin, analysis, applications, auth, guide, health, models, reports, threats, users
+from app.api.v1 import admin, analysis, applications, auth, guide, health, legal, models, reports, threats, users
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
@@ -12,4 +12,5 @@ api_router.include_router(models.router)
 api_router.include_router(reports.router)
 api_router.include_router(threats.router)
 api_router.include_router(guide.router)
+api_router.include_router(legal.router)
 api_router.include_router(admin.router)

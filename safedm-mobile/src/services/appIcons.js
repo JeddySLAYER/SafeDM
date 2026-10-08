@@ -31,6 +31,20 @@ export async function resolveAppIcon(packageName) {
   return pending;
 }
 
+export function appDisplayName(packageName) {
+  const pkg = (packageName || "").toLowerCase();
+  if (!pkg) return "Application";
+  if (pkg.includes("whatsapp")) return "WhatsApp";
+  if (pkg.includes("telegram")) return "Telegram";
+  if (pkg.includes("instagram")) return "Instagram";
+  if (pkg.includes("messenger") || pkg.includes("orca")) return "Messenger";
+  if (pkg.includes("messaging") || pkg.includes("mms") || pkg.endsWith(".sms")) return "SMS";
+  if (pkg.includes("gmail") || pkg.includes(".gm")) return "Gmail";
+  if (pkg.includes("outlook")) return "Outlook";
+  const last = pkg.split(".").filter(Boolean).pop() || pkg;
+  return last.charAt(0).toUpperCase() + last.slice(1);
+}
+
 export function fallbackIconForSource(source) {
   switch (source) {
     case "SMS":

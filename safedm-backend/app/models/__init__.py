@@ -3,6 +3,7 @@
 from app.models.community_report import CommunityReport
 from app.models.access_audit_log import AccessAuditLog
 from app.models.admin_operations import AggregationRun, PatchDeployment, TenantPolicy
+from app.models.ml_ops import MlDataset, MlTrainRun
 from app.models.device import Device
 from app.models.enums import (
     ReportSource,
@@ -12,6 +13,7 @@ from app.models.enums import (
     VirusTotalResult,
     VirusTotalScanStatus,
 )
+from app.models.legal import LegalAcceptance, LegalDocument
 from app.models.guide_article import GuideArticle
 from app.models.guide_category import GuideCategory
 from app.models.link_gate_event import LinkGateEvent
@@ -33,8 +35,12 @@ __all__ = [
     "PatchDeployment",
     "AggregationRun",
     "TenantPolicy",
+    "MlDataset",
+    "MlTrainRun",
     "ThreatUrl",
     "VirusTotalScan",
+    "LegalDocument",
+    "LegalAcceptance",
     "GuideCategory",
     "GuideArticle",
     "LinkGateEvent",

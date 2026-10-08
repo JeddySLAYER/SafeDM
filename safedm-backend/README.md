@@ -269,22 +269,18 @@ La rétention des empreintes inactives est exécutée par
 
 L'entraînement local et le déploiement mobile sont deux étapes distinctes :
 
-1. `scripts/train_local_model.py` entraîne la régression sur les features 50,
-   choisit un seuil sur des prédictions hors pli et produit un patch JSON de
-   recherche/production avec des poids entiers.
-2. `scripts/export_tflite_model.py` exporte séparément le modèle destiné au
-   runtime Android. L'artefact `.tflite` doit être publié sur une URL HTTPS et
-   son SHA-256 doit être placé dans le manifeste.
-3. `scripts/generate_weekly_patch.py` agrège uniquement les métadonnées
-   anonymes des signalements actifs. Il ne réentraîne pas les poids et ne doit
-   pas être présenté comme un entraînement automatique.
-4. Le manifeste mobile doit être signé avec la clé RSA configurée dans
-   `MODEL_PATCH_SIGNING_KEY_PEM_B64`. Le mobile vérifie signature, URL HTTPS,
-   SHA-256 et groupe canary avant activation.
-5. Dans Opérations, l'approbation persiste l'état du patch et son rollout.
-   Un rollback rend le manifeste courant indisponible au mobile. La promotion
-   progressive au-delà du canary et l'exécution Cloud Run/Scheduler restent
-   à automatiser avant la production.
+1. **Admin / dashboard** : page Entraînement — upload dataset JSON/CSV,
+   `POST /admin/ml/runs`, logs + métriques, promote canary
+   (`MODEL_PATCH_MANIFEST_PATH`). Voir `docs/ML_OPS_FIREBASE.md`.
+2. `scripts/train_local_model.py` (`--dataset` optionnel) entraîne la
+   régression 50-dim, seuil hors-pli, patch JSON signé. Alternative CI :
+   workflow GitHub `train-model.yml` (pas besoin de Cloud Scheduler ni Play).
+3. `scripts/export_tflite_model.py` exporte séparément le runtime Android.
+4. `scripts/generate_weekly_patch.py` agrège des métadonnées anonymes seulement
+   (pas un réentraînement des poids).
+5. Opérations : Approuver / Rollback + `rollout_percentage` (canary appareils).
+   Firebase (Auth → Storage) est planifié progressivement — JWT admin reste
+   la source d'identité actuelle.
 
 Une politique tenant enregistrée dans Opérations est actuellement une
 configuration persistée et auditée. Elle n'est pas encore appliquée à la

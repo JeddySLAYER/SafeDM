@@ -514,6 +514,17 @@ immédiat.
 - l'endpoint d'opérations expose uniquement les données déjà vérifiables et ne
   simule aucune métrique manquante.
 
+### ML ops MVP (datasets → train → canary, hors Play Store)
+
+- Doc : `docs/ML_OPS_FIREBASE.md` (jobs sans Cloud Scheduler, canary `%`
+  appareils, migration Firebase progressive Auth → Storage → FCM).
+- API admin : `/admin/ml/datasets`, `/admin/ml/runs`, promote canary
+  (`ml_ops_service` + migration `0005`).
+- Dashboard : page **Entraînement** (`/training`) — upload JSON/CSV, logs,
+  métriques, promote.
+- Job alternatif : `.github/workflows/train-model.yml` (`workflow_dispatch` +
+  cron hebdo optionnel).
+
 ### Passe UX/UI — chargement, cache et hiérarchie
 
 - `useAsyncResource` fournit maintenant cache `sessionStorage` à TTL, cache

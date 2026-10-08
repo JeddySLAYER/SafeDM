@@ -30,11 +30,16 @@ def main() -> int:
         action="store_true",
         help="Ne pas ecrire dans models/metadata/model_registry.json",
     )
+    parser.add_argument(
+        "--dataset",
+        help="JSON labeled messages (defaut: data/processed ou fixtures).",
+    )
     args = parser.parse_args()
     train_and_export(
         Path(args.out),
         private_key_path=Path(args.private_key) if args.private_key else None,
         register=not args.no_register,
+        dataset_path=Path(args.dataset) if args.dataset else None,
     )
     return 0
 

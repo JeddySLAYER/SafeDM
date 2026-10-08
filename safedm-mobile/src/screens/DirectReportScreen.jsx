@@ -111,7 +111,7 @@ export default function DirectReportScreen({ navigation }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {done ? (
         <Text style={styles.ok}>
-          Message signalé. Merci — la communauté en bénéficie.
+          Message signalé. Merci, la communauté en bénéficie.
         </Text>
       ) : null}
 

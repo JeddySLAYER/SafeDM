@@ -8,7 +8,7 @@ export default function SplashView() {
   return (
     <View style={styles.root}>
       <View style={styles.center}>
-        <BrandMark size={48} showTagline centered />
+        <BrandMark size={80} showTagline centered />
       </View>
       <View style={styles.footer}>
         <ActivityIndicator color={colors.bluePrimary} style={styles.spinner} />
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
   },
   center: {
     alignItems: "center",
-    paddingHorizontal: 32,
+    paddingHorizontal: 16,
   },
   footer: {
     position: "absolute",

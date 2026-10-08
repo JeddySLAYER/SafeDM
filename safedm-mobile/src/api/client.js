@@ -61,7 +61,7 @@ export async function apiRequest(path, options = {}) {
     );
   } catch {
     throw new ApiError(
-      "Impossible de joindre le serveur. Vérifiez que l’API tourne.",
+      "Vérification distante indisponible. Le message reste sur le téléphone.",
       0,
       null,
     );
@@ -85,14 +85,14 @@ export async function apiRequest(path, options = {}) {
     if (response.status === 401 && auth) {
       await clearSession();
     }
-    throw new ApiError(
-      formatDetail(data?.detail ?? data) ||
-        (response.status === 404
-          ? "Ressource introuvable (404). Redémarrez le backend si le Link Gate est récent."
-          : `Erreur HTTP ${response.status}`),
-      response.status,
-      data?.detail ?? data,
-    );
+    const raw = formatDetail(data?.detail ?? data);
+    const safe =
+      response.status === 401
+        ? "Session expirée. Reconnectez-vous."
+        : raw && !/https?:\/\//i.test(raw) && raw.length < 140
+          ? raw
+          : "La vérification distante n'a pas abouti.";
+    throw new ApiError(safe, response.status, data?.detail ?? data);
   }
 
   return data;

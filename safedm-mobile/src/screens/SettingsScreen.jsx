@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Button from "../components/Button";
 import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
@@ -15,6 +15,9 @@ import {
   setCloudConsent,
   setHideSensitivePreview,
 } from "../utils/storage";
+import { listLegalDocuments } from "../api/legal";
+import { alertDialog, confirmDialog } from "../services/appDialog";
+import { showPolicyConsent } from "../services/policyConsent";
 import { APP_VERSION } from "../config";
 import { colors, radii } from "../theme/tokens";
 
@@ -40,16 +43,33 @@ export default function SettingsScreen({ navigation }) {
     );
   }, []);
 
-  const toggleCloudConsent = useCallback((next) => {
-    setConsent(next);
-    setCloudConsent(next);
-    if (next) {
-      Alert.alert(
-        "Analyse cloud activée",
-        "Le contenu de vos messages sera envoyé à nos serveurs pour être " +
-          "analysé. Désactivée, l'analyse reste 100 % sur l'appareil.",
-      );
+  const toggleCloudConsent = useCallback(async (next) => {
+    if (!next) {
+      setConsent(false);
+      await setCloudConsent(false);
+      return;
     }
+    let privacy = null;
+    try {
+      const docs = await listLegalDocuments();
+      privacy = (docs || []).find((doc) => doc.slug === "privacy");
+    } catch {
+      privacy = null;
+    }
+    const accepted = await showPolicyConsent({
+      title: privacy?.title || "Politique de confidentialité",
+      body:
+        privacy?.body ||
+        "Le texte des messages pourra quitter le téléphone pour être vérifié. Sans accord, l'analyse reste sur l'appareil.",
+      confirmLabel: "J'accepte",
+      cancelLabel: "Rester sur le téléphone",
+    });
+    if (!accepted) {
+      setConsent(false);
+      return;
+    }
+    setConsent(true);
+    await setCloudConsent(true);
   }, []);
 
   const toggleHidePreview = useCallback((next) => {
@@ -57,22 +77,20 @@ export default function SettingsScreen({ navigation }) {
     setHideSensitivePreview(next);
   }, []);
 
-  const onClearAlerts = useCallback(() => {
-    Alert.alert(
-      "Effacer l’historique",
-      "Supprimer toutes les alertes locales (y compris les textes stockés) ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Tout effacer",
-          style: "destructive",
-          onPress: async () => {
-            await clearAllAlerts();
-            Alert.alert("Historique effacé", "Les alertes locales ont été supprimées.");
-          },
-        },
-      ],
-    );
+  const onClearAlerts = useCallback(async () => {
+    const ok = await confirmDialog({
+      title: "Effacer l'historique",
+      message: "Supprimer toutes les alertes enregistrées sur cet appareil ?",
+      confirmLabel: "Tout effacer",
+      cancelLabel: "Annuler",
+      destructive: true,
+    });
+    if (!ok) return;
+    await clearAllAlerts();
+    await alertDialog({
+      title: "Historique effacé",
+      message: "Les alertes locales ont été supprimées.",
+    });
   }, []);
 
   return (
@@ -84,7 +102,7 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{user?.username ?? "—"}</Text>
+          <Text style={styles.name}>{user?.username ?? "Compte"}</Text>
           <Text style={styles.email}>
             {user?.is_admin ? "Compte administrateur" : "Compte utilisateur"}
           </Text>
@@ -94,11 +112,11 @@ export default function SettingsScreen({ navigation }) {
       <Text style={styles.section}>Analyse</Text>
       <SettingRow
         icon="globe"
-        title="Analyse cloud"
+        title="Vérification distante"
         subtitle={
           cloudConsent
-            ? "Le contenu des messages est envoyé à nos serveurs"
-            : "100 % sur l'appareil — rien n'est envoyé"
+            ? "Le texte peut quitter le téléphone"
+            : "Analyse uniquement sur cet appareil"
         }
         switchValue={consentLoaded ? cloudConsent : false}
         onSwitchChange={toggleCloudConsent}
@@ -169,7 +187,7 @@ export default function SettingsScreen({ navigation }) {
       <SettingRow
         icon="shield"
         title="Diagnostic"
-        subtitle="NLS, API, clé crypto, modèle"
+        subtitle="État de la protection sur cet appareil"
         onPress={() => navigation.navigate("Diagnostics")}
         showChevron
       />

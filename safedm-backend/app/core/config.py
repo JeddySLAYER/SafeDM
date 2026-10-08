@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     model_patch_artifact_sha256: str = ""
     model_patch_signing_key_pem_b64: str = ""
 
+    # Firebase Auth (optionnel). Vide = login username/password uniquement.
+    firebase_project_id: str = ""
+    # Emails qui recoivent is_admin au premier echange de jeton Firebase.
+    firebase_admin_emails: str = ""
+
     # --- Seuils de decision (politique produit, pas technique) -------------
     # Policy de decision,see docs/FEATURE_SCHEMA.md et le benchmark Sprint 10.
     # Un seuil code en dur est impossible a recaler apres mesure sans

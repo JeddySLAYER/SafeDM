@@ -7,6 +7,8 @@ import React, {
   useState,
 } from "react";
 import * as authApi from "../api/auth";
+import { getLegalStatus } from "../api/legal";
+import { signInWithFirebase } from "../services/firebaseAuth";
 import * as usersApi from "../api/users";
 import {
   clearSession,
@@ -29,6 +31,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [onboardingDone, setOnboardingDoneState] = useState(false);
   const [setupDone, setSetupDoneState] = useState(false);
+  const [policiesOk, setPoliciesOk] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,8 +56,10 @@ export function AuthProvider({ children }) {
         }
         setTokenState(storedToken);
         setUser(storedUser);
+        let sessionOk = false;
         try {
           const me = await usersApi.getMe();
+          sessionOk = true;
           if (!cancelled) {
             setUser(me);
             await setStoredUser(me);
@@ -64,6 +69,14 @@ export function AuthProvider({ children }) {
           if (!cancelled) {
             setTokenState(null);
             setUser(null);
+          }
+        }
+        if (!cancelled && sessionOk) {
+          try {
+            const legal = await getLegalStatus();
+            setPoliciesOk((legal.pending_slugs || []).length === 0);
+          } catch {
+            setPoliciesOk(false);
           }
         }
       } finally {
@@ -82,6 +95,14 @@ export function AuthProvider({ children }) {
   const applySession = useCallback(async (auth) => {
     await setToken(auth.access_token);
     await setStoredUser(auth.user);
+    let accepted = false;
+    try {
+      const legal = await getLegalStatus();
+      accepted = (legal.pending_slugs || []).length === 0;
+    } catch {
+      accepted = false;
+    }
+    setPoliciesOk(accepted);
     setTokenState(auth.access_token);
     setUser(auth.user);
     try {
@@ -101,6 +122,16 @@ export function AuthProvider({ children }) {
     [applySession],
   );
 
+  const loginFirebase = useCallback(
+    async (email, password) => {
+      const idToken = await signInWithFirebase(email, password);
+      const auth = await authApi.loginWithFirebaseToken(idToken);
+      await applySession(auth);
+      return auth.user;
+    },
+    [applySession],
+  );
+
   const register = useCallback(
     async (username, password) => {
       const auth = await authApi.register(username, password);
@@ -114,6 +145,7 @@ export function AuthProvider({ children }) {
     await clearSession();
     setTokenState(null);
     setUser(null);
+    setPoliciesOk(false);
   }, []);
 
   const completeOnboarding = useCallback(async () => {
@@ -126,6 +158,10 @@ export function AuthProvider({ children }) {
     setSetupDoneState(true);
   }, []);
 
+  const completePolicies = useCallback(async () => {
+    setPoliciesOk(true);
+  }, []);
+
   const value = useMemo(
     () => ({
       bootstrapping,
@@ -135,11 +171,14 @@ export function AuthProvider({ children }) {
       onboardingDone,
       setupDone,
       needsSetup: Boolean(token) && !setupDone,
+      policiesOk,
       login,
+      loginFirebase,
       register,
       logout,
       completeOnboarding,
       completeSetup,
+      completePolicies,
     }),
     [
       bootstrapping,
@@ -147,7 +186,9 @@ export function AuthProvider({ children }) {
       user,
       onboardingDone,
       setupDone,
+      policiesOk,
       login,
+      loginFirebase,
       register,
       logout,
       completeOnboarding,

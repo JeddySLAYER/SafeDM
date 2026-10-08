@@ -34,9 +34,11 @@ from app.schemas.guide import (
 )
 from app.schemas.monitoring import ApplicationResponse
 from app.schemas.report import ReportResponse, ThreatResponse
+from app.schemas.ml_ops import MlDatasetCreateRequest, MlTrainStartRequest
 from app.services.admin_service import AdminService
 from app.services.audit_service import record_access
 from app.services.guide_service import GuideService
+from app.services.ml_ops_service import MlOpsService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -374,3 +376,124 @@ def admin_delete_article(
     _ = current_admin
     GuideService(db).delete_article(article_id)
     return None
+
+
+# --- ML training ops (datasets + runs + promote canary) ---
+
+
+@router.get("/ml/datasets")
+def admin_list_datasets(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return {"items": MlOpsService(db).list_datasets()}
+
+
+@router.get("/ml/datasets/{dataset_id}")
+def admin_get_dataset(
+    dataset_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return MlOpsService(db).get_dataset(dataset_id)
+
+
+@router.post("/ml/datasets", status_code=status.HTTP_201_CREATED)
+def admin_create_dataset(
+    payload: MlDatasetCreateRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).create_dataset(
+        name=payload.name,
+        content=payload.content,
+        source=payload.source,
+        admin=current_admin,
+    )
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_dataset_upload",
+        resource=str(result["id"]),
+        purpose="Admin ML dataset ingest",
+    )
+    db.commit()
+    return result
+
+
+@router.post("/ml/datasets/seed-builtin", status_code=status.HTTP_201_CREATED)
+def admin_seed_builtin_dataset(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).seed_builtin(current_admin)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_dataset_seed",
+        resource=str(result["id"]),
+        purpose="Admin ML builtin seed",
+    )
+    db.commit()
+    return result
+
+
+@router.get("/ml/runs")
+def admin_list_train_runs(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return {"items": MlOpsService(db).list_runs()}
+
+
+@router.get("/ml/runs/{run_id}")
+def admin_get_train_run(
+    run_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return MlOpsService(db).get_run(run_id)
+
+
+@router.post("/ml/runs", status_code=status.HTTP_201_CREATED)
+def admin_start_train_run(
+    payload: MlTrainStartRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).start_train(
+        dataset_id=payload.dataset_id,
+        admin=current_admin,
+        promote_canary=payload.promote_canary,
+    )
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_train_run",
+        resource=str(result["id"]),
+        purpose="Admin ML train job",
+    )
+    db.commit()
+    return result
+
+
+@router.post("/ml/runs/{run_id}/promote")
+def admin_promote_train_run(
+    run_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).promote_run(run_id)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_promote_canary",
+        resource=str(run_id),
+        purpose="Promote trained patch to canary manifest",
+    )
+    db.commit()
+    return result

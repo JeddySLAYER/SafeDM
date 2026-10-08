@@ -86,9 +86,10 @@ def train_and_export(
     *,
     private_key_path: Path | None = None,
     register: bool = True,
+    dataset_path: Path | None = None,
 ) -> dict[str, Any]:
     """Fit, evaluate, write signed JSON patch, optionally update the registry."""
-    benchmark = default_benchmark_path()
+    benchmark = Path(dataset_path) if dataset_path else default_benchmark_path()
     X, y, texts = load_labeled_messages(benchmark)
     print(f"dataset : {X.shape[0]} messages, {X.shape[1]} features")
     print(f"  benins : {int((y == 0).sum())}   malveillants : {int((y == 1).sum())}")
@@ -149,7 +150,10 @@ def train_and_export(
         private_key = ec.generate_private_key(ec.SECP256R1())
         print("\nATTENTION : cle de dev aleatoire.")
 
-    dataset_ref = str(benchmark.relative_to(repo_root()))
+    try:
+        dataset_ref = str(benchmark.resolve().relative_to(repo_root()))
+    except ValueError:
+        dataset_ref = str(benchmark)
     patch = build_patch(
         quantized,
         metrics,

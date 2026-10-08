@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { confirmDialog } from "../services/appDialog";
 import { getCloudConsent } from "./storage";
 
 /**
@@ -7,16 +7,16 @@ import { getCloudConsent } from "./storage";
  */
 export async function ensureContentUploadConsent({
   title = "Envoyer le contenu ?",
-  message = "Le texte sera transmis à l’API SafeDM pour analyse. Vous pouvez activer l’analyse cloud en permanence dans Paramètres.",
+  message = "Le texte quitte le téléphone uniquement pour cette vérification. Vous pouvez l'autoriser en permanence dans Paramètres.",
 } = {}) {
   if (await getCloudConsent()) {
     return true;
   }
 
-  return new Promise((resolve) => {
-    Alert.alert(title, message, [
-      { text: "Refuser", style: "cancel", onPress: () => resolve(false) },
-      { text: "Autoriser une fois", onPress: () => resolve(true) },
-    ]);
+  return confirmDialog({
+    title,
+    message,
+    confirmLabel: "Autoriser une fois",
+    cancelLabel: "Refuser",
   });
 }

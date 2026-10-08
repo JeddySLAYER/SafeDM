@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit
-from app.schemas.auth import AuthResponse, UserLoginRequest, UserRegisterRequest
+from app.schemas.auth import (
+    AuthResponse,
+    FirebaseLoginRequest,
+    UserLoginRequest,
+    UserRegisterRequest,
+)
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -46,3 +51,14 @@ def login_form(
     _maybe_limit(request, "/auth/login/form")
     payload = UserLoginRequest(username=form_data.username, password=form_data.password)
     return AuthService(db).login(payload)
+
+
+@router.post("/firebase", response_model=AuthResponse)
+def login_firebase(
+    payload: FirebaseLoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Echange un ID token Firebase contre le JWT SafeDM (API inchangée ensuite)."""
+    _maybe_limit(request, "/auth/firebase")
+    return AuthService(db).login_firebase(payload.id_token)

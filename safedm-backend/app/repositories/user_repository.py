@@ -14,6 +14,9 @@ class UserRepository:
     def get_by_username(self, username: str) -> User | None:
         return self.db.scalar(select(User).where(User.username == username))
 
+    def get_by_firebase_uid(self, firebase_uid: str) -> User | None:
+        return self.db.scalar(select(User).where(User.firebase_uid == firebase_uid))
+
     def create(self, *, username: str, password_hash: str, is_admin: bool = False) -> User:
         user = User(username=username, password_hash=password_hash, is_admin=is_admin)
         self.db.add(user)

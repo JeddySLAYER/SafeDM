@@ -191,7 +191,7 @@ function levelFromFeatures(features) {
 }
 
 export async function addAlertFromNotification(payload) {
-  const text = [payload.title, payload.text].filter(Boolean).join(" — ");
+  const text = [payload.title, payload.text].filter(Boolean).join(". ");
   if (!text.trim()) return null;
 
   const features = Array.isArray(payload.features) ? payload.features : null;

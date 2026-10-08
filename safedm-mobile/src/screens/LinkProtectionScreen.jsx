@@ -5,6 +5,7 @@ import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import SetupSteps from "../components/SetupSteps";
 import { useAuth } from "../context/AuthContext";
 import {
   isDefaultBrowser,
@@ -40,12 +41,8 @@ export default function LinkProtectionScreen({ navigation, route }) {
   async function activate() {
     setBusy(true);
     try {
-      const ok = await requestDefaultBrowserRole();
+      await requestDefaultBrowserRole();
       await refresh();
-      if (!ok) {
-        // Rôle indisponible / refusé → écran apps par défaut déjà ouvert côté natif
-        await openDefaultAppsSettings();
-      }
     } catch {
       await openDefaultAppsSettings();
     } finally {
@@ -60,6 +57,7 @@ export default function LinkProtectionScreen({ navigation, route }) {
 
   return (
     <Screen scroll style={{ backgroundColor: colors.canvas || "#F2F4F7" }}>
+      {onboarding ? <SetupSteps step={3} /> : null}
       <ScreenHeader
         title="Protection des liens"
         onBack={
@@ -71,11 +69,15 @@ export default function LinkProtectionScreen({ navigation, route }) {
 
       <View style={styles.hero}>
         <IconBadge name="globe" size={56} />
-        <Text style={styles.title}>Pourquoi ça ne marchait pas ?</Text>
+        <Text style={styles.title}>
+          {isDefault
+            ? "Les liens passent par SafeDM"
+            : "Vérifier un lien avant de l'ouvrir"}
+        </Text>
         <Text style={styles.body}>
-          Sur Android, Chrome (ou un autre navigateur) est souvent l’app par
-          défaut pour les liens. Dans ce cas, SafeDM n’est jamais appelé — le
-          lien s’ouvre directement dans le navigateur.
+          {isDefault
+            ? "Quand vous touchez un lien, SafeDM le contrôle d'abord, puis ouvre le navigateur s'il n'y a pas de risque."
+            : "Aujourd'hui, un lien touché dans une autre application s'ouvre souvent directement dans le navigateur. Vous pouvez demander à Android de le montrer d'abord à SafeDM."}
         </Text>
       </View>
 
@@ -93,18 +95,21 @@ export default function LinkProtectionScreen({ navigation, route }) {
         />
         <Text style={styles.statusText}>
           {isDefault
-            ? "SafeDM est le filtre de liens actif"
-            : "Navigateur du téléphone encore prioritaire"}
+            ? "SafeDM vérifie les liens"
+            : "Le navigateur ouvre encore les liens"}
         </Text>
       </View>
 
-      <Text style={styles.section}>Solution recommandée</Text>
+      <Text style={styles.section}>
+        {isDefault ? "Vous pouvez changer d'avis" : "Étape recommandée"}
+      </Text>
       <Text style={styles.body}>
-        Définir SafeDM comme appli qui ouvre les liens. SafeDM analyse d’abord,
-        puis ouvre Chrome/Firefox seulement si c’est sûr (jamais de boucle).
+        {isDefault
+          ? "Pour revenir au navigateur, modifiez le choix dans les réglages Android."
+          : "Choisissez SafeDM quand Android demande quelle application ouvre les liens. Sinon, collez le lien sur l'accueil ou partagez-le vers SafeDM."}
       </Text>
       <Button
-        label={isDefault ? "Modifier le choix système" : "Activer le filtre SafeDM"}
+        label={isDefault ? "Modifier le choix" : "Vérifier les liens avant ouverture"}
         onPress={activate}
         loading={busy}
         icon={<IconGlyph name="shield" color={colors.white} size={16} />}

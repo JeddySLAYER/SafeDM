@@ -138,7 +138,7 @@ export default function LinkGateScreen({ navigation, route }) {
           <View style={styles.blockIcon}>
             <IconGlyph name="warning" color={colors.white} size={36} />
           </View>
-          <Text style={styles.blockTitle}>ALERTE — LIEN DANGEREUX</Text>
+          <Text style={styles.blockTitle}>ALERTE : LIEN DANGEREUX</Text>
           <Text style={styles.blockSub}>{result.headline}</Text>
           <Text style={styles.blockUrl} numberOfLines={3}>
             {result.url}
@@ -181,7 +181,7 @@ export default function LinkGateScreen({ navigation, route }) {
         {!ackOpen ? (
           <Pressable onPress={() => setAckOpen(true)} style={styles.dangerLink}>
             <Text style={styles.dangerLinkText}>
-              J’ai compris le risque — ouvrir quand même
+              J'ai compris le risque. Ouvrir quand même.
             </Text>
           </Pressable>
         ) : (

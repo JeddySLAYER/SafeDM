@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 const KEYS = {
   token: "safedm_access_token",
   user: "safedm_user",
-  onboardingDone: "safedm_onboarding_done",
+  onboardingDone: "safedm_intro_v2",
   setupDone: "safedm_setup_done",
   deviceId: "safedm_device_id",
   // Opt-in explicite a l'analyse cloud. Absent = refuse : le serveur applique

@@ -1,0 +1,61 @@
+# Manual / scheduled train without Cloud Scheduler or Play Store.
+# Alternative to admin sync train for longer jobs.
+name: Train model
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_path:
+        description: "Path under safedm-backend (JSON labeled messages)"
+        required: false
+        default: "data/processed/labeled_messages.json"
+      promote_artifact:
+        description: "Also write artifacts/weekly/latest.json"
+        type: boolean
+        default: false
+  schedule:
+    # Weekly Monday 06:00 UTC — optional; disable if unused
+    - cron: "0 6 * * 1"
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Python + deps
+        run: |
+          uv python install 3.12
+          uv sync --group dev
+
+      - name: Train signed logistic patch
+        run: |
+          DATASET="${{ github.event.inputs.dataset_path || 'data/processed/labeled_messages.json' }}"
+          if [ ! -f "$DATASET" ]; then
+            DATASET="tests/fixtures/jev_benchmark_baseline.json"
+          fi
+          mkdir -p artifacts/weekly outputs/train
+          OUT="outputs/train/patch_${{ github.run_id }}.json"
+          uv run python scripts/train_local_model.py --out "$OUT" --dataset "$DATASET" --no-register
+          echo "ARTIFACT=$OUT" >> "$GITHUB_ENV"
+          cp "$OUT" "artifacts/weekly/run_${{ github.run_id }}.json"
+          if [ "${{ github.event.inputs.promote_artifact || 'false' }}" = "true" ]; then
+            cp "$OUT" artifacts/weekly/latest.json
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: safedm-model-patch-${{ github.run_id }}
+          path: |
+            safedm-backend/outputs/train/
+            safedm-backend/artifacts/weekly/
+          retention-days: 30

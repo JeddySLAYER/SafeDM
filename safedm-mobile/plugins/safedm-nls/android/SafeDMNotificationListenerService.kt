@@ -4,6 +4,7 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.safedmmobile.features.FeatureExtraction
+import com.safedmmobile.features.LocalThreatModel
 
 /**
  * Capture les notifications des packages surveillés (WhatsApp / SMS / Email).

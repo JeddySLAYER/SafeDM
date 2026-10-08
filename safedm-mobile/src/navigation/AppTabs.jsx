@@ -18,6 +18,7 @@ import LinkProtectionScreen from "../screens/LinkProtectionScreen";
 import ManualAnalysisScreen from "../screens/ManualAnalysisScreen";
 import AlertDetailScreen from "../screens/AlertDetailScreen";
 import PermissionsScreen from "../screens/PermissionsScreen";
+import PoliciesScreen from "../screens/PoliciesScreen";
 import ReportsScreen from "../screens/ReportsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import { colors } from "../theme/tokens";
@@ -90,14 +91,16 @@ function Tabs() {
 }
 
 export default function AppStack() {
-  const { needsSetup } = useAuth();
+  const { needsSetup, policiesOk } = useAuth();
+  const initialRouteName = !policiesOk ? "Policies" : needsSetup ? "Apps" : "MainTabs";
 
   return (
     <Stack.Navigator
-      initialRouteName={needsSetup ? "Apps" : "MainTabs"}
+      initialRouteName={initialRouteName}
       screenOptions={{ headerShown: false }}
     >
       <Stack.Screen name="MainTabs" component={Tabs} />
+      <Stack.Screen name="Policies" component={PoliciesScreen} />
       <Stack.Screen
         name="Apps"
         component={AppsScreen}

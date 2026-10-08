@@ -1,13 +1,13 @@
 import React, { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { API_BASE_URL, APP_VERSION, FINGERPRINT_PUBLIC_KEY, MODEL_MANIFEST_PUBLIC_KEY } from "../config";
+import { APP_VERSION } from "../config";
 import Button from "../components/Button";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
-import { isFingerprintCryptoConfigured } from "../services/fingerprintEnvelope";
 import {
   getEnabledPackageNames,
+  isDefaultBrowser,
   isNotificationAccessEnabled,
 } from "../services/notificationBridge";
 import { getCloudConsent } from "../utils/storage";
@@ -29,19 +29,22 @@ export default function DiagnosticsScreen({ navigation }) {
   const [packages, setPackages] = useState([]);
   const [consent, setConsent] = useState(false);
   const [apiOk, setApiOk] = useState(null);
+  const [linksOn, setLinksOn] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setBusy(true);
     try {
-      const [access, pkgs, cloud] = await Promise.all([
+      const [access, pkgs, cloud, links] = await Promise.all([
         isNotificationAccessEnabled(),
         getEnabledPackageNames(),
         getCloudConsent(),
+        isDefaultBrowser(),
       ]);
       setNls(access);
       setPackages(pkgs || []);
       setConsent(cloud);
+      setLinksOn(Boolean(links));
       try {
         const res = await fetch(`${API_BASE_URL.replace(/\/+$/, "")}/health`, {
           method: "GET",
@@ -65,7 +68,7 @@ export default function DiagnosticsScreen({ navigation }) {
     <Screen scroll style={styles.canvas}>
       <ScreenHeader title="Diagnostic" onBack={() => navigation.goBack()} />
       <Text style={styles.intro}>
-        État de la protection locale — utile pour la démo et le support.
+        Ce qui est actif sur cet appareil.
       </Text>
       <View style={styles.card}>
         <Row label="Version" value={APP_VERSION} />
@@ -75,28 +78,20 @@ export default function DiagnosticsScreen({ navigation }) {
           value={packages.length ? String(packages.length) : "Aucune"}
           ok={packages.length > 0}
         />
-        <Row label="Analyse cloud" value={consent ? "Opt-in" : "Locale seule"} />
         <Row
-          label="API /health"
-          value={apiOk == null ? "…" : apiOk ? "OK" : "Hors ligne"}
+          label="Analyse"
+          value={consent ? "Aussi à distance" : "Sur le téléphone"}
+        />
+        <Row
+          label="Vérification distante"
+          value={apiOk == null ? "…" : apiOk ? "Disponible" : "Indisponible"}
           ok={apiOk}
         />
         <Row
-          label="Fingerprint crypto"
-          value={isFingerprintCryptoConfigured() ? "Configurée" : "Clé absente"}
-          ok={isFingerprintCryptoConfigured()}
+          label="Liens"
+          value={linksOn ? "Vérifiés par SafeDM" : "Ouverts par le navigateur"}
+          ok={linksOn}
         />
-        <Row
-          label="OTA modèle"
-          value={MODEL_MANIFEST_PUBLIC_KEY ? "Clé présente" : "Désactivée"}
-        />
-        <Row label="API base" value={API_BASE_URL} />
-        {!FINGERPRINT_PUBLIC_KEY ? (
-          <Text style={styles.note}>
-            Sans FINGERPRINT_PUBLIC_KEY, l’envoi chiffré de vecteurs / fingerprints
-            reste indisponible (soft-fail).
-          </Text>
-        ) : null}
       </View>
       <Button label="Actualiser" onPress={refresh} loading={busy} style={{ marginTop: 16 }} />
     </Screen>

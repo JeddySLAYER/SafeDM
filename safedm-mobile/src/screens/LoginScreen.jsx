@@ -6,10 +6,12 @@ import Button from "../components/Button";
 import Screen from "../components/Screen";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
+import { firebaseConfigured } from "../services/firebaseAuth";
 import { colors } from "../theme/tokens";
 
 export default function LoginScreen({ navigation }) {
-  const { login } = useAuth();
+  const { login, loginFirebase } = useAuth();
+  const firebaseOn = firebaseConfigured();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -58,6 +60,30 @@ export default function LoginScreen({ navigation }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Button label="Se connecter" onPress={onSubmit} loading={loading} />
+
+      {firebaseOn ? (
+        <Button
+          label="Connexion Firebase"
+          variant="outline"
+          onPress={async () => {
+            setError("");
+            if (!username.includes("@") || password.length < 1) {
+              setError("Firebase demande un e-mail et un mot de passe.");
+              return;
+            }
+            setLoading(true);
+            try {
+              await loginFirebase(username.trim(), password);
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : err?.message || "Firebase refusé.");
+            } finally {
+              setLoading(false);
+            }
+          }}
+          loading={loading}
+          style={{ marginTop: 12 }}
+        />
+      ) : null}
 
       <View style={styles.dividerRow}>
         <View style={styles.line} />

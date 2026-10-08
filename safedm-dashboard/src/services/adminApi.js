@@ -165,3 +165,39 @@ export function updateArticle(id, payload) {
 export function deleteArticle(id) {
   return apiRequest(`/admin/guide/articles/${id}`, { method: "DELETE" });
 }
+
+export function listMlDatasets(options) {
+  return apiRequest("/admin/ml/datasets", options);
+}
+
+export function createMlDataset(payload) {
+  return apiRequest("/admin/ml/datasets", { method: "POST", body: payload });
+}
+
+export function seedBuiltinMlDataset() {
+  return apiRequest("/admin/ml/datasets/seed-builtin", { method: "POST" });
+}
+
+export function listMlRuns(options) {
+  return apiRequest("/admin/ml/runs", options);
+}
+
+export function getMlRun(id) {
+  return apiRequest(`/admin/ml/runs/${id}`);
+}
+
+export function startMlTrain(payload) {
+  return apiRequest("/admin/ml/runs", { method: "POST", body: payload });
+}
+
+export function getLegalDocuments() {
+  return apiRequest("/legal/documents");
+}
+
+export function updateLegalDocument(slug, payload) {
+  return apiRequest(`/legal/documents/${slug}`, { method: "PUT", body: payload });
+}
+
+export function promoteMlRun(id) {
+  return apiRequest(`/admin/ml/runs/${id}/promote`, { method: "POST" });
+}
