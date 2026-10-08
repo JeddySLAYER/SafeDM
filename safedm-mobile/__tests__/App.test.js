@@ -112,6 +112,11 @@ jest.mock("../src/services/notificationBridge", () => ({
   subscribeToLinkIntents: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
+jest.mock("../src/services/firebaseAuth", () => ({
+  firebaseConfigured: () => false,
+  signInWithFirebase: jest.fn(),
+}));
+
 import App from "../App";
 
 it("renders correctly", async () => {
