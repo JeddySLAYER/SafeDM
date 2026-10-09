@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import logging
@@ -193,8 +194,11 @@ class MlOpsService:
             run.log_text = log_buf.getvalue()[-80_000:]
             run.finished_at = datetime.now(timezone.utc)
 
+            pub = result.get("public_key_hex") or ""
+            if pub:
+                artifact.with_suffix(".pub").write_text(pub, encoding="utf-8")
             if promote_canary and result.get("publishable"):
-                self._promote_artifact(artifact)
+                self._promote_artifact(artifact, pub)
                 run.log_text = (run.log_text or "") + "\n[promote] copied to MODEL_PATCH_MANIFEST_PATH\n"
             elif promote_canary and not result.get("publishable"):
                 run.log_text = (run.log_text or "") + "\n[promote] skipped: not publishable\n"
@@ -216,13 +220,24 @@ class MlOpsService:
         path = Path(run.artifact_path)
         if not path.exists():
             raise HTTPException(status_code=404, detail="Artefact disparu (FS éphémère?)")
-        self._promote_artifact(path)
+        pub_path = path.with_suffix(".pub")
+        pub = pub_path.read_text(encoding="utf-8").strip() if pub_path.exists() else ""
+        self._promote_artifact(path, pub)
         return {"ok": True, "manifest": get_settings().model_patch_manifest_path, "run_id": run.id}
 
-    def _promote_artifact(self, artifact: Path) -> None:
+    def _promote_artifact(self, artifact: Path, public_key_hex: str = "") -> None:
+        raw = json.loads(artifact.read_text(encoding="utf-8"))
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        wrapper = {
+            "version": f"ml-{raw.get('model_version', 1)}-{digest[:12]}",
+            "artifact_sha256": digest,
+            "public_key_hex": public_key_hex,
+            "patch": raw,
+            "rollout": {"stage": "production", "percentage": 100},
+        }
         target = Path(get_settings().model_patch_manifest_path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(artifact.read_bytes())
+        target.write_text(json.dumps(wrapper, ensure_ascii=False, indent=2), encoding="utf-8")
 
     @staticmethod
     def _dataset_public(row: MlDataset, *, include_preview: bool = False) -> dict[str, Any]:

@@ -1,19 +1,11 @@
 import { useState } from "react";
 import {
-  Activity,
-  Archive,
   ArrowDownToLine,
   Check,
-  ChevronRight,
-  ClipboardList,
   CloudCog,
   FileClock,
   Gauge,
-  History,
   RotateCcw,
-  Settings2,
-  SlidersHorizontal,
-  X,
 } from "lucide-react";
 import {
   Alert,
@@ -38,7 +30,7 @@ function Status({ value }) {
 
 export default function OperationsPage() {
   const { data, error, loading, refreshing, updatedAt, refresh } = useOperationsOverview();
-  const [sheet, setSheet] = useState(null);
+  const [tab, setTab] = useState("model");
   const [actionError, setActionError] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [policy, setPolicy] = useState({
@@ -56,7 +48,6 @@ export default function OperationsPage() {
     try {
       await action();
       await refresh();
-      setSheet(null);
     } catch (err) {
       setActionError(err.message);
     } finally {
@@ -78,7 +69,7 @@ export default function OperationsPage() {
     <div>
       <PageHeader
         title="Opérations"
-        subtitle="Pilotez les modèles, les seuils et la conformité depuis un seul espace."
+        subtitle="Activez un modèle, réglez les seuils, puis consultez l’historique. Une seule chose à la fois."
         actions={
           <>
             <Freshness updatedAt={updatedAt} refreshing={refreshing} />
@@ -91,149 +82,107 @@ export default function OperationsPage() {
       <Alert>{error}</Alert>
       <Alert>{actionError}</Alert>
       {data ? (
-        <>
-          <section className="ops-hero">
-            <div>
-              <p className="eyebrow">Centre de contrôle</p>
-              <h2>État du système</h2>
-              <p className="muted">Les actions sensibles demandent une confirmation dans un panneau dédié.</p>
-            </div>
-            <Status value={data.patch.status} />
-          </section>
-
-          <div className="ops-summary-grid">
-            <SummaryCard icon={Activity} label="Patch actif" value={data.patch.version || "Aucun"} note={`${data.patch.rollout_percentage ?? 0}% du trafic en canary`} />
-            <SummaryCard icon={CloudCog} label="Agrégation" value={data.aggregation.last_run || "Jamais"} note={data.aggregation.source || "Source inconnue"} />
-            <SummaryCard icon={Gauge} label="Seuils globaux" value={formatThresholds(data.policy.thresholds)} note="Valeurs de secours de l’API" />
-            <SummaryCard icon={Archive} label="Rétention" value={`${data.retention.candidate_count ?? 0} candidats`} note={`${data.retention.inactive_months} mois d’inactivité`} />
+        <div className="panel">
+          <div className="tabs" role="tablist">
+            <Tab id="model" current={tab} onSelect={setTab} icon={RotateCcw} title="Modèle" hint={data.patch.version || "Aucun patch"} />
+            <Tab id="policy" current={tab} onSelect={setTab} icon={Gauge} title="Seuils" hint="Politique de décision" />
+            <Tab id="aggregation" current={tab} onSelect={setTab} icon={CloudCog} title="Agrégation" hint={data.aggregation.last_run || "Jamais lancée"} />
+            <Tab id="history" current={tab} onSelect={setTab} icon={FileClock} title="Historique" hint={`${data.audit.length} actions`} />
           </div>
-
-          <section className="panel ops-actions-panel">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Actions rapides</p>
-                <h2>Que voulez-vous gérer ?</h2>
-              </div>
-              <Settings2 size={21} aria-hidden />
-            </div>
-            <div className="ops-action-grid">
-              <ActionRow icon={SlidersHorizontal} title="Politique de décision" description="Modifier les seuils par entreprise et région." onClick={() => setSheet("policy")} />
-              <ActionRow icon={CloudCog} title="Cycle d’agrégation" description="Demander la préparation des métriques anonymisées." onClick={() => setSheet("aggregation")} />
-              <ActionRow icon={RotateCcw} title="Déploiement du modèle" description="Approuver ou annuler le patch actuellement en canary." onClick={() => setSheet("patch")} />
-              <ActionRow icon={FileClock} title="Historique et audit" description="Consulter les déploiements et les actions récentes." onClick={() => setSheet("history")} />
-            </div>
-          </section>
-
-          <section className="grid-2 ops-lower-grid">
-            <div className="panel">
-              <div className="section-heading">
-                <div><p className="eyebrow">Surveillance</p><h2>Conformité & rétention</h2></div>
-                <Status value={data.retention.status} />
-              </div>
-              <dl className="details-list">
-                <div><dt>Signatures candidates</dt><dd>{data.retention.candidate_count ?? 0}</dd></div>
-                <div><dt>Dernier audit</dt><dd>{data.retention.last_audit || "N/D"}</dd></div>
-              </dl>
-              <p className="muted compact-note">{data.retention.note}</p>
-            </div>
-            <div className="panel">
-              <div className="section-heading">
-                <div><p className="eyebrow">Dernière activité</p><h2>Journal d’audit</h2></div>
-                <ClipboardList size={21} aria-hidden />
-              </div>
-              {data.audit.length ? (
-                <div className="audit-preview">
-                  {data.audit.slice(0, 3).map((entry) => (
-                    <div className="audit-preview-row" key={entry.id}>
-                      <span>{entry.action}</span><small>{entry.username} · {entry.created_at}</small>
-                    </div>
-                  ))}
-                  <button type="button" className="btn small ghost" onClick={() => setSheet("history")}>Voir tout l’historique</button>
-                </div>
-              ) : <EmptyState title="Aucun accès journalisé" />}
-            </div>
-          </section>
-        </>
-      ) : null}
-      {sheet ? (
-        <OperationsSheet
-          type={sheet}
-          data={data}
-          policy={policy}
-          setPolicy={setPolicy}
-          busy={actionBusy}
-          onClose={() => setSheet(null)}
-          onAction={runAction}
-        />
+          {tab === "model" ? <PatchDetails patch={data.patch} busy={actionBusy} onAction={runAction} /> : null}
+          {tab === "policy" ? (
+            <PolicyForm policy={policy} setPolicy={setPolicy} busy={actionBusy} onSubmit={() => runAction(() => saveTenantPolicy(policy))} />
+          ) : null}
+          {tab === "aggregation" ? (
+            <ActionConfirmation
+              title="Dernière exécution"
+              value={data.aggregation.last_run || "Jamais"}
+              note={data.aggregation.note}
+              actionLabel="Demander une agrégation"
+              busy={actionBusy}
+              onAction={() => runAction(requestAggregation)}
+            />
+          ) : null}
+          {tab === "history" ? <HistoryDetails data={data} /> : null}
+        </div>
+      ) : !loading ? (
+        <EmptyState title="Opérations indisponibles" description={error || "Le serveur n’a pas renvoyé l’état du modèle."} />
       ) : null}
     </div>
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, note }) {
-  return <div className="ops-summary-card"><Icon size={19} aria-hidden /><p className="eyebrow">{label}</p><strong>{value}</strong><span>{note}</span></div>;
-}
-
-function ActionRow({ icon: Icon, title, description, onClick }) {
-  return <button type="button" className="ops-action-row" onClick={onClick}><Icon size={19} aria-hidden /><span><strong>{title}</strong><small>{description}</small></span><ChevronRight size={18} aria-hidden /></button>;
-}
-
-function OperationsSheet({ type, data, policy, setPolicy, busy, onClose, onAction }) {
-  const content = {
-    policy: {
-      icon: SlidersHorizontal,
-      title: "Politique de décision",
-      subtitle: "Enregistrez une politique tenant/région ; elle sera appliquée quand ce contexte sera fourni à l’analyse.",
-    },
-    aggregation: {
-      icon: CloudCog,
-      title: "Cycle d’agrégation",
-      subtitle: "Préparez des métriques anonymisées pour le prochain cycle de modèle.",
-    },
-    patch: {
-      icon: RotateCcw,
-      title: "Déploiement du modèle",
-      subtitle: "Vérifiez le patch avant de l’approuver ou de revenir en arrière.",
-    },
-    history: {
-      icon: History,
-      title: "Historique et audit",
-      subtitle: "Les dernières actions administratives et opérations de déploiement.",
-    },
-  }[type];
-  const Icon = content.icon;
+function Tab({ id, current, onSelect, icon: Icon, title, hint }) {
+  const active = current === id;
   return (
-    <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}>
-      <aside className={`help-sheet operations-sheet ${type === "history" ? "operations-sheet-history" : ""}`} role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="help-sheet-header">
-          <div className="ops-sheet-title"><Icon size={20} aria-hidden /><div><p className="eyebrow">Opérations</p><h2>{content.title}</h2><p className="muted">{content.subtitle}</p></div></div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer"><X size={18} aria-hidden /></button>
-        </header>
-        <div className="help-sheet-body">
-          {type === "policy" ? <PolicyForm policy={policy} setPolicy={setPolicy} busy={busy} onSubmit={() => onAction(() => saveTenantPolicy(policy))} /> : null}
-          {type === "aggregation" ? <ActionConfirmation title="Dernière exécution" value={data.aggregation.last_run || "Jamais"} note={data.aggregation.note} actionLabel="Demander une agrégation" busy={busy} onAction={() => onAction(requestAggregation)} /> : null}
-          {type === "patch" ? <PatchDetails patch={data.patch} busy={busy} onAction={onAction} /> : null}
-          {type === "history" ? <HistoryDetails data={data} /> : null}
-        </div>
-      </aside>
-    </div>
+    <button type="button" className={active ? "tab active" : "tab"} role="tab" aria-selected={active} onClick={() => onSelect(id)}>
+      <Icon size={17} aria-hidden />
+      <span>
+        <strong>{title}</strong>
+        <small>{hint}</small>
+      </span>
+    </button>
   );
 }
 
 function PolicyForm({ policy, setPolicy, busy, onSubmit }) {
   const field = (key, label, props = {}) => <label className="ops-field">{label}<input {...props} value={policy[key]} onChange={(event) => setPolicy({ ...policy, [key]: props.type === "number" ? Number(event.target.value) : event.target.value })} /></label>;
-  return <form className="ops-policy-form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
-    <div className="ops-field-grid">
-      {field("tenant_key", "Entreprise", { required: true, placeholder: "ex. acme" })}
-      {field("region", "Région", { required: true, placeholder: "ex. eu-west" })}
+  return <form className="form-grid" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+    <p className="panel-note">Une politique est un jeu de seuils pour une entreprise et une région. Elle s’applique quand l’analyse reçoit ce contexte.</p>
+    {field("tenant_key", "Entreprise", { required: true, placeholder: "ex. acme" })}
+    {field("region", "Région", { required: true, placeholder: "ex. eu-west" })}
+    <p className="muted">En dessous de « sûr », le message est plutôt rassurant. À partir de « suspect », il demande une vérification. À partir de « critique », il est traité comme dangereux. La confiance (0 à 1) empêche de prendre un résultat ambigu pour un résultat sûr.</p>
+    {field("safe_score", "Sûr", { required: true, type: "number", min: 0, max: 100 })}
+    {field("suspicious_score", "Suspect", { required: true, type: "number", min: 0, max: 100 })}
+    {field("critical_score", "Critique", { required: true, type: "number", min: 0, max: 100 })}
+    {field("escalation_confidence", "Confiance minimale (0–1)", { required: true, type: "number", min: 0, max: 1, step: 0.01 })}
+    <div className="form-actions">
+      <button className="btn primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : <Check size={16} aria-hidden />} Enregistrer la politique</button>
     </div>
-    <div className="threshold-box"><p className="eyebrow">Comment lire la décision</p><p className="muted">Le score de risque va de 0 à 100 : en dessous de « sûr », le message est plutôt rassurant ; à partir de « suspect », il demande une vérification ; à partir de « critique », il est traité comme dangereux.</p><p className="muted">La confiance (0–1) mesure à quel point Jev distingue clairement ses hypothèses. Une confiance basse signifie que les probabilités sont réparties entre plusieurs verdicts : c’est l’incertitude, parfois appelée entropie. Elle ne change pas le score ; elle empêche simplement de considérer un résultat ambigu comme sûr.</p><div className="ops-field-grid">{field("safe_score", "Sûr", { required: true, type: "number", min: 0, max: 100 })}{field("suspicious_score", "Suspect", { required: true, type: "number", min: 0, max: 100 })}{field("critical_score", "Critique", { required: true, type: "number", min: 0, max: 100 })}{field("escalation_confidence", "Confiance minimale (0–1)", { required: true, type: "number", min: 0, max: 1, step: 0.01 })}</div></div>
-    <button className="btn primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : <Check size={16} aria-hidden />} Enregistrer la politique</button>
   </form>;
 }
 
 function PatchDetails({ patch, busy, onAction }) {
-  return <><dl className="details-list"><div><dt>Version</dt><dd>{patch.version || "Aucune"}</dd></div><div><dt>Statut</dt><dd><Status value={patch.status} /></dd></div><div><dt>Trafic canary</dt><dd>{patch.rollout_percentage ?? 0}%</dd></div><div><dt>Rappel / faux positifs</dt><dd>{patch.recall ?? "N/D"} / {patch.false_positive_rate ?? "N/D"}</dd></div></dl>{patch.version ? <div className="sheet-actions"><button className="btn primary" disabled={busy} onClick={() => onAction(() => approvePatch(patch.version))}><Check size={16} aria-hidden /> Approuver</button><button className="btn danger" disabled={busy} onClick={() => onAction(() => rollbackPatch(patch.version))}><ArrowDownToLine size={16} aria-hidden /> Rollback</button></div> : <EmptyState title="Aucun patch disponible" />}</>;
+  const [percentage, setPercentage] = useState(
+    patch.rollout_percentage > 0 ? patch.rollout_percentage : 5,
+  );
+  return (
+    <>
+      <dl className="details-list">
+        <div><dt>Version</dt><dd>{patch.version || "Aucune"}</dd></div>
+        <div><dt>Statut</dt><dd><Status value={patch.status} /></dd></div>
+        <div><dt>Part actuelle</dt><dd>{patch.rollout_percentage ?? 0}%</dd></div>
+        <div><dt>Rappel / faux positifs</dt><dd>{patch.recall ?? "N/D"} / {patch.false_positive_rate ?? "N/D"}</dd></div>
+      </dl>
+      <p className="panel-note">
+        Approuver avec 5 % propose la mise à jour à environ un téléphone sur vingt. 100 % la propose à tous. Rollback retire le modèle. Le téléphone demande confirmation, puis affiche « mise à jour en cours ».
+      </p>
+      {patch.version ? (
+        <div className="form-grid">
+          <label className="ops-field">
+            Pourcentage d’appareils
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={percentage}
+              onChange={(event) => setPercentage(Number(event.target.value))}
+            />
+          </label>
+          <div className="sheet-actions">
+            <button className="btn primary" disabled={busy} onClick={() => onAction(() => approvePatch(patch.version, percentage))}>
+              <Check size={16} aria-hidden /> Approuver à {percentage || 0}%
+            </button>
+            <button className="btn danger" disabled={busy} onClick={() => onAction(() => rollbackPatch(patch.version))}>
+              <ArrowDownToLine size={16} aria-hidden /> Rollback
+            </button>
+          </div>
+        </div>
+      ) : (
+        <EmptyState title="Aucun patch disponible" description="Poussez d’abord un run depuis Entraînement." />
+      )}
+    </>
+  );
 }
 
 function ActionConfirmation({ title, value, note, actionLabel, busy, onAction }) {
@@ -244,8 +193,3 @@ function HistoryDetails({ data }) {
   return <div className="history-stack"><h3>Déploiements</h3>{data.deployments?.length ? <div className="table-wrap"><table><thead><tr><th>Version</th><th>Statut</th><th>Canary</th><th>Approbation</th></tr></thead><tbody>{data.deployments.map((item) => <tr key={item.version}><td>{item.version}</td><td>{item.status}</td><td>{item.rollout_percentage}%</td><td>{item.approved_at || "—"}</td></tr>)}</tbody></table></div> : <EmptyState title="Aucun déploiement" />}<h3>Journal d’audit</h3>{data.audit.length ? <div className="table-wrap"><table><thead><tr><th>Quand</th><th>Admin</th><th>Action</th><th>Ressource</th></tr></thead><tbody>{data.audit.map((entry) => <tr key={entry.id}><td>{entry.created_at}</td><td>{entry.username}</td><td>{entry.action}</td><td>{entry.resource}</td></tr>)}</tbody></table></div> : <EmptyState title="Aucun accès journalisé" />}</div>;
 }
 
-function formatThresholds(thresholds) {
-  if (!thresholds) return "Non configurés";
-  const values = Object.values(thresholds);
-  return values.length ? values.join(" / ") : "Non configurés";
-}

@@ -1,6 +1,25 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 
+export function Field({ label, hint, children }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+      {hint ? <span className="field-hint">{hint}</span> : null}
+    </label>
+  );
+}
+
+export function CheckboxField({ label, ...props }) {
+  return (
+    <label className="checkbox">
+      <input type="checkbox" {...props} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <header className="page-header">

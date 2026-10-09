@@ -225,9 +225,15 @@ threats_under_review_count=threats_under_review,
         except (FileNotFoundError, json.JSONDecodeError):
             manifest = {}
 
-        metrics = manifest.get("metrics") or {}
+        patch_body = manifest.get("patch") if isinstance(manifest.get("patch"), dict) else manifest
+        training = (patch_body.get("training") or {}) if isinstance(patch_body, dict) else {}
+        validated = training.get("validated") or {}
+        operational = validated.get("at_operational_threshold") or {}
+        metrics = manifest.get("metrics") or operational or validated
         rollout = manifest.get("rollout") or {}
-        manifest_version = manifest.get("version")
+        manifest_version = manifest.get("version") or (
+            f"ml-{patch_body.get('model_version')}" if isinstance(patch_body, dict) and patch_body.get("quantization") else None
+        )
         current_deployment = (
             self.db.scalar(
                 select(PatchDeployment).where(
@@ -344,11 +350,11 @@ threats_under_review_count=threats_under_review,
             ],
         }
 
-    def approve_patch(self, version: str, actor: User) -> dict:
+    def approve_patch(self, version: str, actor: User, rollout_percentage: int = 5) -> dict:
         self._validate_patch_version(version)
         deployment = self._get_or_create_deployment(version)
         deployment.status = "APPROVED"
-        deployment.rollout_percentage = 1
+        deployment.rollout_percentage = rollout_percentage
         deployment.approved_by = actor.id
         deployment.approved_at = datetime.now(timezone.utc)
         self.db.add(deployment)

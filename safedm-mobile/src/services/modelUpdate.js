@@ -3,6 +3,7 @@ import { APP_VERSION, MODEL_MANIFEST_PUBLIC_KEY } from "../config";
 
 const ACTIVE_MODEL_KEY = "safedm_active_model_uri";
 const ACTIVE_MANIFEST_KEY = "safedm_active_model_manifest";
+const ACTIVE_PATCH_KEY = "safedm_active_model_patch";
 
 function storage() {
   try {
@@ -59,6 +60,61 @@ export async function getStoredModelUri() {
   return info.exists ? uri : null;
 }
 
+export async function getStoredPatch() {
+  const raw = await storage()?.getItem(ACTIVE_PATCH_KEY);
+  if (!raw) return null;
+  try {
+    const patch = JSON.parse(raw);
+    return patch?.quantization?.weights ? patch : null;
+  } catch {
+    return null;
+  }
+}
+
+export function decideWithPatch(patch, features) {
+  const weights = patch?.quantization?.weights;
+  const threshold = patch?.quantization?.threshold_score;
+  if (!Array.isArray(weights) || weights.length !== features.length || !Number.isFinite(threshold)) {
+    return null;
+  }
+  let total = Number(patch.quantization.intercept) || 0;
+  for (let i = 0; i < weights.length; i += 1) total += weights[i] * features[i];
+  return total >= threshold;
+}
+
+export async function offerModelUpdate({ ask, onStart } = {}) {
+  const { apiRequest } = require("../api/client");
+  const { getOrCreateDeviceId } = require("../utils/storage");
+  const deviceId = await getOrCreateDeviceId();
+  const manifest = await apiRequest("models/latest");
+  const percentage = Number(manifest.rollout?.percentage) || 0;
+  const stage = manifest.rollout?.stage;
+  const inRollout = stage === "production" || (stage === "canary" && isCanary(deviceId, percentage));
+  if (!inRollout) return { updated: false, reason: "not_in_canary" };
+  const patch = manifest.patch;
+  if (!patch?.quantization?.weights) return { updated: false, reason: "no_patch" };
+  const store = storage();
+  if (!store) throw new Error("AsyncStorage unavailable");
+  const previous = await store.getItem(ACTIVE_MANIFEST_KEY);
+  let previousVersion = "";
+  try {
+    previousVersion = JSON.parse(previous || "{}").version || "";
+  } catch {
+    previousVersion = "";
+  }
+  if (previousVersion && previousVersion === manifest.version) {
+    return { updated: false, reason: "current" };
+  }
+  const accepted = ask ? await ask(manifest) : true;
+  if (!accepted) return { updated: false, reason: "declined" };
+  onStart?.();
+  await store.multiSet([
+    [ACTIVE_PATCH_KEY, JSON.stringify(patch)],
+    [ACTIVE_MANIFEST_KEY, JSON.stringify({ version: manifest.version, rollout: manifest.rollout })],
+  ]);
+  return { updated: true, version: manifest.version };
+}
+
 export async function updateModelFromManifest() {
   const { apiRequest } = require("../api/client");
   const { getOrCreateDeviceId } = require("../utils/storage");
@@ -66,10 +122,11 @@ export async function updateModelFromManifest() {
   const manifest = await apiRequest(
     `models/latest?app_version=${encodeURIComponent(APP_VERSION)}`,
   );
-  if (
-    manifest.rollout?.stage !== "canary" ||
-    !isCanary(deviceId, Number(manifest.rollout.percentage) || 0)
-  ) {
+  const percentage = Number(manifest.rollout?.percentage) || 0;
+  const stage = manifest.rollout?.stage;
+  const inRollout =
+    stage === "production" || (stage === "canary" && isCanary(deviceId, percentage));
+  if (!inRollout) {
     return { updated: false, reason: "not_in_canary" };
   }
   if (

@@ -25,10 +25,10 @@ export function getOperationsOverview(options) {
   return apiRequest("/admin/operations/overview", options);
 }
 
-export function approvePatch(version) {
+export function approvePatch(version, rolloutPercentage = 5) {
   return apiRequest("/admin/operations/patches/approve", {
     method: "POST",
-    body: { version },
+    body: { version, rollout_percentage: Number(rolloutPercentage) },
   });
 }
 
@@ -168,6 +168,10 @@ export function deleteArticle(id) {
 
 export function listMlDatasets(options) {
   return apiRequest("/admin/ml/datasets", options);
+}
+
+export function getMlDataset(id) {
+  return apiRequest(`/admin/ml/datasets/${id}`);
 }
 
 export function createMlDataset(payload) {

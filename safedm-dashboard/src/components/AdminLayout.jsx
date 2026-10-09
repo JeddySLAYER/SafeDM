@@ -116,11 +116,22 @@ function getHelpContent(pathname) {
   }
   if (pathname === "/training") {
     return {
-      title: "Entraînement modèle",
+      title: "Du jeu de données au téléphone",
       sections: [
-        { title: "Datasets", body: "Uploadez un JSON [{message, expected}] ou CSV message,expected. Seed built-in importe le jeu repo. Les données sont stockées en Postgres (adapté à FastAPI Cloud)." },
-        { title: "Train", body: "Le bouton lance un train synchrone (sklearn logistic + patch signé). Pour de gros jobs, utilisez GitHub Actions train-model." },
-        { title: "Canary", body: "Promote copie l’artefact vers MODEL_PATCH_MANIFEST_PATH. Ensuite, page Opérations → Approuver avec un % canary. Firebase arrivera plus tard (Auth puis Storage)." },
+        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages déjà étiquetés : message et expected (bénin ou malveillant). « Envoyer le dataset » les enregistre. « Jeu intégré » importe les exemples livrés avec le projet. L’aperçu montre les premiers messages, il ne lance rien." },
+        { title: "2. Lancer l’entraînement", body: "« Lancer l’entraînement » calcule un modèle sur le jeu choisi et écrit les métriques (faux positifs, rappel). Un run « publiable » a passé les seuils. Un gros volume se lance plutôt avec le workflow GitHub train-model." },
+        { title: "3. Pousser vers le canary", body: "« Pousser vers le canary » copie le modèle réussi dans le manifeste du serveur. Les téléphones ne changent pas encore tous. La case « promouvoir si publiable » fait cette copie dès la fin du train, seulement si les métriques sont acceptables." },
+        { title: "4. Activer dans Opérations", body: "Dans Déploiement du modèle, choisis le pourcentage puis Approuver. Sous 100 %, le téléphone ne télécharge le modèle que s’il tombe dans cette part. À 100 %, tout le monde le reçoit. Rollback retire le modèle. Le fichier doit avoir une URL https et une signature, sinon le téléphone le refuse." },
+      ],
+    };
+  }
+  if (pathname === "/applications") {
+    return {
+      title: "Catalogue des applications",
+      sections: [
+        { title: "À quoi sert la liste", body: "Chaque ligne est une application Android que le téléphone peut surveiller. Le nom est celui affiché. Le package est l’identifiant Android, par exemple com.whatsapp." },
+        { title: "Activée ou non", body: "Une application désactivée reste dans le catalogue, mais n’est plus proposée à la surveillance. La supprimer l’enlève du catalogue." },
+        { title: "Ajouter", body: "Le bouton Ajouter ouvre une fiche. Rien n’est créé tant que vous n’enregistrez pas." },
       ],
     };
   }

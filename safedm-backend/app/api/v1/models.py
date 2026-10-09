@@ -23,28 +23,37 @@ def latest_model_manifest(
     _ = current_user
     path = Path(get_settings().model_patch_manifest_path)
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(manifest, dict) or not manifest.get("version"):
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
             raise ValueError("invalid manifest")
+        patch = loaded.get("patch") if isinstance(loaded.get("patch"), dict) else loaded
+        version = loaded.get("version") or (
+            f"ml-{patch.get('model_version', 1)}" if patch.get("quantization") else None
+        )
+        if not version:
+            raise ValueError("invalid manifest")
+        manifest = {
+            "version": version,
+            "artifact_sha256": loaded.get("artifact_sha256"),
+            "public_key_hex": loaded.get("public_key_hex"),
+            "patch": patch if patch.get("quantization") else None,
+            "rollout": loaded.get("rollout") or {"stage": "canary", "percentage": patch.get("canary_percent", 0)},
+        }
         deployment = db.scalar(
-            select(PatchDeployment).where(
-                PatchDeployment.version == manifest["version"]
-            )
+            select(PatchDeployment).where(PatchDeployment.version == version)
         )
         if deployment and deployment.status == "ROLLED_BACK":
             raise HTTPException(status_code=404, detail="Model manifest rolled back")
         if deployment:
-            manifest = {
-                **manifest,
-                "rollout": {
-                    **(manifest.get("rollout") or {}),
-                    "percentage": deployment.rollout_percentage,
-                    "stage": (
-                        "production"
-                        if deployment.status == "APPROVED"
-                        else (manifest.get("rollout") or {}).get("stage", "canary")
-                    ),
-                },
+            percentage = float(deployment.rollout_percentage)
+            stage = "canary"
+            if deployment.status == "APPROVED":
+                stage = "production" if percentage >= 100 else "canary"
+            manifest["rollout"] = {"percentage": percentage, "stage": stage}
+        elif not deployment:
+            manifest["rollout"] = {
+                "stage": "production",
+                "percentage": float((manifest.get("rollout") or {}).get("percentage") or 100),
             }
         return JSONResponse(
             content=manifest,

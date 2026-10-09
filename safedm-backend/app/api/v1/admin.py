@@ -67,7 +67,9 @@ def admin_approve_patch(
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    result = AdminService(db).approve_patch(payload.version, current_admin)
+    result = AdminService(db).approve_patch(
+        payload.version, current_admin, payload.rollout_percentage
+    )
     record_access(db, user_id=current_admin.id, action="approve_patch", resource=payload.version, purpose="Admin deployment approval")
     db.commit()
     return result

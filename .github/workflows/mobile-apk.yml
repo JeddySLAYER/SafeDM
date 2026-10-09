@@ -4,7 +4,7 @@
 #   EXPO_TOKEN  — create at https://expo.dev/accounts/[account]/settings/access-tokens
 #
 # Triggers:
-#   - push to main: builds the APK and publishes a GitHub Release
+#   - push to main that changes safedm-mobile/ (builds the APK and publishes a Release)
 #   - push tag: mobile-v1.2.3  (release uses that exact tag)
 #   - workflow_dispatch on main, with optional version input
 #
@@ -18,6 +18,9 @@ on:
     branches: [main]
     tags:
       - "mobile-v*"
+    paths:
+      - "safedm-mobile/**"
+      - ".github/workflows/mobile-apk.yml"
   workflow_dispatch:
     inputs:
       version:

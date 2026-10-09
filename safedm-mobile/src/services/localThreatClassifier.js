@@ -1,6 +1,6 @@
 import { LOCAL_MODEL_URI } from "../config";
 import { NativeModules } from "react-native";
-import { getStoredModelUri } from "./modelUpdate";
+import { decideWithPatch, getStoredModelUri, getStoredPatch } from "./modelUpdate";
 import {
   createModelInput,
   decideLocalThreat,
@@ -36,6 +36,11 @@ async function loadModel() {
 }
 
 export async function classifyLocalFeatures(features) {
+  const patch = await getStoredPatch();
+  if (patch && decideWithPatch(patch, features) !== null) {
+    const malicious = decideWithPatch(patch, features);
+    return decideLocalThreat(malicious ? 0.95 : 0.05);
+  }
   const model = await loadModel();
   if (!model) {
     return { decision: LOCAL_DECISION.UNAVAILABLE, confidence: null, riskScore: null };

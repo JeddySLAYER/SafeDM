@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import {
   createApplication,
   deleteApplication,
@@ -7,11 +8,14 @@ import {
 } from "../services/adminApi";
 import {
   Alert,
+  CheckboxField,
+  ConfirmDialog,
+  DetailSheet,
   EmptyState,
+  Field,
   PageHeader,
   Skeleton,
   Spinner,
-  ConfirmDialog,
 } from "../components/ui";
 
 export default function ApplicationsPage() {
@@ -27,6 +31,8 @@ export default function ApplicationsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [selected, setSelected] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,7 +57,8 @@ export default function ApplicationsPage() {
     try {
       await createApplication(form);
       setForm({ name: "", package_name: "", is_enabled: true });
-      setMessage("Application ajoutée.");
+      setAddOpen(false);
+      setMessage("Application ajoutée au catalogue.");
       await load();
     } catch (err) {
       setError(err.message);
@@ -64,6 +71,8 @@ export default function ApplicationsPage() {
     setBusyId(app.id);
     try {
       await updateApplication(app.id, { is_enabled: !app.is_enabled });
+      const next = { ...app, is_enabled: !app.is_enabled };
+      setSelected(next);
       await load();
     } catch (err) {
       setError(err.message);
@@ -76,7 +85,8 @@ export default function ApplicationsPage() {
     setBusyId(id);
     try {
       await deleteApplication(id);
-      setMessage("Application supprimée.");
+      setSelected(null);
+      setMessage("Application retirée du catalogue.");
       await load();
     } catch (err) {
       setError(err.message);
@@ -90,125 +100,139 @@ export default function ApplicationsPage() {
     <div>
       <PageHeader
         title="Applications"
-        subtitle="Catalogue des packages Android surveillables (aligné sur la table supported_applications)."
+        subtitle="Applications Android que le téléphone peut surveiller."
+        actions={
+          <button type="button" className="btn primary" onClick={() => setAddOpen(true)}>
+            <Plus size={16} aria-hidden />
+            Ajouter
+          </button>
+        }
       />
-      <Alert tone="error" onDismiss={() => setError("")}>
-        {error}
-      </Alert>
-      <Alert tone="ok" onDismiss={() => setMessage("")}>
-        {message}
-      </Alert>
+      <Alert tone="error" onDismiss={() => setError("")}>{error}</Alert>
+      <Alert tone="ok" onDismiss={() => setMessage("")}>{message}</Alert>
 
-      <div className="grid-2">
-        <form className="panel form-grid" onSubmit={onCreate}>
-          <h2>Ajouter</h2>
-          <label>
-            Nom
+      {loading ? (
+        <div className="panel">
+          <Spinner label="Chargement…" />
+          <Skeleton rows={4} />
+        </div>
+      ) : items.length === 0 ? (
+        <div className="panel">
+          <EmptyState
+            title="Aucune application"
+            description="Ajoutez un nom et un package Android. L’app mobile proposera ensuite cette application."
+          />
+        </div>
+      ) : (
+        <ul className="catalog-list">
+          {items.map((app) => (
+            <li key={app.id}>
+              <button
+                type="button"
+                className={selected?.id === app.id ? "catalog-row is-selected" : "catalog-row"}
+                onClick={() => setSelected(app)}
+              >
+                <span>
+                  {app.name}
+                  <small>{app.package_name}</small>
+                </span>
+                <span className={`pill ${app.is_enabled ? "soft" : "draft"}`}>
+                  {app.is_enabled ? "Activée" : "Désactivée"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <DetailSheet
+        open={addOpen}
+        title="Ajouter une application"
+        eyebrow="Catalogue"
+        onClose={() => setAddOpen(false)}
+      >
+        <form className="form-grid" onSubmit={onCreate}>
+          <p className="panel-note">
+            Le nom est celui affiché dans l’app. Le package est l’identifiant Android, par exemple com.whatsapp.
+            Rien n’est créé avant l’enregistrement.
+          </p>
+          <Field label="Nom">
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
               placeholder="WhatsApp"
             />
-          </label>
-          <label>
-            Package
+          </Field>
+          <Field label="Package">
             <input
               value={form.package_name}
-              onChange={(e) =>
-                setForm({ ...form, package_name: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, package_name: e.target.value })}
               required
               placeholder="com.whatsapp"
             />
-          </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={form.is_enabled}
-              onChange={(e) =>
-                setForm({ ...form, is_enabled: e.target.checked })
-              }
-            />
-            Activée
-          </label>
-          <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? <span className="btn-spinner" /> : null}
-            Créer
-          </button>
+          </Field>
+          <CheckboxField
+            label="Proposée à la surveillance dès maintenant"
+            checked={form.is_enabled}
+            onChange={(e) => setForm({ ...form, is_enabled: e.target.checked })}
+          />
+          <div className="form-actions">
+            <button className="btn primary" type="submit" disabled={saving}>
+              {saving ? <span className="btn-spinner" /> : null}
+              Enregistrer
+            </button>
+          </div>
         </form>
+      </DetailSheet>
 
-        <div className="panel">
-          <h2>Catalogue ({items.length})</h2>
-          {loading ? (
-            <>
-              <Spinner label="Chargement…" />
-              <Skeleton rows={4} />
-            </>
-          ) : items.length === 0 ? (
-            <EmptyState title="Aucune application" />
-          ) : (
-            <div className="table-wrap" style={{ border: "none" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nom</th>
-                    <th>Package</th>
-                    <th>État</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.id}</td>
-                      <td>{a.name}</td>
-                      <td className="clip" title={a.package_name}>
-                        {a.package_name}
-                      </td>
-                      <td>
-                        <span className={`pill ${a.is_enabled ? "soft" : "draft"}`}>
-                          {a.is_enabled ? "ON" : "OFF"}
-                        </span>
-                      </td>
-                      <td className="actions">
-                        <button
-                          type="button"
-                          className="btn small"
-                          disabled={busyId === a.id}
-                          onClick={() => toggle(a)}
-                        >
-                          {busyId === a.id ? <span className="btn-spinner" /> : null}
-                          {a.is_enabled ? "Désactiver" : "Activer"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn small danger"
-                          disabled={busyId === a.id}
-                          onClick={() => setDeleteId(a.id)}
-                        >
-                          Suppr.
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <DetailSheet
+        open={Boolean(selected)}
+        title={selected?.name || "Application"}
+        eyebrow="Fiche application"
+        onClose={() => setSelected(null)}
+      >
+        {selected ? (
+          <>
+            <p className="muted">Package</p>
+            <p><code>{selected.package_name}</code></p>
+            <p>
+              {selected.is_enabled
+                ? "Activée : le téléphone peut la proposer dans la surveillance."
+                : "Désactivée : elle reste dans le catalogue, mais n’est plus proposée."}
+            </p>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn"
+                disabled={busyId === selected.id}
+                onClick={() => toggle(selected)}
+              >
+                {selected.is_enabled ? "Désactiver" : "Activer"}
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                disabled={busyId === selected.id}
+                onClick={() => setDeleteId(selected.id)}
+              >
+                Retirer du catalogue
+              </button>
             </div>
-          )}
-        </div>
-        <ConfirmDialog
-          open={deleteId !== null}
-          title="Supprimer l’application ?"
-          message="Elle ne sera plus disponible dans le catalogue des applications surveillables."
-          confirmLabel="Supprimer"
-          danger
-          busy={busyId === deleteId}
-          onCancel={() => setDeleteId(null)}
-          onConfirm={() => remove(deleteId)}
-        />
-      </div>
+          </>
+        ) : null}
+      </DetailSheet>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Retirer cette application ?"
+        message="Elle ne sera plus proposée dans la surveillance. Les téléphones déjà configurés gardent leur réglage local."
+        confirmLabel="Retirer"
+        danger
+        busy={busyId === deleteId}
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => remove(deleteId)}
+      />
     </div>
   );
 }

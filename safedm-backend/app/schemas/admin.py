@@ -202,6 +202,7 @@ class AdminOperationsOverview(BaseModel):
 
 class AdminPatchActionRequest(BaseModel):
     version: str = Field(min_length=1, max_length=128)
+    rollout_percentage: int = Field(default=5, ge=1, le=100)
 
 
 class AdminTenantPolicyRequest(BaseModel):

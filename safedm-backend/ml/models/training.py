@@ -194,6 +194,7 @@ def train_and_export(
         "metrics": metrics,
         "samples": len(texts),
         "model_version": MODEL_VERSION,
+        "public_key_hex": public_key.hex(),
     }
 
     if register:

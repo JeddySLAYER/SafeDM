@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { PageHeader, Spinner, Alert } from "../components/ui";
+import { PageHeader, Spinner, Alert, Field } from "../components/ui";
 import { getLegalDocuments, updateLegalDocument } from "../services/adminApi";
 
 export default function PoliciesPage() {
@@ -60,37 +60,31 @@ export default function PoliciesPage() {
       />
       {error ? <Alert tone="error">{error}</Alert> : null}
       {message ? <Alert tone="ok">{message}</Alert> : null}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div className="form-actions">
         {docs.map((doc) => (
           <button
             key={doc.slug}
             type="button"
-            className={doc.slug === selected ? "btn" : "btn ghost"}
+            className={doc.slug === selected ? "btn primary" : "btn ghost"}
             onClick={() => apply(docs, doc.slug)}
           >
             {doc.title}
           </button>
         ))}
       </div>
-      <form onSubmit={onSave} className="card" style={{ padding: 16 }}>
-        <p style={{ marginTop: 0 }}>Version actuelle : {version}</p>
-        <label>
-          Titre
+      <form onSubmit={onSave} className="panel form-grid">
+        <p className="muted">Version actuelle : {version}</p>
+        <Field label="Titre">
           <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </label>
-        <label>
-          Texte
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={16}
-            required
-            style={{ width: "100%", marginTop: 8 }}
-          />
-        </label>
-        <button className="btn" type="submit" disabled={saving} style={{ marginTop: 12 }}>
-          {saving ? "Enregistrement…" : "Enregistrer"}
-        </button>
+        </Field>
+        <Field label="Texte affiché dans l’application">
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={16} required />
+        </Field>
+        <div className="form-actions">
+          <button className="btn primary" type="submit" disabled={saving}>
+            {saving ? "Enregistrement…" : "Enregistrer"}
+          </button>
+        </div>
       </form>
     </div>
   );

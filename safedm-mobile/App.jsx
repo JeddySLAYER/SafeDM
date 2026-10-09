@@ -7,7 +7,6 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { LinkGateProvider } from "./src/context/LinkGateContext";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme/tokens";
-import { updateModelFromManifest } from "./src/services/modelUpdate";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden or unavailable in Jest / bare tests.
@@ -18,20 +17,8 @@ export default function App() {
     let cancelled = false;
 
     async function bootstrap() {
-      try {
-        await updateModelFromManifest();
-      } catch (error) {
-        // The bundled model keeps the app fully functional when offline.
-        if (__DEV__ && process.env.NODE_ENV !== "test") {
-          console.warn(
-            "Model update unavailable; bundled model retained",
-            error?.message
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          SplashScreen.hideAsync().catch(() => {});
-        }
+      if (!cancelled) {
+        SplashScreen.hideAsync().catch(() => {});
       }
     }
 

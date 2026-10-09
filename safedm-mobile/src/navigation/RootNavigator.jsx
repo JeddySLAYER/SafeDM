@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Text, View } from "react-native";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import * as ExpoLinking from "expo-linking";
 import { useAuth } from "../context/AuthContext";
@@ -13,6 +13,8 @@ import PolicyConsentHost from "../components/PolicyConsentHost";
 import OfflineBanner from "../components/OfflineBanner";
 import SplashView from "../components/SplashView";
 import { isIgnorableLaunchUrl } from "../utils/launchUrl";
+import { confirmDialog } from "../services/appDialog";
+import { offerModelUpdate } from "../services/modelUpdate";
 import AppStack from "./AppTabs";
 import AuthStack from "./AuthStack";
 
@@ -95,6 +97,45 @@ function LinkIntentBridge() {
   return null;
 }
 
+function ModelUpdateBridge() {
+  const { token } = useAuth();
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    if (!token) return undefined;
+    let cancelled = false;
+    offerModelUpdate({
+      ask: () =>
+        confirmDialog({
+          title: "Mise à jour du modèle",
+          message: "Un patch est prêt sur le serveur. Le téléphone peut le recevoir maintenant.",
+          confirmLabel: "Mettre à jour",
+          cancelLabel: "Plus tard",
+        }),
+      onStart: () => {
+        if (!cancelled) setStatus("Mise à jour du modèle en cours");
+      },
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setStatus(result?.updated ? "" : "");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  if (!status) return null;
+  return (
+    <View style={{ backgroundColor: "#1769d4", paddingVertical: 8, paddingHorizontal: 16 }}>
+      <Text style={{ color: "#fff", fontWeight: "700" }}>{status}</Text>
+    </View>
+  );
+}
+
 export default function RootNavigator() {
   const { bootstrapping, isAuthenticated } = useAuth();
 
@@ -105,6 +146,7 @@ export default function RootNavigator() {
   return (
     <View style={{ flex: 1 }}>
       <OfflineBanner />
+      <ModelUpdateBridge />
       <AppDialogHost />
       <PolicyConsentHost />
       <NavigationContainer ref={navigationRef}>
