@@ -94,6 +94,10 @@ export function withdrawReport(id) {
   return apiRequest(`/admin/reports/${id}`, { method: "DELETE" });
 }
 
+export function getReport(id) {
+  return apiRequest(`/admin/reports/${id}`);
+}
+
 export function getUsers({ page = 1, pageSize = 20 } = {}) {
   return apiRequest(`/admin/users?page=${page}&page_size=${pageSize}`);
 }
@@ -204,4 +208,11 @@ export function updateLegalDocument(slug, payload) {
 
 export function promoteMlRun(id) {
   return apiRequest(`/admin/ml/runs/${id}/promote`, { method: "POST" });
+}
+
+export function tryMlMessage({ message, run_id = null }) {
+  return apiRequest("/admin/ml/try", {
+    method: "POST",
+    body: { message, run_id },
+  });
 }

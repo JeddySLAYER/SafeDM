@@ -108,9 +108,9 @@ function getHelpContent(pathname) {
       title: "Comprendre les opérations",
       sections: [
         { title: "Patches & canary", body: "Un patch est une version de modèle. Le pourcentage Canary indique la part du trafic qui le teste. Approuver valide son déploiement ; Rollback revient à la version précédente. Pas besoin de Play Store staged rollout pour l’instant." },
-        { title: "Agrégation", body: "L’agrégation prépare des métriques anonymisées pour le prochain cycle de modèle. Demander une agrégation crée une demande ; cela ne lance pas encore le job Cloud Run automatiquement." },
-        { title: "Seuils", body: "Les scores vont de 0 à 100 et doivent rester dans l’ordre sûr < suspect < critique. La confiance d’escalade est une valeur entre 0 et 1." },
-        { title: "Rétention & audit", body: "La rétention indique les signatures candidates au nettoyage. Le journal d’audit garde la trace des actions sensibles des administrateurs." },
+        { title: "Agrégation", body: "Agrège les signalements et menaces anonymes des 7 derniers jours vers un manifeste policy (seuils + statistiques). Cette action ne réentraîne pas les poids du modèle." },
+        { title: "Seuils", body: "Une politique = seuils d’analyse cloud (0–100) pour une entreprise (tenant_key) et une région. Quand le client envoie ce tenant_key à /analysis, ces seuils remplacent les seuils globaux. Ordre : sûr < suspect < critique. La confiance (0–1) empêche d’affirmer SAFE trop vite." },
+        { title: "Rétention & audit", body: "La rétention indique les signatures candidates au nettoyage. Le journal d’audit garde la trace des actions sensibles ; il est paginé pour rester lisible." },
       ],
     };
   }
@@ -118,10 +118,12 @@ function getHelpContent(pathname) {
     return {
       title: "Du jeu de données au téléphone",
       sections: [
-        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages déjà étiquetés : message et expected (bénin ou malveillant). « Envoyer le dataset » les enregistre. « Jeu intégré » importe les exemples livrés avec le projet. L’aperçu montre les premiers messages, il ne lance rien." },
-        { title: "2. Lancer l’entraînement", body: "« Lancer l’entraînement » calcule un modèle sur le jeu choisi et écrit les métriques (faux positifs, rappel). Un run « publiable » a passé les seuils. Un gros volume se lance plutôt avec le workflow GitHub train-model." },
-        { title: "3. Pousser vers le canary", body: "« Pousser vers le canary » copie le modèle réussi dans le manifeste du serveur. Les téléphones ne changent pas encore tous. La case « promouvoir si publiable » fait cette copie dès la fin du train, seulement si les métriques sont acceptables." },
-        { title: "4. Activer dans Opérations", body: "Dans Déploiement du modèle, choisis le pourcentage puis Approuver. Sous 100 %, le téléphone ne télécharge le modèle que s’il tombe dans cette part. À 100 %, tout le monde le reçoit. Rollback retire le modèle. Le fichier doit avoir une URL https et une signature, sinon le téléphone le refuse." },
+        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages étiquetés : message et expected (bénin ou malveillant). L’onglet Ajouter importe CSV/JSON, permet de choisir les colonnes et de corriger les étiquettes. FastText reste un outil de parité/tests, pas le pipeline canary." },
+        { title: "2. Lancer l’entraînement", body: "Calcule un patch JSON à poids entiers (même format que le téléphone en OTA) et des métriques. Un run « publiable » exige rappel ≥ 60 % et faux positifs ≤ 10 % au seuil opérationnel." },
+        { title: "Métriques clés", body: "Rappel = menaces correctement détectées. Faux positifs = messages sains alertés à tort. Précision = part des alertes vraiment dangereuses. Faux négatifs = menaces manquées. La matrice TN/FP/FN/TP compte ces cas. CV folds = plis de validation croisée (pas le score d’entraînement)." },
+        { title: "Caractéristiques (features)", body: "Chaque message devient ~50 signaux entiers (URL suspecte, urgence, OTP, etc.). Le modèle pondère ces features. L’onglet Tester montre celles qui poussent le plus le score." },
+        { title: "Tester en local", body: "Onglet Tester : coller un SMS et évaluer contre un run ou le manifeste canary. C’est la décision entière du patch JSON, pas le TFLite float bundlé dans l’APK. En CLI : cd safedm-backend && make evaluate." },
+        { title: "Pousser puis activer", body: "« Pousser vers le canary » met le modèle à 0 % (en attente). Dans Opérations, Approuver avec un % pour l’envoyer aux téléphones. Rollback le retire." },
       ],
     };
   }

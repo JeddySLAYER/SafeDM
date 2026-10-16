@@ -4,12 +4,14 @@ import {
   BrainCircuit,
   CloudUpload,
   FlaskConical,
+  MessageSquareText,
   Play,
   RefreshCw,
   Rocket,
 } from "lucide-react";
 import {
   Alert,
+  BusyButton,
   CheckboxField,
   DetailSheet,
   EmptyState,
@@ -17,6 +19,8 @@ import {
   PageHeader,
   Spinner,
 } from "../components/ui";
+import { useToast } from "../context/ToastContext";
+import { DATASET_COLUMN_ALIASES, normalizeDatasetRows, parseDatasetFile, suggestColumn } from "../utils/datasetImport";
 import {
   createMlDataset,
   getMlDataset,
@@ -26,9 +30,11 @@ import {
   promoteMlRun,
   seedBuiltinMlDataset,
   startMlTrain,
+  tryMlMessage,
 } from "../services/adminApi";
 
 export default function TrainingPage() {
+  const { toast } = useToast();
   const [datasets, setDatasets] = useState([]);
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
@@ -38,13 +44,25 @@ export default function TrainingPage() {
   const [processOpen, setProcessOpen] = useState(false);
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
+  const [importRows, setImportRows] = useState(null);
+  const [importColumns, setImportColumns] = useState([]);
+  const [messageColumn, setMessageColumn] = useState("");
+  const [labelColumn, setLabelColumn] = useState("");
+  const [importError, setImportError] = useState("");
+  const [importPage, setImportPage] = useState(0);
   const [promoteCanary, setPromoteCanary] = useState(false);
+  const [tryText, setTryText] = useState(
+    "URGENT: votre compte bancaire est suspendu. Cliquez https://bit.ly/verify-now",
+  );
+  const [tryResult, setTryResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
     setError("");
+    setBusyAction("refresh");
     try {
       const [d, r] = await Promise.all([listMlDatasets(), listMlRuns()]);
       setDatasets(d.items || []);
@@ -54,6 +72,7 @@ export default function TrainingPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+      setBusyAction("");
     }
   }, []);
 
@@ -61,124 +80,166 @@ export default function TrainingPage() {
     refresh();
   }, [refresh]);
 
-  async function onUpload(e) {
-    e.preventDefault();
+  async function runAction(actionKey, action, successMessage) {
     setBusy(true);
+    setBusyAction(actionKey);
     setError("");
     try {
-      const created = await createMlDataset({
-        name: name || `upload-${Date.now()}`,
-        content,
-        source: "upload",
-      });
+      const result = await action();
+      if (successMessage) toast(successMessage);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      toast(err.message, "error");
+      throw err;
+    } finally {
+      setBusy(false);
+      setBusyAction("");
+    }
+  }
+
+  async function onUpload(e) {
+    e.preventDefault();
+    try {
+      const created = await runAction("upload", () =>
+        createMlDataset({
+          name: name || `upload-${Date.now()}`,
+          content: importRows ? JSON.stringify(validImportRows.map(({ message, expected }) => ({ message, expected }))) : content,
+          source: "upload",
+        }),
+      "Dataset enregistré");
       setName("");
       setContent("");
+      setImportRows(null);
       setDatasetId(String(created.id));
       setTab("data");
       await refresh();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+    } catch {
+      /* toast already shown */
     }
   }
 
   async function onFile(file) {
     if (!file) return;
-    const text = await file.text();
-    setContent(text);
-    if (!name) setName(file.name.replace(/\.[^.]+$/, ""));
+    try {
+      const parsed = parseDatasetFile(file.name, await file.text());
+      setImportRows(parsed.rows);
+      setImportPage(0);
+      setImportColumns(parsed.columns);
+      setMessageColumn(suggestColumn(parsed.columns, DATASET_COLUMN_ALIASES.message));
+      setLabelColumn(suggestColumn(parsed.columns, DATASET_COLUMN_ALIASES.label));
+      setImportError("");
+      if (!name) setName(file.name.replace(/\.[^.]+$/, ""));
+    } catch (err) { setImportError(err.message || "Fichier illisible"); setImportRows(null); }
   }
 
+  const normalizedRows = importRows ? normalizeDatasetRows(importRows, messageColumn, labelColumn) : [];
+  const validImportRows = normalizedRows.filter((row) => row.valid);
+  const importPageSize = 50;
+  const importPageRows = normalizedRows.slice(importPage * importPageSize, (importPage + 1) * importPageSize);
+
   async function onSeed() {
-    setBusy(true);
-    setError("");
     try {
-      const created = await seedBuiltinMlDataset();
+      const created = await runAction("seed", () => seedBuiltinMlDataset(), "Jeu intégré importé");
       setDatasetId(String(created.id));
       setTab("data");
       await refresh();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+    } catch {
+      /* toast already shown */
     }
   }
 
   async function onTrain() {
     if (!datasetId) return;
-    setBusy(true);
-    setError("");
     try {
-      const run = await startMlTrain({
-        dataset_id: Number(datasetId),
-        promote_canary: promoteCanary,
-      });
+      const run = await runAction(
+        "train",
+        () =>
+          startMlTrain({
+            dataset_id: Number(datasetId),
+            promote_canary: promoteCanary,
+          }),
+        promoteCanary
+          ? "Entraînement terminé (canary si publiable)"
+          : "Entraînement terminé",
+      );
       setSelectedRun(run);
       setTab("runs");
       await refresh();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+    } catch {
+      /* toast already shown */
     }
   }
 
   async function openRun(id) {
-    setBusy(true);
-    setError("");
     try {
-      setSelectedRun(await getMlRun(id));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+      setSelectedRun(await runAction("open-run", () => getMlRun(id)));
+    } catch {
+      /* toast already shown */
     }
   }
 
   async function openDataset(id) {
-    setBusy(true);
-    setError("");
     setDatasetId(String(id));
     try {
-      setPreview(await getMlDataset(id));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+      setPreview(await runAction("open-dataset", () => getMlDataset(id)));
+    } catch {
+      /* toast already shown */
     }
   }
 
   async function onPromote(id) {
-    setBusy(true);
-    setError("");
     try {
-      await promoteMlRun(id);
+      await runAction("promote", () => promoteMlRun(id), "Modèle poussé en canary (0 %)");
       setSelectedRun(await getMlRun(id));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+      toast("Ouvrez Opérations pour Approuver un pourcentage", "success");
+    } catch {
+      /* toast already shown */
+    }
+  }
+
+  async function onTry() {
+    try {
+      const result = await runAction(
+        "try",
+        () =>
+          tryMlMessage({
+            message: tryText,
+            run_id: selectedRun?.id || null,
+          }),
+        "Évaluation terminée",
+      );
+      setTryResult(result);
+    } catch {
+      setTryResult(null);
     }
   }
 
   const draftRows = parsePreview(content);
   const summary = selectedRun?.metrics_summary;
+  const fullMetrics = selectedRun?.metrics;
+  const operational = fullMetrics?.at_operational_threshold || summary;
 
   return (
     <div>
       <PageHeader
         title="Entraînement"
-        subtitle="Préparez un jeu de messages, entraînez le modèle, puis activez-le depuis Opérations."
+        subtitle="Préparez un jeu, entraînez, testez un message, puis activez depuis Opérations."
         actions={
           <>
             <button type="button" className="btn ghost" onClick={() => setProcessOpen(true)}>
               Comment ça marche
             </button>
-            <button type="button" className="btn ghost" onClick={refresh} disabled={busy || loading}>
+            <BusyButton
+              className="btn ghost"
+              busy={busyAction === "refresh"}
+              busyLabel="Actualisation…"
+              onClick={refresh}
+              disabled={busy || loading}
+            >
               <RefreshCw size={16} aria-hidden />
               Actualiser
-            </button>
+            </BusyButton>
           </>
         }
       />
@@ -191,6 +252,7 @@ export default function TrainingPage() {
           <Tab id="add" current={tab} onSelect={setTab} icon={FlaskConical} title="Ajouter" hint="Importer un fichier" />
           <Tab id="train" current={tab} onSelect={setTab} icon={BrainCircuit} title="Entraîner" hint="Calculer le modèle" />
           <Tab id="runs" current={tab} onSelect={setTab} icon={Play} title="Résultats" hint="Métriques et canary" />
+          <Tab id="try" current={tab} onSelect={setTab} icon={MessageSquareText} title="Tester" hint="Message → verdict" />
         </div>
 
         {loading ? <Spinner label="Chargement…" /> : null}
@@ -201,35 +263,53 @@ export default function TrainingPage() {
 
         {!loading && tab === "add" ? (
           <form className="form-grid" onSubmit={onUpload}>
-            <p className="panel-note">
-              Envoyer enregistre le jeu. Le bouton « Jeu intégré » importe les exemples livrés avec SafeDM.
-            </p>
-            <Field label="Nom">
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="sms-tg-v1" />
+            <Field label="Nom du jeu">
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ex. phishing-mars" />
             </Field>
-            <Field label="Fichier JSON ou CSV" hint="Le fichier remplit le contenu. Rien n’est envoyé tant que vous n’avez pas cliqué sur Envoyer.">
-              <input
-                type="file"
-                accept=".json,.csv,application/json,text/csv"
-                onChange={(e) => onFile(e.target.files?.[0])}
-              />
+            <Field
+              label="Fichier JSON ou CSV"
+              hint="JSON: liste {message, expected}. CSV: colonnes message,expected."
+            >
+              <input type="file" accept=".json,.csv,text/csv,application/json" onChange={(e) => onFile(e.target.files?.[0])} />
             </Field>
-            <Field label="Contenu" hint="Chaque exemple a un message et une étiquette expected.">
+            {importError ? <Alert tone="error">{importError}</Alert> : null}
+            {importRows ? (
+              <>
+                <div className="form-grid">
+                  <Field label="message ← colonne"><select value={messageColumn} onChange={(e) => setMessageColumn(e.target.value)}>{importColumns.map((col) => <option key={col}>{col}</option>)}</select></Field>
+                  <Field label="expected ← colonne"><select value={labelColumn} onChange={(e) => setLabelColumn(e.target.value)}>{importColumns.map((col) => <option key={col}>{col}</option>)}</select></Field>
+                </div>
+                <p className="muted">{normalizedRows.length} lignes non vides · {validImportRows.length} valides · {normalizedRows.length - validImportRows.length} étiquettes à corriger</p>
+                <div className="table-wrap"><table><thead><tr><th>Message</th><th>Étiquette normalisée</th><th>État</th></tr></thead><tbody>{importPageRows.map((row) => <tr key={row.index}><td>{row.message}</td><td><select value={row.expected === "legitimate" || row.expected === "malicious" ? row.expected : ""} onChange={(e) => setImportRows(importRows.map((item, index) => index === row.index ? { ...item, [labelColumn]: e.target.value } : item))}><option value="">Choisir…</option><option value="legitimate">Bénin</option><option value="malicious">Malveillant</option></select></td><td>{row.valid ? "Prêt" : "À vérifier"}</td></tr>)}</tbody></table></div>
+                {normalizedRows.length > importPageSize ? <div className="pager"><button type="button" className="btn ghost" disabled={importPage === 0} onClick={() => setImportPage((page) => page - 1)}>Précédent</button><span>Page {importPage + 1} / {Math.ceil(normalizedRows.length / importPageSize)}</span><button type="button" className="btn ghost" disabled={(importPage + 1) * importPageSize >= normalizedRows.length} onClick={() => setImportPage((page) => page + 1)}>Suivant</button></div> : null}
+              </>
+            ) : null}
+            <Field label="Contenu">
               <textarea
-                rows={8}
+                rows={10}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => { setContent(e.target.value); setImportRows(null); }}
                 placeholder='[{"message":"…","expected":"phishing"}]'
               />
             </Field>
-            <SamplePreview rows={draftRows} empty="Collez ou importez un fichier pour voir les premiers messages." />
+            {draftRows.length ? (
+              <>
+                <p className="muted">Aperçu ({draftRows.length} premières lignes)</p>
+                <SamplePreview rows={draftRows} empty="" />
+              </>
+            ) : null}
             <div className="form-actions">
-              <button type="submit" className="btn primary" disabled={busy || !content.trim()}>
-                Envoyer le dataset
-              </button>
-              <button type="button" className="btn ghost" onClick={onSeed} disabled={busy}>
-                <FlaskConical size={16} aria-hidden /> Jeu intégré
-              </button>
+              <BusyButton type="submit" busy={busyAction === "upload"} busyLabel="Envoi…" disabled={importRows ? validImportRows.length === 0 : !content.trim()}>
+                <CloudUpload size={16} aria-hidden /> Envoyer le dataset
+              </BusyButton>
+              <BusyButton
+                className="btn ghost"
+                busy={busyAction === "seed"}
+                busyLabel="Import…"
+                onClick={onSeed}
+              >
+                Jeu intégré
+              </BusyButton>
             </div>
           </form>
         ) : null}
@@ -237,16 +317,14 @@ export default function TrainingPage() {
         {!loading && tab === "train" ? (
           <div className="form-grid">
             <p className="panel-note">
-              Ce bouton entraîne le modèle sur le jeu choisi. Il ne change pas les téléphones.
-              La case ci-dessous copie le résultat vers le canary seulement s’il est publiable.
-              Ensuite, <Link to="/operations">Opérations</Link> décide qui le reçoit.
+              L’entraînement produit un patch JSON à poids entiers — c’est ce que le téléphone utilise en OTA.
+              La case ci-dessous le copie vers le canary à 0 % seulement s’il est publiable.
             </p>
-            <Field label="Dataset utilisé">
+            <Field label="Dataset">
               <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)}>
-                <option value="">Choisir un dataset</option>
                 {datasets.map((d) => (
                   <option key={d.id} value={d.id}>
-                    #{d.id} {d.name}
+                    #{d.id} {d.name} ({d.sample_count})
                   </option>
                 ))}
               </select>
@@ -257,15 +335,59 @@ export default function TrainingPage() {
               onChange={(e) => setPromoteCanary(e.target.checked)}
             />
             <div className="form-actions">
-              <button type="button" className="btn primary" onClick={onTrain} disabled={busy || !datasetId}>
+              <BusyButton
+                busy={busyAction === "train"}
+                busyLabel="Entraînement…"
+                onClick={onTrain}
+                disabled={!datasetId}
+              >
                 <Play size={16} aria-hidden /> Lancer l’entraînement
-              </button>
+              </BusyButton>
             </div>
           </div>
         ) : null}
 
         {!loading && tab === "runs" ? (
           <RunList runs={runs} selectedId={selectedRun?.id} onOpen={openRun} />
+        ) : null}
+
+        {!loading && tab === "try" ? (
+          <div className="form-grid">
+            <p className="panel-note">
+              Teste le <strong>patch JSON entier</strong> (même math que l’app après mise à jour OTA).
+              Ce n’est pas le fichier TFLite bundlé. Sans run sélectionné, le manifeste canary du serveur est utilisé.
+              En CLI : <code>make evaluate</code> dans <code>safedm-backend</code>.
+            </p>
+            <Field label="Run à évaluer (optionnel)">
+              <select
+                value={selectedRun?.id || ""}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  if (id) openRun(id);
+                  else setSelectedRun(null);
+                }}
+              >
+                <option value="">Manifeste canary actuel</option>
+                {runs
+                  .filter((r) => r.status === "succeeded")
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      Run #{r.id}
+                      {r.publishable ? " · publiable" : ""}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            <Field label="Message à classer">
+              <textarea rows={5} value={tryText} onChange={(e) => setTryText(e.target.value)} />
+            </Field>
+            <div className="form-actions">
+              <BusyButton busy={busyAction === "try"} busyLabel="Évaluation…" onClick={onTry} disabled={!tryText.trim()}>
+                <MessageSquareText size={16} aria-hidden /> Évaluer le message
+              </BusyButton>
+            </div>
+            {tryResult ? <TryResultCard result={tryResult} /> : null}
+          </div>
         ) : null}
       </div>
 
@@ -287,22 +409,29 @@ export default function TrainingPage() {
             <span className="process-num">2</span>
             <div>
               <strong>Lancer l’entraînement</strong>
-              <p>Produit des métriques. Un run publiable a passé les seuils.</p>
+              <p>Produit des métriques. Un run publiable a passé les seuils (rappel ≥ 60 %, faux positifs ≤ 10 %).</p>
             </div>
           </li>
           <li>
             <span className="process-num">3</span>
             <div>
-              <strong>Pousser vers le canary</strong>
-              <p>Copie le modèle dans le manifeste du serveur. Les téléphones ne basculent pas encore.</p>
+              <strong>Tester</strong>
+              <p>Onglet Tester : un message → verdict du patch entier (comme le téléphone après OTA).</p>
             </div>
           </li>
           <li>
             <span className="process-num">4</span>
             <div>
+              <strong>Pousser vers le canary</strong>
+              <p>Copie le modèle dans le manifeste à 0 %. Les téléphones ne basculent pas encore.</p>
+            </div>
+          </li>
+          <li>
+            <span className="process-num">5</span>
+            <div>
               <strong>Activer dans Opérations</strong>
               <p>
-                <Link to="/operations">Opérations</Link> choisit le pourcentage d’appareils. En dessous de 100 %, seul ce pourcentage vérifie le nouveau modèle. À 100 %, tout le monde le reçoit. Rollback l’arrête.
+                <Link to="/operations">Opérations</Link> choisit le pourcentage d’appareils.
               </p>
             </div>
           </li>
@@ -320,14 +449,9 @@ export default function TrainingPage() {
             <p className="muted">
               {preview.sample_count} exemples · {preview.benign_count} bénins · {preview.malicious_count} malveillants
             </p>
-            <SamplePreview
-              rows={preview.preview || []}
-              empty="Aucun exemple à afficher."
-            />
+            <SamplePreview rows={preview.preview || []} empty="Aucun exemple à afficher." />
             <div className="form-actions">
-              <button
-                type="button"
-                className="btn primary"
+              <BusyButton
                 onClick={() => {
                   setDatasetId(String(preview.id));
                   setPreview(null);
@@ -335,14 +459,14 @@ export default function TrainingPage() {
                 }}
               >
                 Entraîner avec ce jeu
-              </button>
+              </BusyButton>
             </div>
           </>
         ) : null}
       </DetailSheet>
 
       <DetailSheet
-        open={Boolean(selectedRun)}
+        open={Boolean(selectedRun) && tab !== "try"}
         title={selectedRun ? `Run #${selectedRun.id}` : "Run"}
         eyebrow="Résultat d’entraînement"
         onClose={() => setSelectedRun(null)}
@@ -353,12 +477,12 @@ export default function TrainingPage() {
               Statut : <strong>{selectedRun.status}</strong>
               {selectedRun.publishable ? " · publiable" : " · non publiable"}
             </p>
+            <MetricsPanel operational={operational} metrics={fullMetrics} publishable={selectedRun.publishable} />
             <p className="panel-note">
-              Pousser vers le canary met ce modèle dans le manifeste du serveur.
-              Pour l’envoyer à une partie des téléphones, ouvrez <Link to="/operations">Opérations</Link> et approuvez un pourcentage.
+              Pousser vers le canary met ce modèle dans le manifeste à 0 % (en attente).
+              Ensuite, dans <Link to="/operations">Opérations</Link>, Approuver avec un pourcentage.
             </p>
             {selectedRun.error_message ? <Alert tone="error">{selectedRun.error_message}</Alert> : null}
-            {summary ? <pre className="log-box">{JSON.stringify(summary, null, 2)}</pre> : null}
             {selectedRun.log_text ? (
               <>
                 <h3 className="stack-top">Journal</h3>
@@ -367,14 +491,112 @@ export default function TrainingPage() {
             ) : null}
             {selectedRun.status === "succeeded" ? (
               <div className="form-actions">
-                <button type="button" className="btn primary" disabled={busy} onClick={() => onPromote(selectedRun.id)}>
+                <BusyButton
+                  busy={busyAction === "promote"}
+                  busyLabel="Envoi canary…"
+                  onClick={() => onPromote(selectedRun.id)}
+                >
                   <Rocket size={16} aria-hidden /> Pousser vers le canary
-                </button>
+                </BusyButton>
+                <BusyButton
+                  className="btn ghost"
+                  onClick={() => {
+                    setTab("try");
+                  }}
+                >
+                  <MessageSquareText size={16} aria-hidden /> Tester un message
+                </BusyButton>
               </div>
             ) : null}
           </>
         ) : null}
       </DetailSheet>
+    </div>
+  );
+}
+
+function MetricsPanel({ operational, metrics, publishable }) {
+  if (!operational && !metrics) {
+    return <p className="muted">Pas encore de métriques pour ce run.</p>;
+  }
+  const cards = [
+    {
+      label: "Rappel",
+      value: formatRate(operational?.recall),
+      hint: "Part des vrais messages malveillants correctement détectés. Objectif ≥ 60 % pour publier.",
+    },
+    {
+      label: "Faux positifs",
+      value: formatRate(operational?.false_positive_rate),
+      hint: "Part des messages bénins classés à tort comme menaces. Objectif ≤ 10 % pour publier.",
+    },
+    {
+      label: "Précision",
+      value: formatRate(operational?.precision),
+      hint: "Parmi les alertes, part qui sont vraiment malveillantes.",
+    },
+    {
+      label: "Faux négatifs",
+      value: formatRate(operational?.false_negative_rate),
+      hint: "Menaces manquées. Plus bas = mieux.",
+    },
+    {
+      label: "Publiable",
+      value: publishable ? "Oui" : "Non",
+      hint: "Seuils opérationnels atteints (rappel + faux positifs).",
+    },
+    {
+      label: "CV folds",
+      value: metrics?.cv_folds ?? "—",
+      hint: "Nombre de plis de validation croisée utilisés pour estimer les métriques.",
+    },
+  ];
+  return (
+    <>
+      <div className="metrics-grid">
+        {cards.map((card) => (
+          <article className="metric-card" key={card.label}>
+            <span className="muted">{card.label}</span>
+            <strong>{card.value}</strong>
+            <small>{card.hint}</small>
+          </article>
+        ))}
+      </div>
+      {operational?.confusion ? (
+        <p className="muted">
+          Matrice (seuil opérationnel) — TN {operational.confusion.tn} · FP {operational.confusion.fp} · FN{" "}
+          {operational.confusion.fn} · TP {operational.confusion.tp}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function TryResultCard({ result }) {
+  return (
+    <div className={`try-result ${result.malicious ? "is-bad" : "is-ok"}`}>
+      <p>
+        Verdict : <strong>{result.malicious ? "Malveillant" : "Bénin"}</strong>
+      </p>
+      <p className="muted">
+        Score {result.score} (seuil {result.threshold_score}) · source {result.source}
+      </p>
+      <p className="muted">{result.note}</p>
+      {result.top_features?.length ? (
+        <>
+          <h3 className="stack-top">Features les plus contributives</h3>
+          <ul className="sample-list">
+            {result.top_features.map((f) => (
+              <li key={f.name} className="sample-row">
+                <span className="pill soft">{f.name}</span>
+                <p>
+                  valeur {f.value} · poids {f.weight} · contribution {f.contribution}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -448,7 +670,8 @@ function RunList({ runs, selectedId, onOpen }) {
               {r.publishable ? " · publiable" : ""}
               {r.metrics_summary ? (
                 <small>
-                  Faux positifs {r.metrics_summary.false_positive_rate} · rappel {r.metrics_summary.recall}
+                  Faux positifs {formatRate(r.metrics_summary.false_positive_rate)} · rappel{" "}
+                  {formatRate(r.metrics_summary.recall)}
                 </small>
               ) : null}
             </span>
@@ -474,8 +697,14 @@ function SamplePreview({ rows, empty }) {
   );
 }
 
+function formatRate(value) {
+  if (value == null || Number.isNaN(Number(value))) return "N/D";
+  return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
 function isBenign(label) {
-  return ["benign", "safe", "ham", "ok", "legit"].includes(String(label || "").toLowerCase());
+  const value = String(label || "").toLowerCase();
+  return ["benign", "safe", "ham", "ok", "legit", "legitimate", "benign_marketing"].includes(value);
 }
 
 function parsePreview(raw) {

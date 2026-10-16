@@ -103,9 +103,9 @@ export default function ThreatDetailPage() {
       <div className="grid-2">
         <div className="panel">
           <h2>Contenu</h2>
-          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{threat.content}</p>
+          {threat.content_available || threat.content ? <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{threat.content}</p> : <Alert>Contenu non stocké (signalement par empreinte). La revue est limitée aux métadonnées disponibles.</Alert>}
           <p className="muted" style={{ marginTop: 12, fontSize: "0.8rem" }}>
-            raw: {threat.raw_hash?.slice(0, 16)}… · norm:{" "}
+            Empreinte de similarité : {threat.similarity_hash || "—"} · raw: {threat.raw_hash?.slice(0, 16)}… · norm:{" "}
             {threat.normalized_hash?.slice(0, 16)}…
           </p>
           <p className="muted" style={{ fontSize: "0.8rem" }}>

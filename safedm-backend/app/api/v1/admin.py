@@ -6,6 +6,7 @@ from app.core.deps import get_current_admin
 from app.models import User
 from app.models.enums import ReportStatus, ThreatStatus
 from app.schemas.admin import (
+    AdminReportItem,
     AdminReportListResponse,
     AdminAggregationRunResponse,
     AdminFalsePositiveRequest,
@@ -34,7 +35,7 @@ from app.schemas.guide import (
 )
 from app.schemas.monitoring import ApplicationResponse
 from app.schemas.report import ReportResponse, ThreatResponse
-from app.schemas.ml_ops import MlDatasetCreateRequest, MlTrainStartRequest
+from app.schemas.ml_ops import MlDatasetCreateRequest, MlTrainStartRequest, MlTryMessageRequest
 from app.services.admin_service import AdminService
 from app.services.audit_service import record_access
 from app.services.guide_service import GuideService
@@ -227,6 +228,16 @@ def admin_withdraw_report(
 ):
     _ = current_admin
     return AdminService(db).withdraw_report(report_id)
+
+
+@router.get("/reports/{report_id}", response_model=AdminReportItem)
+def admin_get_report(
+    report_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return AdminService(db).get_report_detail(report_id)
 
 
 @router.get("/guide/categories", response_model=list[GuideCategoryResponse])
@@ -496,6 +507,24 @@ def admin_promote_train_run(
         action="ml_promote_canary",
         resource=str(run_id),
         purpose="Promote trained patch to canary manifest",
+    )
+    db.commit()
+    return result
+
+
+@router.post("/ml/try")
+def admin_try_ml_message(
+    payload: MlTryMessageRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).try_message(payload.message, run_id=payload.run_id)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_try_message",
+        resource=str(payload.run_id) if payload.run_id is not None else "manifest",
+        purpose="Admin local patch score",
     )
     db.commit()
     return result

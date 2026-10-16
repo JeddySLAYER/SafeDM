@@ -152,7 +152,7 @@ export default function ThreatsPage() {
                       <td>{t.status}</td>
                       <td>{t.report_count}</td>
                       <td className="clip" title={t.content}>
-                        {t.content}
+                        {t.content || <span className="muted">Contenu non stocké (empreinte seule)</span>}
                       </td>
                       <td className="actions">
                         <button type="button" className="btn small" disabled={detailId === t.id && detailLoading} onClick={() => openDetail(t.id)}>

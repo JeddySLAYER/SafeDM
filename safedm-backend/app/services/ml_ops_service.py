@@ -14,9 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models.admin_operations import PatchDeployment
 from app.models.ml_ops import MlDataset, MlTrainRun
 from app.models.user import User
 
@@ -225,19 +227,112 @@ class MlOpsService:
         self._promote_artifact(path, pub)
         return {"ok": True, "manifest": get_settings().model_patch_manifest_path, "run_id": run.id}
 
+    def try_message(self, message: str, *, run_id: int | None = None) -> dict[str, Any]:
+        """Score a message with the integer patch (same math as the phone OTA path)."""
+        text = (message or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="message requis")
+
+        patch, source = self._load_scoring_patch(run_id)
+        quantized = patch.get("quantization") if isinstance(patch, dict) else None
+        if not isinstance(quantized, dict) or not isinstance(quantized.get("weights"), list):
+            raise HTTPException(status_code=404, detail="Patch sans poids quantifiés")
+
+        from app.utils.feature_extraction import FEATURE_NAMES, extract_features
+        from ml.models.training import score_from_quantized
+
+        features = [int(v) for v in extract_features(text)]
+        weights = quantized["weights"]
+        if len(weights) != len(features):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dimension incompatible: patch={len(weights)} features={len(features)}",
+            )
+        score = score_from_quantized(quantized, features)
+        threshold = int(quantized["threshold_score"])
+        malicious = score >= threshold
+
+        contributions = []
+        for name, weight, value in zip(FEATURE_NAMES, weights, features, strict=False):
+            contrib = int(weight) * int(value)
+            if value and contrib:
+                contributions.append(
+                    {"name": name, "value": int(value), "weight": int(weight), "contribution": contrib}
+                )
+        contributions.sort(key=lambda row: abs(row["contribution"]), reverse=True)
+
+        return {
+            "source": source,
+            "decision": "malicious" if malicious else "benign",
+            "malicious": malicious,
+            "score": score,
+            "threshold_score": threshold,
+            "model_version": patch.get("model_version"),
+            "feature_count": len(features),
+            "top_features": contributions[:8],
+            "note": (
+                "Décision entière identique au patch JSON OTA du téléphone. "
+                "Le TFLite bundlé (float32) est un fallback Expo, pas cet artefact."
+            ),
+        }
+
+    def _load_scoring_patch(self, run_id: int | None) -> tuple[dict[str, Any], str]:
+        if run_id is not None:
+            run = self.db.get(MlTrainRun, run_id)
+            if not run or not run.artifact_path:
+                raise HTTPException(status_code=404, detail="Run introuvable")
+            path = Path(run.artifact_path)
+            if not path.exists():
+                raise HTTPException(status_code=404, detail="Artefact disparu (FS éphémère?)")
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return raw, f"run:{run_id}"
+
+        path = Path(get_settings().model_patch_manifest_path)
+        if not path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="Aucun manifeste canary. Choisissez un run ou poussez un modèle d'abord.",
+            )
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded.get("patch"), dict):
+            return loaded["patch"], f"manifest:{loaded.get('version') or path.name}"
+        if isinstance(loaded, dict) and loaded.get("quantization"):
+            return loaded, f"manifest:{path.name}"
+        raise HTTPException(status_code=404, detail="Manifeste sans patch scorable")
+
     def _promote_artifact(self, artifact: Path, public_key_hex: str = "") -> None:
+        """Stage patch on disk at canary 0% until Operations approves a percentage."""
         raw = json.loads(artifact.read_text(encoding="utf-8"))
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        version = f"ml-{raw.get('model_version', 1)}-{digest[:12]}"
         wrapper = {
-            "version": f"ml-{raw.get('model_version', 1)}-{digest[:12]}",
+            "version": version,
             "artifact_sha256": digest,
             "public_key_hex": public_key_hex,
             "patch": raw,
-            "rollout": {"stage": "production", "percentage": 100},
+            # 0% until admin Approuver in Opérations (phones use hash % 100 < pct).
+            "rollout": {"stage": "canary", "percentage": 0},
         }
         target = Path(get_settings().model_patch_manifest_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(wrapper, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        deployment = self.db.scalar(
+            select(PatchDeployment).where(PatchDeployment.version == version)
+        )
+        if deployment is None:
+            deployment = PatchDeployment(
+                version=version,
+                status="CANARY",
+                rollout_percentage=0,
+            )
+            self.db.add(deployment)
+        else:
+            deployment.status = "CANARY"
+            deployment.rollout_percentage = 0
+            deployment.approved_by = None
+            deployment.approved_at = None
+        self.db.flush()
 
     @staticmethod
     def _dataset_public(row: MlDataset, *, include_preview: bool = False) -> dict[str, Any]:

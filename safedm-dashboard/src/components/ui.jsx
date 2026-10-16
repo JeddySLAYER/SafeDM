@@ -220,3 +220,21 @@ export function LoadingOverlay({ show, label = "Actualisation…" }) {
     </div>
   );
 }
+
+/** Primary/ghost/danger button with spinner while an async action runs. */
+export function BusyButton({
+  busy = false,
+  busyLabel,
+  children,
+  className = "btn primary",
+  type = "button",
+  disabled = false,
+  ...props
+}) {
+  return (
+    <button type={type} className={className} disabled={disabled || busy} {...props}>
+      {busy ? <span className="btn-spinner" aria-hidden /> : null}
+      {busy && busyLabel ? busyLabel : children}
+    </button>
+  );
+}

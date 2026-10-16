@@ -2,6 +2,8 @@
 
 API FastAPI pour SafeDM — analyse de messages suspects (Jev + VirusTotal), authentification, signalements communautaires et guide CMS.
 
+Le pipeline canary utilise des patches JSON à poids entiers (avec TFLite bundlé en fallback). FastText est conservé comme runtime de référence pour les tests de parité, pas comme modèle du chemin de production.
+
 ## Prérequis
 
 - Python 3.12+

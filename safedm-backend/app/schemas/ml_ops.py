@@ -11,3 +11,8 @@ class MlDatasetCreateRequest(BaseModel):
 class MlTrainStartRequest(BaseModel):
     dataset_id: int
     promote_canary: bool = False
+
+
+class MlTryMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    run_id: int | None = None

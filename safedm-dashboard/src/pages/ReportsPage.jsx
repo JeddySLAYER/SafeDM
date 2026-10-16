@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getReports, withdrawReport } from "../services/adminApi";
+import { Link } from "react-router-dom";
+import { getReport, getReports, getThreat, withdrawReport } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
@@ -8,6 +9,7 @@ import {
   Skeleton,
   Spinner,
   ConfirmDialog,
+  DetailSheet,
 } from "../components/ui";
 
 const STATUSES = ["ACTIVE", "WITHDRAWN"];
@@ -20,6 +22,8 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [withdrawId, setWithdrawId] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [threatDetail, setThreatDetail] = useState(null);
 
   const load = useCallback(async (page = 1, { soft = false } = {}) => {
     setError("");
@@ -61,7 +65,7 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Signalements"
-        subtitle="Supervision communautaire — retirez un signalement abusif ou erroné."
+        subtitle="File de revue communautaire — distinguez le contenu stocké des signalements par empreinte."
       />
 
       <div className="toolbar">
@@ -106,6 +110,7 @@ export default function ReportsPage() {
                     <th>Sévérité</th>
                     <th>Statut</th>
                     <th>Menace</th>
+                    <th>Contenu</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -124,8 +129,9 @@ export default function ReportsPage() {
                       </td>
                       <td>{r.status}</td>
                       <td className="clip" title={r.threat_preview}>
-                        #{r.threat_id} · {r.threat_preview}
+                        <button type="button" className="btn small ghost" onClick={async () => { setSelected(r); setThreatDetail(null); try { const report = await getReport(r.id); setSelected(report); setThreatDetail(await getThreat(report.threat_id)); } catch (err) { setError(err.message); } }}>#{r.threat_id} · Ouvrir</button>
                       </td>
+                      <td>{r.content_available ? r.threat_preview : <span className="muted">Contenu non stocké (empreinte)</span>}</td>
                       <td className="actions">
                         {r.status === "ACTIVE" ? (
                           <button
@@ -157,6 +163,9 @@ export default function ReportsPage() {
               onConfirm={() => onWithdraw(withdrawId)}
             />
           </div>
+      <DetailSheet open={Boolean(selected)} title={selected ? `Signalement #${selected.id}` : "Signalement"} eyebrow="Revue admin" onClose={() => { setSelected(null); setThreatDetail(null); }}>
+        {selected ? <div className="form-grid"><p><strong>Utilisateur :</strong> {selected.username} (#{selected.user_id}) · <strong>Source :</strong> {selected.source}</p><p><strong>Statut :</strong> {selected.status} · <strong>Sévérité :</strong> {selected.severity}</p><p><strong>Date :</strong> {new Date(selected.created_at).toLocaleString("fr-FR")}{selected.withdrawn_at ? ` · Retiré le ${new Date(selected.withdrawn_at).toLocaleString("fr-FR")}` : ""} · <strong>Signalements menace :</strong> {selected.report_count} · <strong>Score communauté :</strong> {selected.community_score}</p>{threatDetail?.content ? <div><h3>Contenu</h3><p style={{ whiteSpace: "pre-wrap" }}>{threatDetail.content}</p></div> : <Alert>Contenu non stocké (signalement par empreinte). Empreinte : {threatDetail?.similarity_hash || selected.similarity_hash || "indisponible"}</Alert>}<p>Faux positif : {selected.false_positive ? "Oui" : "Non"} · Menace #{selected.threat_id}</p><Link className="btn ghost" to={`/threats/${selected.threat_id}`}>Ouvrir la fiche menace</Link>{selected.status === "ACTIVE" ? <button type="button" className="btn danger" onClick={() => setWithdrawId(selected.id)}>Retirer ce signalement</button> : null}</div> : null}
+      </DetailSheet>
 
           <div className="pager">
             <button

@@ -63,7 +63,9 @@ export default function StatsPage() {
 
   const cards = [
     { label: "Utilisateurs", value: stats.users_count },
-    { label: "Signalements actifs", value: stats.reports_active_count },
+    { label: "Signalements actifs · file à revoir", value: stats.reports_active_count },
+    { label: "À revoir · contenu stocké", value: stats.reports_with_content_count ?? 0 },
+    { label: "À revoir · empreinte seule", value: stats.reports_fingerprint_only_count ?? 0 },
     { label: "Signalements retirés", value: stats.reports_withdrawn_count },
     { label: "Menaces actives", value: stats.threats_active_count },
     { label: "Sous revue", value: stats.threats_under_review_count ?? 0 },
