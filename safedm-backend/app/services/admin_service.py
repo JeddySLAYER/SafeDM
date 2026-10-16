@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import cast, Date, func, select
+from sqlalchemy import Date, cast, func, inspect, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -14,11 +14,12 @@ from app.models import (
     Device,
     GuideArticle,
     LinkGateEvent,
+    ModelDeviceReceipt,
+    PatchDeployment,
     SupportedApplication,
+    TenantPolicy,
     Threat,
     User,
-    PatchDeployment,
-    TenantPolicy,
 )
 from app.models.enums import ReportStatus, ThreatSeverity, ThreatStatus
 from app.repositories.monitoring_repository import ApplicationRepository, MonitoringRepository
@@ -29,8 +30,8 @@ from app.schemas.admin import (
     AdminReportItem,
     AdminReportListResponse,
     AdminStatsResponse,
-    AdminThreatItem,
     AdminThreatDetailResponse,
+    AdminThreatItem,
     AdminThreatListResponse,
     AdminThreatUrlDetail,
     AdminUserDetailResponse,
@@ -314,6 +315,14 @@ threats_under_review_count=threats_under_review,
             .order_by(AggregationRun.created_at.desc())
             .limit(1)
         )
+        receipt_counts = {}
+        if inspect(self.db.get_bind()).has_table(ModelDeviceReceipt.__tablename__):
+            receipt_counts = dict(
+                self.db.execute(
+                    select(ModelDeviceReceipt.version, func.count(ModelDeviceReceipt.id))
+                    .group_by(ModelDeviceReceipt.version)
+                ).all()
+            )
 
         if current_deployment:
             patch_status = current_deployment.status
@@ -330,6 +339,7 @@ threats_under_review_count=threats_under_review,
                 "suggested_canary_percent": suggested_canary,
                 "recall": metrics.get("recall"),
                 "false_positive_rate": metrics.get("false_positive_rate"),
+                "confirmed_receipts": int(receipt_counts.get(manifest_version, 0)) if manifest_version else 0,
             },
             "aggregation": {
                 "last_run": latest_aggregation.finished_at.isoformat()
@@ -391,6 +401,7 @@ threats_under_review_count=threats_under_review,
                     "status": item.status,
                     "rollout_percentage": item.rollout_percentage,
                     "approved_at": item.approved_at.isoformat() if item.approved_at else None,
+                    "confirmed_receipts": int(receipt_counts.get(item.version, 0)),
                 }
                 for item in self.db.scalars(
                     select(PatchDeployment).order_by(PatchDeployment.created_at.desc()).limit(10)

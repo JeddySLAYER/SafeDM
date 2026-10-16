@@ -288,6 +288,56 @@ L'entraînement local et le déploiement mobile sont deux étapes distinctes :
    Firebase (Auth → Storage) est planifié progressivement — JWT admin reste
    la source d'identité actuelle.
 
+### Diagnostic réel du TFLite mobile
+
+Dans un environnement de développement local, installez l’interpréteur optionnel puis
+redémarrez l’API : `cd safedm-backend && uv sync --extra local-eval`. Dans
+Entraînement → Diagnostic local, sélectionnez un dataset : l’API exécute le vrai
+`safedm-mobile/assets/models/safedm_v3.tflite`, retourne les probabilités brutes,
+les décisions de l’app, les erreurs par catégorie et la comparaison patch JSON.
+
+Pour comparer avec l’extracteur Kotlin et l’inférence du téléphone, utilisez un
+compte admin dans l’app Android de développement : Paramètres → Diagnostic du
+modèle local → même dataset → Exécuter. Collez le rapport copié dans le champ
+Android du dashboard. Le rapport vérifie l’ordre et le texte exact des exemples,
+les 50 features et le score TFLite. Un build Android de développement est requis
+pour cette fonction native. Le bouton TFLite du dashboard utilise le modèle
+bundlé et ignore volontairement le patch OTA pour tester ce fichier précis.
+
+Le fichier TFLite bundlé a été entraîné sur `data/processed/labeled_messages.json`.
+Le diagnostic détecte les correspondances exactes avec ce jeu et avertit si les
+métriques ne sont pas indépendantes. Un score sur les exemples d’entraînement
+ne mesure pas la généralisation.
+
+### Signature des patches et accusé de réception
+
+Les patches JSON OTA ne sont acceptés que si la signature ECDSA P-256 correspond
+à la clé publique épinglée dans le build mobile. Configurez
+`ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64` côté backend et
+`MODEL_PATCH_PUBLIC_KEY_HEX` côté mobile avec la même paire. La clé privée reste
+côté backend; une rotation de clé nécessite un nouveau build mobile. Sans clé
+publique mobile configurée, l’app garde le TFLite bundlé et refuse le patch.
+Après stockage réussi d’un patch vérifié, le téléphone envoie un accusé de
+réception authentifié. Opérations compte ces reçus sans enregistrer l’identifiant
+brut du téléphone. Appliquez la nouvelle migration avec `alembic upgrade head`.
+
+Pour créer une paire de développement, générez une clé P-256 et exportez la
+clé publique au format SEC1 non compressé attendu par l’app :
+
+```sh
+openssl ecparam -name prime256v1 -genkey -noout -out patch-signing-private.pem
+openssl ec -in patch-signing-private.pem -pubout -conv_form uncompressed -outform DER \
+  -out patch-signing-public.der
+```
+
+La valeur publique à épingler est le dernier point SEC1 de 65 octets dans le
+DER (préfixe SPKI de 26 octets retiré), encodé en hexadécimal. La valeur privée
+à mettre dans `ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64` est le contenu PEM encodé
+en Base64 (`base64 -w0 patch-signing-private.pem` sur Linux). Configurez la
+valeur publique comme `MODEL_PATCH_PUBLIC_KEY_HEX` avant le build Android.
+Conservez la clé privée hors du dépôt et ne réutilisez pas une clé de
+développement en production.
+
 Une politique tenant enregistrée dans Opérations est actuellement une
 configuration persistée et auditée. Elle n'est pas encore appliquée à la
 fusion d'analyse tant qu'un contexte tenant/région n'est pas fourni à

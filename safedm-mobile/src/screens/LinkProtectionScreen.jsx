@@ -5,7 +5,6 @@ import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
-import SetupSteps from "../components/SetupSteps";
 import { useAuth } from "../context/AuthContext";
 import {
   isDefaultBrowser,
@@ -57,7 +56,6 @@ export default function LinkProtectionScreen({ navigation, route }) {
 
   return (
     <Screen scroll style={{ backgroundColor: colors.canvas || "#F2F4F7" }}>
-      {onboarding ? <SetupSteps step={3} /> : null}
       <ScreenHeader
         title="Protection des liens"
         onBack={

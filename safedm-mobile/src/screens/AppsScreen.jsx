@@ -294,7 +294,10 @@ export default function AppsScreen({ navigation, route }) {
       }
 
       if (onboarding) {
-        navigation.replace("Permissions", { onboarding: true });
+        navigation.replace("BatteryOptimization", {
+          onboarding: true,
+          nlsSkipped: route?.params?.nlsSkipped === true,
+        });
       } else if (cloudOk) {
         navigation.goBack?.();
       }
@@ -356,7 +359,7 @@ export default function AppsScreen({ navigation, route }) {
         scroll
         contentStyle={{ paddingBottom: 96 + fabBottom }}
       >
-        {onboarding ? <SetupSteps step={0} /> : null}
+        {onboarding ? <SetupSteps step={1} /> : null}
         <Text style={styles.title}>Applications surveillées</Text>
         <Text style={styles.subtitle}>
           Choisissez n’importe quelle application installée. SafeDM analysera ses

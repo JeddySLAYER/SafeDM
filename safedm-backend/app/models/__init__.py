@@ -2,7 +2,7 @@
 
 from app.models.community_report import CommunityReport
 from app.models.access_audit_log import AccessAuditLog
-from app.models.admin_operations import AggregationRun, PatchDeployment, TenantPolicy
+from app.models.admin_operations import AggregationRun, ModelDeviceReceipt, PatchDeployment, TenantPolicy
 from app.models.ml_ops import MlDataset, MlTrainRun
 from app.models.report_training_review import ReportTrainingReview
 from app.models.device import Device
@@ -34,6 +34,7 @@ __all__ = [
     "CommunityReport",
     "AccessAuditLog",
     "PatchDeployment",
+    "ModelDeviceReceipt",
     "AggregationRun",
     "TenantPolicy",
     "MlDataset",

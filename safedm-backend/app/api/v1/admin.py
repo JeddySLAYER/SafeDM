@@ -1,21 +1,24 @@
-from fastapi import APIRouter, Depends, Query, status
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_admin
 from app.models import User
 from app.models.enums import ReportStatus, ThreatStatus
+from app.models.ml_ops import MlDataset
 from app.schemas.admin import (
-    AdminReportItem,
-    AdminReportListResponse,
     AdminAggregationRunResponse,
     AdminFalsePositiveRequest,
     AdminPatchActionRequest,
+    AdminReportItem,
     AdminReportLabelRequest,
+    AdminReportListResponse,
     AdminReportsDatasetRequest,
+    AdminStatsResponse,
     AdminTenantPolicyRequest,
     AdminTenantPolicyResponse,
-    AdminStatsResponse,
     AdminThreatDetailResponse,
     AdminThreatListResponse,
     AdminUserDetailResponse,
@@ -35,18 +38,20 @@ from app.schemas.guide import (
     GuideCategoryResponse,
     GuideCategoryUpdateRequest,
 )
-from app.schemas.monitoring import ApplicationResponse
-from app.schemas.report import ReportResponse, ThreatResponse
 from app.schemas.ml_ops import (
     MlDatasetCreateRequest,
     MlReviewQueueDatasetRequest,
+    MlTfliteEvaluateRequest,
     MlTrainStartRequest,
     MlTryMessageRequest,
 )
+from app.schemas.monitoring import ApplicationResponse
+from app.schemas.report import ReportResponse, ThreatResponse
 from app.services.admin_service import AdminService
 from app.services.audit_service import record_access
 from app.services.guide_service import GuideService
 from app.services.ml_ops_service import MlOpsService
+from ml.evaluation.tflite_diagnostics import evaluate_tflite_dataset
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -428,6 +433,26 @@ def admin_get_dataset(
     return MlOpsService(db).get_dataset(dataset_id)
 
 
+@router.get("/ml/datasets/{dataset_id}/cases")
+def admin_get_dataset_cases(
+    dataset_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    dataset = db.get(MlDataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Dataset introuvable")
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_dataset_cases_view",
+        resource=str(dataset_id),
+        purpose="Mobile local model diagnostic input",
+    )
+    db.commit()
+    return {"dataset_id": dataset.id, "items": json.loads(dataset.content_json)}
+
+
 @router.delete("/ml/datasets/{dataset_id}")
 def admin_delete_ml_dataset(
     dataset_id: int,
@@ -678,6 +703,31 @@ def admin_try_ml_message(
         action="ml_try_message",
         resource=str(payload.run_id) if payload.run_id is not None else "manifest",
         purpose="Admin local patch score",
+    )
+    db.commit()
+    return result
+
+
+@router.post("/ml/evaluate-tflite")
+def admin_evaluate_tflite(
+    payload: MlTfliteEvaluateRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = evaluate_tflite_dataset(
+        db,
+        dataset_id=payload.dataset_id,
+        run_id=payload.run_id,
+        mobile_features=payload.mobile_features,
+        mobile_results=payload.mobile_results,
+        mobile_messages=payload.mobile_messages,
+    )
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_evaluate_tflite",
+        resource=f"dataset:{payload.dataset_id}",
+        purpose="Local TFLite and integer patch diagnostic",
     )
     db.commit()
     return result

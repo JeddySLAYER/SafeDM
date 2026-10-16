@@ -1,4 +1,4 @@
-import { NativeEventEmitter, NativeModules, Platform } from "react-native";
+import { Linking, NativeEventEmitter, NativeModules, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { monitoredPackages } from "../theme/tokens";
 
@@ -41,6 +41,22 @@ export function openNotificationListenerSettings() {
     return;
   }
   SafeDMNotifications.openNotificationListenerSettings();
+}
+
+const ANDROID_PACKAGE = "com.safedmmobile";
+
+/** Demande système « ignorer l'optimisation de batterie » pour ce package. */
+export async function openIgnoreBatteryOptimizations() {
+  if (Platform.OS !== "android") {
+    await Linking.openSettings();
+    return;
+  }
+  const intent = `intent:#Intent;action=android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;data=package:${ANDROID_PACKAGE};end`;
+  try {
+    await Linking.openURL(intent);
+  } catch {
+    await Linking.openSettings();
+  }
 }
 
 export async function syncMonitoredPackages(packageNames) {

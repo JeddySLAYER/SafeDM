@@ -1,5 +1,5 @@
 import * as FileSystem from "expo-file-system";
-import { APP_VERSION, MODEL_MANIFEST_PUBLIC_KEY } from "../config";
+import { APP_VERSION, MODEL_MANIFEST_PUBLIC_KEY, MODEL_PATCH_PUBLIC_KEY_HEX } from "../config";
 
 const ACTIVE_MODEL_KEY = "safedm_active_model_uri";
 const ACTIVE_MANIFEST_KEY = "safedm_active_model_manifest";
@@ -31,6 +31,53 @@ function canonical(value) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
+}
+
+function derEcdsaToRaw(signatureHex) {
+  const { Buffer } = require("react-native-quick-crypto");
+  const der = Buffer.from(signatureHex, "hex");
+  if (der.length < 8 || der[0] !== 0x30 || der[2] !== 0x02) return null;
+  let offset = 3;
+  const rLength = der[offset++];
+  let r = der.subarray(offset, offset + rLength);
+  offset += rLength;
+  if (der[offset++] !== 0x02) return null;
+  const sLength = der[offset++];
+  let s = der.subarray(offset, offset + sLength);
+  if (r.length > 32 && r[0] === 0) r = r.subarray(1);
+  if (s.length > 32 && s[0] === 0) s = s.subarray(1);
+  if (r.length > 32 || s.length > 32 || offset + sLength !== der.length) return null;
+  const raw = new Uint8Array(64);
+  raw.set(r, 32 - r.length);
+  raw.set(s, 64 - s.length);
+  return raw;
+}
+
+async function verifyPatchManifest(manifest) {
+  const patch = manifest?.patch;
+  const pinnedKey = String(MODEL_PATCH_PUBLIC_KEY_HEX || "").toLowerCase();
+  if (!patch?.signature || !/^[a-f0-9]{130}$/.test(pinnedKey)) return false;
+  if (String(manifest.public_key_hex || "").toLowerCase() !== pinnedKey) return false;
+  const signature = derEcdsaToRaw(patch.signature);
+  if (!signature) return false;
+  const unsigned = { ...patch };
+  delete unsigned.signature;
+  const { Buffer } = require("react-native-quick-crypto");
+  const spkiPrefix = Buffer.from("3059301306072a8648ce3d020106082a8648ce3d030107034200", "hex");
+  const spki = new Uint8Array(Buffer.concat([spkiPrefix, Buffer.from(pinnedKey, "hex")]));
+  const key = await crypto.subtle.importKey(
+    "spki",
+    spki,
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  );
+  return crypto.subtle.verify(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    signature,
+    new TextEncoder().encode(canonical(unsigned)),
+  );
 }
 
 async function verifyManifest(manifest) {
@@ -87,6 +134,9 @@ export async function offerModelUpdate({ ask, onStart } = {}) {
   const { getOrCreateDeviceId } = require("../utils/storage");
   const deviceId = await getOrCreateDeviceId();
   const manifest = await apiRequest("models/latest");
+  if (!(await verifyPatchManifest(manifest))) {
+    return { updated: false, reason: "invalid_signature" };
+  }
   const percentage = Number(manifest.rollout?.percentage) || 0;
   const stage = manifest.rollout?.stage;
   const inRollout = stage === "production" || (stage === "canary" && isCanary(deviceId, percentage));
@@ -112,6 +162,14 @@ export async function offerModelUpdate({ ask, onStart } = {}) {
     [ACTIVE_PATCH_KEY, JSON.stringify(patch)],
     [ACTIVE_MANIFEST_KEY, JSON.stringify({ version: manifest.version, rollout: manifest.rollout })],
   ]);
+  try {
+    await apiRequest("models/ack", {
+      method: "POST",
+      body: { version: manifest.version, device_identifier: deviceId, app_version: APP_VERSION },
+    });
+  } catch {
+    // The verified patch remains usable offline; the next accepted update can report its receipt.
+  }
   return { updated: true, version: manifest.version };
 }
 

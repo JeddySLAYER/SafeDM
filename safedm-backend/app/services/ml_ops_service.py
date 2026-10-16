@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import csv
 import hashlib
 import io
@@ -410,6 +411,11 @@ class MlOpsService:
                 result = train_and_export(
                     artifact,
                     private_key_path=None,
+                    private_key_pem=(
+                        base64.b64decode(settings.ml_patch_signing_private_key_pem_b64, validate=True)
+                        if settings.ml_patch_signing_private_key_pem_b64
+                        else None
+                    ),
                     register=True,
                     dataset_path=dataset_file,
                 )

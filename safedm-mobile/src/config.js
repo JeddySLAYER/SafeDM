@@ -26,3 +26,5 @@ export const LOCAL_MODEL_URI = extra.localModelUri || null;
 export const FINGERPRINT_PUBLIC_KEY = extra.fingerprintPublicKey || null;
 export const MODEL_MANIFEST_PUBLIC_KEY =
   extra.modelManifestPublicKey || null;
+export const MODEL_PATCH_PUBLIC_KEY_HEX =
+  extra.modelPatchPublicKeyHex || null;

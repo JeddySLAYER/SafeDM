@@ -182,7 +182,9 @@ function levelFromFeatures(features) {
   const weak = [urgency, imperativeCta, salutation].filter((v) => v > 0).length;
   const linkRisk = [shortenedUrl, ipUrl, suspiciousTld].filter((v) => v >= 128).length;
 
-  if (knownBadUrl >= 128 || strong >= 2 || (strong >= 1 && linkRisk >= 1)) return "high";
+  // known_bad_url: 0 = verified clean, 128 = not checked, 255 = malicious.
+  // Notifications are analysed offline, so 128 is the normal value here.
+  if (knownBadUrl === 255 || strong >= 2 || (strong >= 1 && linkRisk >= 1)) return "high";
   if (linkRisk >= 1 || strong >= 1 || weak >= 2 || obfuscation >= 128 || crypto >= 128) {
     return "medium";
   }
@@ -203,12 +205,16 @@ export async function addAlertFromNotification(payload) {
       localDecision = null;
     }
   }
+  const modelDecision =
+    localDecision?.decision && localDecision.decision !== "UNAVAILABLE"
+      ? localDecision
+      : null;
   const localLevel =
-    localDecision?.decision === "DANGEROUS"
+    modelDecision?.decision === "DANGEROUS"
       ? "high"
-      : localDecision?.decision === "UNCERTAIN"
+      : modelDecision?.decision === "UNCERTAIN"
         ? "medium"
-        : localDecision?.decision === "SAFE"
+        : modelDecision?.decision === "SAFE"
           ? "low"
           : levelFromFeatures(features);
 
@@ -219,11 +225,17 @@ export async function addAlertFromNotification(payload) {
     preview: text.slice(0, 160),
     fullText: text.slice(0, 2000),
     level: localLevel || guessLevel(text),
-    riskScore: localDecision?.riskScore ?? null,
+    riskScore: modelDecision?.riskScore ?? null,
     features: features || null,
     vectorHash: payload.vectorHash || null,
     similarityHash: payload.similarityHash || null,
-    decisionSource: localDecision ? "local-model" : localLevel ? "feature-fallback" : "heuristic-fallback",
+    decisionSource: modelDecision
+      ? modelDecision.modelSource === "patch"
+        ? "local-patch"
+        : "local-tflite"
+      : features
+        ? "feature-fallback"
+        : "heuristic-fallback",
     createdAt: payload.postTime || Date.now(),
     analyzed: false,
     origin: "notification",
@@ -260,6 +272,7 @@ export async function addAlertFromNotification(payload) {
         status: result.status,
         reasons: result.reasons || [],
         analyzed: true,
+        decisionSource: "cloud",
         analysisResult: result,
       });
     }

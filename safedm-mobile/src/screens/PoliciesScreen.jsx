@@ -68,7 +68,7 @@ export default function PoliciesScreen({ navigation }) {
         index: 0,
         routes: [
           needsSetup
-            ? { name: "Apps", params: { onboarding: true } }
+            ? { name: "Permissions", params: { onboarding: true } }
             : { name: "MainTabs" },
         ],
       });

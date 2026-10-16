@@ -254,6 +254,7 @@ function PatchDetails({ patch, busy, onAction }) {
         <div><dt>Version</dt><dd>{patch.version || "Aucune"}</dd></div>
         <div><dt>Statut</dt><dd><Status value={patch.status} /></dd></div>
         <div><dt>Part actuelle</dt><dd>{patch.rollout_percentage ?? 0}%</dd></div>
+        <div><dt>Téléphones ayant confirmé la réception</dt><dd>{patch.confirmed_receipts ?? 0}</dd></div>
         <div>
           <dt>Rappel / faux positifs</dt>
           <dd>
@@ -378,6 +379,7 @@ function HistoryDetails({ data }) {
                   <th>Version</th>
                   <th>Statut</th>
                   <th>Canary</th>
+                  <th>Réceptions confirmées</th>
                   <th>Approbation</th>
                 </tr>
               </thead>
@@ -387,6 +389,7 @@ function HistoryDetails({ data }) {
                     <td>{item.version}</td>
                     <td>{item.status}</td>
                     <td>{item.rollout_percentage}%</td>
+                    <td>{item.confirmed_receipts ?? 0}</td>
                     <td>{item.approved_at || "—"}</td>
                   </tr>
                 ))}

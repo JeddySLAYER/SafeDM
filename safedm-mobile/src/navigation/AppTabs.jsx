@@ -16,6 +16,7 @@ import HomeScreen from "../screens/HomeScreen";
 import LinkGateScreen from "../screens/LinkGateScreen";
 import LinkProtectionScreen from "../screens/LinkProtectionScreen";
 import ManualAnalysisScreen from "../screens/ManualAnalysisScreen";
+import ModelDiagnosticsScreen from "../screens/ModelDiagnosticsScreen";
 import AlertDetailScreen from "../screens/AlertDetailScreen";
 import PermissionsScreen from "../screens/PermissionsScreen";
 import PoliciesScreen from "../screens/PoliciesScreen";
@@ -92,7 +93,11 @@ function Tabs() {
 
 export default function AppStack() {
   const { needsSetup, policiesOk } = useAuth();
-  const initialRouteName = !policiesOk ? "Policies" : needsSetup ? "Apps" : "MainTabs";
+  const initialRouteName = !policiesOk
+    ? "Policies"
+    : needsSetup
+      ? "Permissions"
+      : "MainTabs";
 
   return (
     <Stack.Navigator
@@ -117,6 +122,7 @@ export default function AppStack() {
         initialParams={{ onboarding: needsSetup }}
       />
       <Stack.Screen name="Diagnostics" component={DiagnosticsScreen} />
+      <Stack.Screen name="ModelDiagnostics" component={ModelDiagnosticsScreen} />
       <Stack.Screen name="ManualAnalysis" component={ManualAnalysisScreen} />
       <Stack.Screen name="DirectReport" component={DirectReportScreen} />
       <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />

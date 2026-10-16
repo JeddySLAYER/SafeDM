@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  Activity,
   BrainCircuit,
   CloudUpload,
   FlaskConical,
@@ -27,6 +28,7 @@ import {
   createMlDataset,
   deleteMlDataset,
   deleteMlRun,
+  evaluateMlTflite,
   getMlDataset,
   getMlRun,
   listMlDatasets,
@@ -59,6 +61,12 @@ export default function TrainingPage() {
     "URGENT: votre compte bancaire est suspendu. Cliquez https://bit.ly/verify-now",
   );
   const [tryResult, setTryResult] = useState(null);
+  const [tfliteResult, setTfliteResult] = useState(null);
+  const [mobileFeatures, setMobileFeatures] = useState(null);
+  const [mobileResults, setMobileResults] = useState(null);
+  const [mobileMessages, setMobileMessages] = useState(null);
+  const [mobileFeatureFile, setMobileFeatureFile] = useState("");
+  const [mobileReportText, setMobileReportText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState("");
@@ -247,6 +255,30 @@ export default function TrainingPage() {
     }
   }
 
+  async function onEvaluateTflite() {
+    if (!datasetId) return;
+    const result = await runAction(
+      "tflite-evaluate",
+      () => evaluateMlTflite(datasetId, selectedRun?.id || null, mobileFeatures, mobileResults, mobileMessages),
+      "Évaluation du fichier TFLite terminée",
+    );
+    setTfliteResult(result);
+  }
+
+  function importMobileReport(data, label = "rapport Android") {
+    const vectors = Array.isArray(data)
+      ? data
+      : data.mobile_features || data.features || data.rows?.map((row) => row.features || row.mobile_features);
+    if (!Array.isArray(vectors) || vectors.some((vector) => !Array.isArray(vector))) {
+      throw new Error("Le JSON doit contenir une liste de vecteurs de features.");
+    }
+    setMobileFeatures(vectors);
+    setMobileResults(Array.isArray(data.mobile_results) ? data.mobile_results : null);
+    setMobileMessages(Array.isArray(data.mobile_messages) ? data.mobile_messages : null);
+    setMobileFeatureFile(label);
+    setTfliteResult(null);
+  }
+
   const draftRows = parsePreview(content);
   const summary = selectedRun?.metrics_summary;
   const fullMetrics = selectedRun?.metrics;
@@ -285,6 +317,7 @@ export default function TrainingPage() {
           <Tab id="train" current={tab} onSelect={setTab} icon={BrainCircuit} title="Entraîner" hint="Calculer le modèle" />
           <Tab id="runs" current={tab} onSelect={setTab} icon={Play} title="Résultats" hint="Métriques et canary" />
           <Tab id="try" current={tab} onSelect={setTab} icon={MessageSquareText} title="Tester" hint="Message → verdict" />
+          <Tab id="tflite" current={tab} onSelect={setTab} icon={Activity} title="Diagnostic local" hint="TFLite et patch" />
         </div>
 
         {loading ? <Spinner label="Chargement…" /> : null}
@@ -419,6 +452,106 @@ export default function TrainingPage() {
               </BusyButton>
             </div>
             {tryResult ? <TryResultCard result={tryResult} /> : null}
+          </div>
+        ) : null}
+
+        {!loading && tab === "tflite" ? (
+          <div className="form-grid">
+            <p className="panel-note">
+              Exécute le fichier <strong>safedm_v3.tflite réellement présent dans l’app mobile</strong> sur les messages
+              étiquetés. L’inférence se fait sur le backend local. Les features Kotlin exportées depuis un téléphone
+              peuvent être comparées avec le rapport natif généré depuis Paramètres sur le mobile.
+            </p>
+            <Field label="Dataset d’évaluation">
+              <select value={datasetId} onChange={(event) => { setDatasetId(event.target.value); setTfliteResult(null); setMobileFeatures(null); setMobileResults(null); setMobileMessages(null); setMobileFeatureFile(""); }}>
+                {datasets.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    #{dataset.id} {dataset.name} ({dataset.sample_count} exemples)
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label="Coller le rapport Android (optionnel)"
+              hint="Sur Android : Paramètres → Diagnostic du modèle local → copier le rapport. Le JSON doit correspondre au dataset choisi."
+            >
+              <textarea
+                rows={4}
+                value={mobileReportText}
+                onChange={(event) => setMobileReportText(event.target.value)}
+                placeholder='Collez ici le JSON copié depuis Paramètres → Diagnostic du modèle local.'
+              />
+            </Field>
+            <div className="form-actions">
+              <BusyButton
+                className="btn ghost"
+                disabled={!mobileReportText.trim()}
+                onClick={() => {
+                  try {
+                    importMobileReport(JSON.parse(mobileReportText), "rapport mobile collé");
+                    setError("");
+                  } catch (err) {
+                    setError(`Rapport Android invalide : ${err.message}`);
+                  }
+                }}
+              >
+                Charger le rapport collé
+              </BusyButton>
+            </div>
+            <Field label="Ou importer le rapport JSON">
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  setTfliteResult(null);
+                  if (!file) {
+                    setMobileFeatures(null);
+                    setMobileResults(null);
+                    setMobileMessages(null);
+                    setMobileFeatureFile("");
+                    return;
+                  }
+                  try {
+                    const data = JSON.parse(await file.text());
+                    importMobileReport(data, file.name);
+                  } catch (err) {
+                    setMobileFeatures(null);
+                    setMobileResults(null);
+                    setMobileMessages(null);
+                    setMobileFeatureFile("");
+                    setError(`Rapport Android invalide : ${err.message}`);
+                  }
+                }}
+              />
+            </Field>
+            {mobileFeatures ? <p className="muted">Rapport Android chargé : {mobileFeatureFile} · {mobileFeatures.length} vecteurs. Le nombre doit correspondre au dataset.</p> : null}
+            <Field label="Patch JSON à comparer" hint="Le run sélectionné est comparé au TFLite. Sans run, le manifeste canary est utilisé s’il existe.">
+              <select
+                value={selectedRun?.id || ""}
+                onChange={(event) => {
+                  const id = Number(event.target.value);
+                  if (id) openRun(id);
+                  else setSelectedRun(null);
+                }}
+              >
+                <option value="">Manifeste canary actuel</option>
+                {runs.filter((run) => run.status === "succeeded").map((run) => (
+                  <option key={run.id} value={run.id}>Run #{run.id}{run.publishable ? " · publiable" : ""}</option>
+                ))}
+              </select>
+            </Field>
+            <div className="form-actions">
+              <BusyButton
+                busy={busyAction === "tflite-evaluate"}
+                busyLabel="Exécution du TFLite…"
+                onClick={onEvaluateTflite}
+                disabled={!datasetId || busy}
+              >
+                <Activity size={16} aria-hidden /> Exécuter le diagnostic
+              </BusyButton>
+            </div>
+            {tfliteResult ? <TfliteDiagnostic result={tfliteResult} /> : null}
           </div>
         ) : null}
       </div>
@@ -643,6 +776,99 @@ function TryResultCard({ result }) {
         </>
       ) : null}
     </div>
+  );
+}
+
+function TfliteDiagnostic({ result }) {
+  const summary = result.tflite || {};
+  const patch = result.patch;
+  const errors = (result.rows || []).filter((row) =>
+    (row.expected_binary === "BENIN" && row.tflite_decision === "DANGEREUX") ||
+    (row.expected_binary === "MALVEILLANT" && row.tflite_decision === "BENIN") ||
+    row.tflite_decision === "INCERTAIN" ||
+    (row.feature_differences?.length || 0) > 0 ||
+    row.tflite_mobile_decision_match === false ||
+    (row.tflite_mobile_score_delta != null && row.tflite_mobile_score_delta > 0.00001) ||
+    (row.patch_decision && (row.patch_decision === "MALVEILLANT") !== row.tflite_binary_dangerous)
+  );
+  return (
+    <section className="form-grid">
+      <div className="panel-note">
+        <strong>Modèle réellement exécuté :</strong> {result.model?.path} · {result.model?.bytes} octets · entrée {result.model?.input_shape?.join("×")} {result.model?.input_dtype} · {result.sample_count} exemples.
+      </div>
+      {result.data_quality?.warning ? <Alert tone="error">{result.data_quality.warning}</Alert> : null}
+      <div className="metrics-grid">
+        <DiagnosticMetric label="Features Android = Python" value={result.parity?.feature_rows_compared ? `${result.parity.feature_rows_exact}/${result.parity.feature_rows_compared}` : "À mesurer"} detail={`${result.parity?.feature_value_mismatches ?? 0} valeurs différentes`} />
+        <DiagnosticMetric label="Patch/TFLite identiques" value={result.parity?.patch_comparable_samples ? `${result.parity.tflite_patch_same_binary_decision}/${result.parity.patch_comparable_samples}` : "—"} detail="Comparaison de la décision binaire" />
+        <DiagnosticMetric label="Score mobile/Python cohérent" value={result.parity?.mobile_score_rows_compared ? `${result.parity.mobile_score_exact_decisions}/${result.parity.mobile_score_rows_compared}` : "À mesurer"} detail={`Écart max : ${result.parity?.mobile_score_max_delta == null ? "—" : Number(result.parity.mobile_score_max_delta).toFixed(6)}`} />
+        <DiagnosticMetric label="Bénins classés dangereux" value={summary.benign_dangerous} detail={`sur ${summary.benign} bénins`} />
+        <DiagnosticMetric label="Menaces classées sûres" value={summary.malicious_safe} detail={`sur ${summary.malicious} menaces`} />
+        <DiagnosticMetric label="Menaces incertaines" value={summary.malicious_uncertain} detail="Alerte non définitive" />
+        <DiagnosticMetric label="Bénins incertains" value={summary.benign_uncertain} detail="À examiner, pas dangereux" />
+      </div>
+      <p className="muted">
+        Décisions TFLite : sûr &lt; {result.model?.thresholds?.safe_below} · incertain jusqu’à {result.model?.thresholds?.dangerous_from} · dangereux à partir de {result.model?.thresholds?.dangerous_from}.
+        {patch ? ` Comparaison patch : ${result.parity?.tflite_patch_same_binary_decision}/${result.parity?.patch_comparable_samples} décisions identiques (${patch.source}).` : " Aucun patch JSON scorable pour comparaison."}
+      </p>
+      <Alert tone="info">
+        La comparaison des 50 valeurs Kotlin avec Python n’est pas encore faite dans ce sprint. Ici, les deux modèles utilisent le vecteur de référence Python; le sprint Android ajoutera le contrôle exact de parité.
+      </Alert>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Étiquette</th><th>Verdict TFLite</th><th>Verdict app</th><th>Score brut</th><th>Patch</th><th>Catégorie</th><th>Message</th></tr></thead>
+          <tbody>
+            {errors.map((row) => {
+              const categories = [];
+              if (row.expected_binary === "BENIN" && row.tflite_decision === "DANGEREUX") categories.push("Faux positif");
+              if (row.expected_binary === "MALVEILLANT" && row.tflite_decision === "BENIN") categories.push("Menace manquée");
+              if (row.tflite_decision === "INCERTAIN") categories.push("Incertitude");
+              if (row.feature_differences?.length) categories.push(`${row.feature_differences.length} features différentes`);
+              if (row.tflite_mobile_decision_match === false) categories.push("Décision app/TFLite différente");
+              if (row.tflite_mobile_score_delta != null && row.tflite_mobile_score_delta > 0.00001) categories.push(`Score mobile écart ${Number(row.tflite_mobile_score_delta).toFixed(5)}`);
+              if (row.patch_decision && (row.patch_decision === "MALVEILLANT") !== row.tflite_binary_dangerous) categories.push("Divergence patch/TFLite");
+              const category = categories.join(" · ");
+              return (
+                <tr key={row.index}>
+                  <td>{row.expected_binary}</td>
+                  <td>{row.tflite_decision}</td>
+                  <td>{row.mobile_decision || "—"}</td>
+                  <td>{Number(row.tflite_probability).toFixed(4)}{row.mobile_probability != null ? ` · score app ${Number(row.mobile_probability).toFixed(4)}` : ""}</td>
+                  <td>{row.patch_decision || "—"}</td>
+                  <td>{category}</td>
+                  <td>
+                    {row.message}
+                    {row.feature_differences?.length ? (
+                      <details className="stack-top">
+                        <summary>Voir les features divergentes</summary>
+                        <ul className="sample-list">
+                          {row.feature_differences.map((feature) => (
+                            <li key={feature.index} className="sample-row">
+                              <span className="pill soft">{feature.name}</span>
+                              <p>Python {feature.python} · Android {feature.android}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+            {!errors.length ? <tr><td colSpan="7">Aucune erreur ni incertitude sur ces exemples.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function DiagnosticMetric({ label, value, detail }) {
+  return (
+    <article className="metric-card">
+      <span className="muted">{label}</span>
+      <strong>{value ?? 0}</strong>
+      <small>{detail}</small>
+    </article>
   );
 }
 

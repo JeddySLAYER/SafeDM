@@ -244,3 +244,10 @@ export function tryMlMessage({ message, run_id = null }) {
     body: { message, run_id },
   });
 }
+
+export function evaluateMlTflite(dataset_id, run_id = null, mobile_features = null, mobile_results = null, mobile_messages = null) {
+  return apiRequest("/admin/ml/evaluate-tflite", {
+    method: "POST",
+    body: { dataset_id: Number(dataset_id), run_id: run_id ? Number(run_id) : null, mobile_features, mobile_results, mobile_messages },
+  });
+}

@@ -20,3 +20,17 @@ class MlTrainStartRequest(BaseModel):
 class MlTryMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     run_id: int | None = None
+
+
+class MlTfliteEvaluateRequest(BaseModel):
+    dataset_id: int
+    run_id: int | None = None
+    mobile_features: list[list[int]] | None = Field(default=None, max_length=5000)
+    mobile_results: list[dict] | None = Field(default=None, max_length=5000)
+    mobile_messages: list[str] | None = Field(default=None, max_length=5000)
+
+
+class ModelReceiptRequest(BaseModel):
+    version: str = Field(min_length=1, max_length=128)
+    device_identifier: str = Field(min_length=3, max_length=255)
+    app_version: str = Field(min_length=1, max_length=32)

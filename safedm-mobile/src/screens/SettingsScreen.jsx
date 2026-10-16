@@ -191,6 +191,15 @@ export default function SettingsScreen({ navigation }) {
         onPress={() => navigation.navigate("Diagnostics")}
         showChevron
       />
+      {user?.is_admin ? (
+        <SettingRow
+          icon="shield"
+          title="Diagnostic du modèle local"
+          subtitle="TFLite natif et features Kotlin · outil admin"
+          onPress={() => navigation.navigate("ModelDiagnostics")}
+          showChevron
+        />
+      ) : null}
       <SettingRow
         icon="bell"
         title="Batterie / arrière-plan"

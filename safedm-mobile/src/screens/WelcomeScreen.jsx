@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, StyleSheet, Text, View } from "react-native";
 import BrandMark from "../components/BrandMark";
 import Button from "../components/Button";
 import OnboardingArt from "../components/OnboardingArt";
@@ -40,7 +40,9 @@ export default function WelcomeScreen({ navigation }) {
     <Screen contentStyle={styles.content} style={styles.canvas}>
       <BrandMark size={32} compact />
       <View style={styles.hero}>
-        <OnboardingArt name={slide.art} />
+        <View style={styles.art}>
+          <OnboardingArt name={slide.art} />
+        </View>
         <Text style={styles.title}>{slide.title}</Text>
         <Text style={styles.body}>{slide.body}</Text>
       </View>
@@ -61,6 +63,13 @@ const styles = StyleSheet.create({
   canvas: { backgroundColor: colors.canvas },
   content: { justifyContent: "space-between" },
   hero: { flex: 1, justifyContent: "center", alignItems: "flex-start" },
+  art: { alignSelf: "center", marginBottom: spacing.sm },
+  credit: {
+    ...typography.caption,
+    textAlign: "center",
+    marginTop: spacing.sm,
+    color: colors.textMuted,
+  },
   title: { ...typography.title, marginTop: spacing.md, marginBottom: spacing.sm },
   body: { ...typography.subtitle, fontSize: 16, lineHeight: 24 },
   dots: {
