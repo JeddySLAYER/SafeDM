@@ -105,6 +105,41 @@ def test_report_create_stores_content_and_lists_community(user_auth):
     assert by_hash.json()["id"] == threat_id
 
 
+def test_admin_can_review_report_content_and_create_training_dataset(user_auth, admin_auth):
+    content = f"Reviewable phishing example {uuid.uuid4().hex} https://account-check.example/login"
+    created = client.post(
+        "/api/v1/reports",
+        headers=user_auth["headers"],
+        json={"content": content, "source": "DIRECT_REPORT", "severity": "HIGH"},
+    )
+    assert created.status_code == 201, created.text
+    report_id = created.json()["report"]["id"]
+
+    detail = client.get(f"/api/v1/admin/reports/{report_id}", headers=admin_auth["headers"])
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["content"] == content
+
+    dataset = client.post(
+        "/api/v1/admin/ml/datasets/from-reports",
+        headers=admin_auth["headers"],
+        json={
+            "name": "reviewed-report-test",
+            "items": [{"report_id": report_id, "expected": "malicious"}],
+        },
+    )
+    assert dataset.status_code == 201, dataset.text
+    preview = client.get(
+        f"/api/v1/admin/ml/datasets/{dataset.json()['id']}",
+        headers=admin_auth["headers"],
+    )
+    assert preview.status_code == 200
+    assert preview.json()["preview"][0] == {
+        "message": content,
+        "expected": "malicious",
+        "source_report_ids": [report_id],
+    }
+
+
 def test_duplicate_report_conflict(user_auth):
     content = f"Duplicate report content {uuid.uuid4().hex} https://evil.example/a"
     first = client.post(

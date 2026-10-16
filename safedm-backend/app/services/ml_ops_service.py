@@ -18,9 +18,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models import CommunityReport, User
 from app.models.admin_operations import PatchDeployment
+from app.models.enums import ReportStatus
 from app.models.ml_ops import MlDataset, MlTrainRun
-from app.models.user import User
+from app.models.threat import Threat
 
 # Ensure backend root is importable when serving under FastAPI Cloud / uvicorn.
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -129,6 +131,71 @@ class MlOpsService:
         self.db.add(row)
         self.db.flush()
         return self._dataset_public(row)
+
+    def create_dataset_from_reports(
+        self,
+        *,
+        name: str,
+        items: list[dict[str, Any]],
+        admin: User,
+    ) -> dict[str, Any]:
+        """Create a reviewed dataset from active reports with stored message content."""
+        report_ids = [int(item["report_id"]) for item in items]
+        if len(report_ids) != len(set(report_ids)):
+            raise HTTPException(status_code=400, detail="Un signalement apparaît plusieurs fois")
+
+        labels_by_id = {int(item["report_id"]): str(item["expected"]).strip().lower() for item in items}
+        invalid = [report_id for report_id, label in labels_by_id.items() if label not in {"legitimate", "malicious"}]
+        if invalid:
+            raise HTTPException(status_code=400, detail="Chaque signalement doit être étiqueté bénin ou malveillant")
+
+        rows = self.db.execute(
+            select(CommunityReport, Threat.content)
+            .join(Threat, Threat.id == CommunityReport.threat_id)
+            .where(CommunityReport.id.in_(report_ids))
+        ).all()
+        content_by_id = {report.id: content for report, content in rows}
+        missing_ids = sorted(set(report_ids) - content_by_id.keys())
+        without_content = sorted(report_id for report_id, content in content_by_id.items() if not content or not content.strip())
+        withdrawn = sorted(report.id for report, _ in rows if report.status != ReportStatus.ACTIVE)
+        unavailable = sorted(set(missing_ids + without_content + withdrawn))
+        if unavailable:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Certains signalements sont retirés, introuvables ou sans contenu stocké",
+                    "report_ids": unavailable,
+                },
+            )
+
+        deduplicated: dict[str, dict[str, Any]] = {}
+        for report_id in report_ids:
+            message = (content_by_id[report_id] or "").strip()
+            key = " ".join(message.casefold().split())
+            expected = labels_by_id[report_id]
+            prior = deduplicated.get(key)
+            if prior and prior["expected"] != expected:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Des signalements avec le même texte ont reçu des étiquettes différentes",
+                )
+            if prior:
+                prior["source_report_ids"].append(report_id)
+            else:
+                deduplicated[key] = {
+                    "message": message,
+                    "expected": expected,
+                    "source_report_ids": [report_id],
+                }
+
+        if not deduplicated:
+            raise HTTPException(status_code=400, detail="Aucun message utilisable dans le lot")
+        return self.create_dataset(
+            name=name,
+            content=list(deduplicated.values()),
+            source="reviewed_reports",
+            admin=admin,
+        )
 
     def seed_builtin(self, admin: User) -> dict[str, Any]:
         """Import repo processed labeled_messages.json if present."""

@@ -127,7 +127,7 @@ function getHelpContent(pathname) {
     return {
       title: "Du jeu de données au téléphone",
       sections: [
-        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages étiquetés : message et expected (bénin ou malveillant). L’onglet Ajouter importe CSV/JSON, permet de choisir les colonnes et de corriger les étiquettes. FastText reste un outil de parité/tests, pas le pipeline canary." },
+        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages étiquetés : message et expected (bénin ou malveillant). L’onglet Ajouter importe CSV/JSON. Depuis Signalements, lisez chaque texte stocké, choisissez son label, puis créez un dataset à partir du lot relu. Un signalement par empreinte seule n’a pas de texte et ne peut pas être entraîné. FastText reste un outil de parité/tests, pas le pipeline canary." },
         { title: "2. Lancer l’entraînement", body: "Calcule un patch JSON à poids entiers (même format que le téléphone en OTA) et des métriques. Un run « publiable » exige rappel ≥ 60 % et faux positifs ≤ 10 % au seuil opérationnel." },
         { title: "Métriques clés", body: "Rappel = menaces correctement détectées. Faux positifs = messages sains alertés à tort. Précision = part des alertes vraiment dangereuses. Faux négatifs = menaces manquées. La matrice TN/FP/FN/TP compte ces cas. CV folds = plis de validation croisée (pas le score d’entraînement)." },
         { title: "Caractéristiques (features)", body: "Chaque message devient ~50 signaux entiers (URL suspecte, urgence, OTP, etc.). Le modèle pondère ces features. L’onglet Tester montre celles qui poussent le plus le score." },

@@ -11,6 +11,7 @@ from app.schemas.admin import (
     AdminAggregationRunResponse,
     AdminFalsePositiveRequest,
     AdminPatchActionRequest,
+    AdminReportsDatasetRequest,
     AdminTenantPolicyRequest,
     AdminTenantPolicyResponse,
     AdminStatsResponse,
@@ -236,7 +237,13 @@ def admin_get_report(
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    _ = current_admin
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="admin_report_content_view",
+        resource=str(report_id),
+        purpose="Review community report content",
+    )
     return AdminService(db).get_report_detail(report_id)
 
 
@@ -431,6 +438,28 @@ def admin_create_dataset(
         action="ml_dataset_upload",
         resource=str(result["id"]),
         purpose="Admin ML dataset ingest",
+    )
+    db.commit()
+    return result
+
+
+@router.post("/ml/datasets/from-reports", status_code=status.HTTP_201_CREATED)
+def admin_create_dataset_from_reports(
+    payload: AdminReportsDatasetRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).create_dataset_from_reports(
+        name=payload.name,
+        items=[item.model_dump() for item in payload.items],
+        admin=current_admin,
+    )
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_dataset_from_reports",
+        resource=str(result["id"]),
+        purpose="Create human-reviewed training dataset from reports",
     )
     db.commit()
     return result

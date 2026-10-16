@@ -134,6 +134,7 @@ class AdminReportItem(BaseModel):
     threat_preview: str
     report_count: int
     content_available: bool = False
+    content: Optional[str] = None
     similarity_hash: Optional[str] = None
     community_score: float = 0
     false_positive: bool = False
@@ -145,6 +146,16 @@ class AdminReportListResponse(BaseModel):
     page: int
     page_size: int
     status_filter: Optional[ReportStatus] = None
+
+
+class AdminReportTrainingItem(BaseModel):
+    report_id: int = Field(gt=0)
+    expected: str = Field(min_length=1, max_length=64)
+
+
+class AdminReportsDatasetRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    items: list[AdminReportTrainingItem] = Field(min_length=1, max_length=1000)
 
 
 class ApplicationCreateRequest(BaseModel):

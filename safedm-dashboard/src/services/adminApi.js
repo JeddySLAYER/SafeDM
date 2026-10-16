@@ -182,6 +182,10 @@ export function createMlDataset(payload) {
   return apiRequest("/admin/ml/datasets", { method: "POST", body: payload });
 }
 
+export function createMlDatasetFromReports(payload) {
+  return apiRequest("/admin/ml/datasets/from-reports", { method: "POST", body: payload });
+}
+
 export function seedBuiltinMlDataset() {
   return apiRequest("/admin/ml/datasets/seed-builtin", { method: "POST" });
 }
