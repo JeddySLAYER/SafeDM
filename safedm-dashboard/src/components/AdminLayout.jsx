@@ -11,12 +11,14 @@ import {
   ShieldAlert,
   Smartphone,
   BrainCircuit,
+  Terminal,
   Users,
 } from "lucide-react";
 import SafeDMLogo from "./SafeDMLogo";
 import { useAuth } from "../context/useAuth";
 import { useState } from "react";
 import { HelpSheet } from "./ui";
+import CommandPalette from "./CommandPalette";
 
 const LINKS = [
   { to: "/", label: "Stats", end: true, icon: LayoutDashboard },
@@ -35,6 +37,7 @@ export default function AdminLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const help = getHelpContent(location.pathname);
 
   return (
@@ -72,6 +75,11 @@ export default function AdminLayout() {
               <p className="user-role">Administrateur</p>
             </div>
           </div>
+          <button type="button" className="command-trigger" onClick={() => setCommandsOpen(true)} aria-label="Ouvrir les commandes SafeDM (Ctrl K)">
+            <Terminal size={15} aria-hidden />
+            <span>Commandes</span>
+            <kbd>Ctrl K</kbd>
+          </button>
           <button type="button" className="btn ghost logout-btn" onClick={logout}>
             <LogOut size={16} aria-hidden />
             Déconnexion
@@ -98,6 +106,7 @@ export default function AdminLayout() {
         sections={help.sections}
         onClose={() => setHelpOpen(false)}
       />
+      <CommandPalette open={commandsOpen} onOpen={() => setCommandsOpen(true)} onClose={() => setCommandsOpen(false)} />
     </div>
   );
 }
