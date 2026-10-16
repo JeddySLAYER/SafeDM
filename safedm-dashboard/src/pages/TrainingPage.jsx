@@ -8,11 +8,13 @@ import {
   Play,
   RefreshCw,
   Rocket,
+  Trash2,
 } from "lucide-react";
 import {
   Alert,
   BusyButton,
   CheckboxField,
+  ConfirmDialog,
   DetailSheet,
   EmptyState,
   Field,
@@ -23,6 +25,8 @@ import { useToast } from "../context/ToastContext";
 import { DATASET_COLUMN_ALIASES, normalizeDatasetRows, parseDatasetFile, suggestColumn } from "../utils/datasetImport";
 import {
   createMlDataset,
+  deleteMlDataset,
+  deleteMlRun,
   getMlDataset,
   getMlRun,
   listMlDatasets,
@@ -59,6 +63,8 @@ export default function TrainingPage() {
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setError("");
@@ -188,6 +194,32 @@ export default function TrainingPage() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget || deleteBusy) return;
+    setDeleteBusy(true);
+    try {
+      if (deleteTarget.type === "dataset") {
+        await deleteMlDataset(deleteTarget.id);
+        if (String(datasetId) === String(deleteTarget.id)) {
+          setPreview(null);
+          setDatasetId("");
+        }
+        if (selectedRun?.dataset_id === deleteTarget.id) setSelectedRun(null);
+      } else {
+        await deleteMlRun(deleteTarget.id);
+        if (selectedRun?.id === deleteTarget.id) setSelectedRun(null);
+      }
+      toast(deleteTarget.type === "dataset" ? "Dataset et fichiers associés supprimés" : "Run et fichiers associés supprimés");
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+      toast(err.message, "error");
+    } finally {
+      setDeleteBusy(false);
+      setDeleteTarget(null);
+    }
+  }
+
   async function onPromote(id) {
     try {
       await runAction("promote", () => promoteMlRun(id), "Modèle poussé en canary (0 %)");
@@ -258,7 +290,7 @@ export default function TrainingPage() {
         {loading ? <Spinner label="Chargement…" /> : null}
 
         {!loading && tab === "data" ? (
-          <DatasetList datasets={datasets} datasetId={datasetId} onOpen={openDataset} />
+          <DatasetList datasets={datasets} datasetId={datasetId} onOpen={openDataset} onDelete={(id, name) => setDeleteTarget({ type: "dataset", id, name })} />
         ) : null}
 
         {!loading && tab === "add" ? (
@@ -348,7 +380,7 @@ export default function TrainingPage() {
         ) : null}
 
         {!loading && tab === "runs" ? (
-          <RunList runs={runs} selectedId={selectedRun?.id} onOpen={openRun} />
+          <RunList runs={runs} selectedId={selectedRun?.id} onOpen={openRun} onDelete={(id) => setDeleteTarget({ type: "run", id })} />
         ) : null}
 
         {!loading && tab === "try" ? (
@@ -437,6 +469,19 @@ export default function TrainingPage() {
           </li>
         </ol>
       </DetailSheet>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={deleteTarget?.type === "dataset" ? "Supprimer ce dataset ?" : "Supprimer ce run ?"}
+        message={deleteTarget?.type === "dataset"
+          ? `« ${deleteTarget.name} » et son historique de runs seront supprimés, ainsi que leurs fichiers locaux d’entraînement. Un patch déjà copié dans le canary n’est pas retiré.`
+          : "L’historique de ce run et ses fichiers locaux seront supprimés. Un patch déjà copié dans le canary n’est pas retiré."}
+        confirmLabel="Supprimer"
+        danger
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
 
       <DetailSheet
         open={Boolean(preview)}
@@ -620,7 +665,7 @@ function Tab({ id, current, onSelect, icon: Icon, title, hint }) {
   );
 }
 
-function DatasetList({ datasets, datasetId, onOpen }) {
+function DatasetList({ datasets, datasetId, onOpen, onDelete }) {
   if (!datasets.length) {
     return (
       <EmptyState
@@ -632,7 +677,7 @@ function DatasetList({ datasets, datasetId, onOpen }) {
   return (
     <ul className="catalog-list">
       {datasets.map((d) => (
-        <li key={d.id}>
+        <li className="training-list-row" key={d.id}>
           <button
             type="button"
             className={String(d.id) === String(datasetId) ? "catalog-row is-selected" : "catalog-row"}
@@ -646,20 +691,21 @@ function DatasetList({ datasets, datasetId, onOpen }) {
             </span>
             <span className="pill soft">Aperçu</span>
           </button>
+          <button type="button" className="btn small danger" aria-label={`Supprimer le dataset ${d.name}`} onClick={() => onDelete(d.id, d.name)}><Trash2 size={15} aria-hidden /> Supprimer</button>
         </li>
       ))}
     </ul>
   );
 }
 
-function RunList({ runs, selectedId, onOpen }) {
+function RunList({ runs, selectedId, onOpen, onDelete }) {
   if (!runs.length) {
     return <EmptyState title="Aucun run" description="Lancez un entraînement pour voir les métriques ici." />;
   }
   return (
     <ul className="catalog-list">
       {runs.map((r) => (
-        <li key={r.id}>
+        <li className="training-list-row" key={r.id}>
           <button
             type="button"
             className={selectedId === r.id ? "catalog-row is-selected" : "catalog-row"}
@@ -677,6 +723,7 @@ function RunList({ runs, selectedId, onOpen }) {
             </span>
             <span className="pill soft">Détail</span>
           </button>
+          <button type="button" className="btn small danger" aria-label={`Supprimer le run ${r.id}`} onClick={() => onDelete(r.id)}><Trash2 size={15} aria-hidden /> Supprimer</button>
         </li>
       ))}
     </ul>

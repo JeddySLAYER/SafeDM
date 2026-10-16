@@ -68,3 +68,31 @@ def test_report_dataset_rejects_fingerprint_only_report():
         )
 
     assert exc.value.status_code == 422
+
+
+def test_training_cleanup_removes_only_run_files_inside_artifacts(tmp_path, monkeypatch):
+    from app.services import ml_ops_service
+
+    artifacts = tmp_path / "artifacts"
+    run_dir = artifacts / "train_runs"
+    run_dir.mkdir(parents=True)
+    artifact = run_dir / "patch_run_4.json"
+    public_key = run_dir / "patch_run_4.pub"
+    source_data = run_dir / "dataset_2_4.json"
+    outside = tmp_path / "keep.json"
+    for path in (artifact, public_key, source_data, outside):
+        path.write_text("test")
+    monkeypatch.setattr(
+        ml_ops_service,
+        "get_settings",
+        lambda: SimpleNamespace(model_patch_manifest_path=str(artifacts / "latest.json")),
+    )
+    run = SimpleNamespace(id=4, dataset_id=2, artifact_path=str(artifact))
+
+    files = MlOpsService._run_files(run)
+    MlOpsService.remove_training_files(files)
+
+    assert not artifact.exists()
+    assert not public_key.exists()
+    assert not source_data.exists()
+    assert outside.exists()

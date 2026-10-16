@@ -140,6 +140,43 @@ def test_admin_can_review_report_content_and_create_training_dataset(user_auth, 
     }
 
 
+def test_report_training_review_queue_is_persisted_and_can_be_removed(user_auth, admin_auth):
+    content = f"Persistent review queue {uuid.uuid4().hex}"
+    created = client.post(
+        "/api/v1/reports",
+        headers=user_auth["headers"],
+        json={"content": content, "source": "DIRECT_REPORT", "severity": "MEDIUM"},
+    )
+    assert created.status_code == 201, created.text
+    report_id = created.json()["report"]["id"]
+
+    queued = client.put(
+        f"/api/v1/admin/ml/report-review-queue/{report_id}",
+        headers=admin_auth["headers"],
+        json={"expected": "legitimate"},
+    )
+    assert queued.status_code == 200, queued.text
+
+    queue = client.get("/api/v1/admin/ml/report-review-queue", headers=admin_auth["headers"])
+    assert queue.status_code == 200
+    assert any(item["report_id"] == report_id and item["expected"] == "legitimate" for item in queue.json()["items"])
+
+    dataset = client.post(
+        "/api/v1/admin/ml/datasets/from-review-queue",
+        headers=admin_auth["headers"],
+        json={"name": "persistent-review-test"},
+    )
+    assert dataset.status_code == 201, dataset.text
+    queue_after = client.get("/api/v1/admin/ml/report-review-queue", headers=admin_auth["headers"])
+    assert all(item["report_id"] != report_id for item in queue_after.json()["items"])
+
+    deleted = client.delete(
+        f"/api/v1/admin/ml/datasets/{dataset.json()['id']}",
+        headers=admin_auth["headers"],
+    )
+    assert deleted.status_code == 200, deleted.text
+
+
 def test_duplicate_report_conflict(user_auth):
     content = f"Duplicate report content {uuid.uuid4().hex} https://evil.example/a"
     first = client.post(

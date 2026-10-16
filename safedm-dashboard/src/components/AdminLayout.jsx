@@ -127,12 +127,23 @@ function getHelpContent(pathname) {
     return {
       title: "Du jeu de données au téléphone",
       sections: [
-        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages étiquetés : message et expected (bénin ou malveillant). L’onglet Ajouter importe CSV/JSON. Depuis Signalements, lisez chaque texte stocké, choisissez son label, puis créez un dataset à partir du lot relu. Un signalement par empreinte seule n’a pas de texte et ne peut pas être entraîné. FastText reste un outil de parité/tests, pas le pipeline canary." },
+        { title: "1. Préparer le jeu", body: "Un dataset est une liste de messages étiquetés : message et expected (bénin ou malveillant). L’onglet Ajouter importe CSV/JSON. Depuis Signalements, utilisez Lire et annoter, lisez le texte complet, choisissez son label et enregistrez-le dans la file en base. Créez ensuite un dataset depuis cette file. Un signalement par empreinte seule n’a pas de texte et ne peut pas être entraîné. FastText reste un outil de parité/tests, pas le pipeline canary." },
+        { title: "Supprimer les données d’entraînement", body: "Dans Jeux, Supprimer enlève le dataset, les runs liés et leurs fichiers locaux. Dans Résultats, Supprimer enlève seulement ce run et ses fichiers. Cette suppression ne retire pas un patch déjà publié en canary." },
         { title: "2. Lancer l’entraînement", body: "Calcule un patch JSON à poids entiers (même format que le téléphone en OTA) et des métriques. Un run « publiable » exige rappel ≥ 60 % et faux positifs ≤ 10 % au seuil opérationnel." },
         { title: "Métriques clés", body: "Rappel = menaces correctement détectées. Faux positifs = messages sains alertés à tort. Précision = part des alertes vraiment dangereuses. Faux négatifs = menaces manquées. La matrice TN/FP/FN/TP compte ces cas. CV folds = plis de validation croisée (pas le score d’entraînement)." },
         { title: "Caractéristiques (features)", body: "Chaque message devient ~50 signaux entiers (URL suspecte, urgence, OTP, etc.). Le modèle pondère ces features. L’onglet Tester montre celles qui poussent le plus le score." },
         { title: "Tester en local", body: "Onglet Tester : coller un SMS et évaluer contre un run ou le manifeste canary. C’est la décision entière du patch JSON, pas le TFLite float bundlé dans l’APK. En CLI : cd safedm-backend && make evaluate." },
         { title: "Pousser puis activer", body: "« Pousser vers le canary » met le modèle à 0 % (en attente). Dans Opérations, Approuver avec un % pour l’envoyer aux téléphones. Rollback le retire." },
+      ],
+    };
+  }
+  if (pathname === "/reports") {
+    return {
+      title: "Relire les signalements",
+      sections: [
+        { title: "Ouvrir le contenu", body: "Dans Actions, choisissez Lire et annoter pour afficher le texte complet quand il a été stocké. Les signalements par empreinte affichent leur statut mais aucun texte récupérable." },
+        { title: "Enregistrer un label", body: "Après lecture, choisissez Bénin ou Malveillant, puis Enregistrer le label en base. La file est conservée côté serveur. Le fait qu’un message ait été signalé ne décide pas de son label." },
+        { title: "Créer le dataset", body: "La file en haut de page liste les messages relus. Donnez un nom puis Créer un dataset. Il apparaîtra dans Entraînement → Jeux. Les messages identiques sont regroupés ; des labels contradictoires doivent être corrigés." },
       ],
     };
   }

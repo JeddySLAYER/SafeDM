@@ -2132,6 +2132,38 @@ tr:last-child td {
   flex: 1 1 280px;
 }
 
+.report-training-queue-heading {
+  min-width: 260px;
+}
+
+.report-training-queue-list {
+  flex: 1 0 100%;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-training-queue-list li,
+.training-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.report-training-queue-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-list-row .catalog-row {
+  flex: 1;
+  min-width: 0;
+}
+
 .report-training-queue p {
   margin: 4px 0 0;
 }

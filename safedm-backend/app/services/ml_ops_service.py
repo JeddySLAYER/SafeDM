@@ -22,6 +22,7 @@ from app.models import CommunityReport, User
 from app.models.admin_operations import PatchDeployment
 from app.models.enums import ReportStatus
 from app.models.ml_ops import MlDataset, MlTrainRun
+from app.models.report_training_review import ReportTrainingReview
 from app.models.threat import Threat
 
 # Ensure backend root is importable when serving under FastAPI Cloud / uvicorn.
@@ -108,6 +109,163 @@ class MlOpsService:
         if not row:
             raise HTTPException(status_code=404, detail="Dataset introuvable")
         return self._dataset_public(row, include_preview=True)
+
+    def queue_report_for_training(self, *, report_id: int, expected: str, admin: User) -> dict[str, Any]:
+        label = expected.strip().lower()
+        if label not in {"legitimate", "malicious"}:
+            raise HTTPException(status_code=400, detail="Choisissez Bénin ou Malveillant")
+        row = self.db.execute(
+            select(CommunityReport, Threat.content)
+            .join(Threat, Threat.id == CommunityReport.threat_id)
+            .where(CommunityReport.id == report_id)
+        ).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Signalement introuvable")
+        report, content = row
+        if report.status != ReportStatus.ACTIVE:
+            raise HTTPException(status_code=409, detail="Seuls les signalements actifs peuvent être relus")
+        if not content or not content.strip():
+            raise HTTPException(status_code=422, detail="Ce signalement ne contient pas de texte stocké")
+
+        review = self.db.scalar(
+            select(ReportTrainingReview).where(ReportTrainingReview.report_id == report_id)
+        )
+        if review is None:
+            review = ReportTrainingReview(report_id=report_id)
+        review.expected = label
+        review.reviewed_by_user_id = admin.id
+        review.dataset_id = None
+        self.db.add(review)
+        self.db.flush()
+        return {"id": review.id, "report_id": report_id, "expected": label, "dataset_id": None}
+
+    def list_report_training_queue(self) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            select(ReportTrainingReview, CommunityReport, Threat, User.username)
+            .join(CommunityReport, CommunityReport.id == ReportTrainingReview.report_id)
+            .join(Threat, Threat.id == CommunityReport.threat_id)
+            .outerjoin(User, User.id == CommunityReport.user_id)
+            .where(ReportTrainingReview.dataset_id.is_(None))
+            .order_by(ReportTrainingReview.updated_at.desc())
+            .limit(1000)
+        ).all()
+        return [
+            {
+                "id": review.id,
+                "report_id": report.id,
+                "expected": review.expected,
+                "content_available": bool(threat.content),
+                "threat_preview": (threat.content or "")[:160],
+                "status": report.status.value,
+                "username": username or "?",
+                "updated_at": review.updated_at.isoformat() if review.updated_at else None,
+            }
+            for review, report, threat, username in rows
+        ]
+
+    def remove_report_from_training_queue(self, report_id: int) -> None:
+        review = self.db.scalar(
+            select(ReportTrainingReview).where(
+                ReportTrainingReview.report_id == report_id,
+                ReportTrainingReview.dataset_id.is_(None),
+            )
+        )
+        if review is None:
+            raise HTTPException(status_code=404, detail="Étiquette en attente introuvable")
+        self.db.delete(review)
+
+    def create_dataset_from_review_queue(self, *, name: str, admin: User) -> dict[str, Any]:
+        reviews = list(
+            self.db.scalars(
+                select(ReportTrainingReview)
+                .where(ReportTrainingReview.dataset_id.is_(None))
+                .order_by(ReportTrainingReview.id)
+            ).all()
+        )
+        if not reviews:
+            raise HTTPException(status_code=400, detail="La file de revue est vide")
+        dataset = self.create_dataset_from_reports(
+            name=name,
+            items=[{"report_id": item.report_id, "expected": item.expected} for item in reviews],
+            admin=admin,
+        )
+        for review in reviews:
+            review.dataset_id = dataset["id"]
+            self.db.add(review)
+        self.db.flush()
+        return dataset
+
+    def delete_dataset(self, dataset_id: int) -> list[str]:
+        dataset = self.db.get(MlDataset, dataset_id)
+        if dataset is None:
+            raise HTTPException(status_code=404, detail="Dataset introuvable")
+        runs = list(
+            self.db.scalars(select(MlTrainRun).where(MlTrainRun.dataset_id == dataset_id)).all()
+        )
+        active_runs = [run.id for run in runs if run.status.lower() in {"pending", "queued", "running"}]
+        if active_runs:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "Impossible de supprimer un dataset pendant un entraînement", "run_ids": active_runs},
+            )
+        files: list[str] = []
+        for run in runs:
+            files.extend(self._run_files(run))
+            self.db.delete(run)
+        reviews = self.db.scalars(
+            select(ReportTrainingReview).where(ReportTrainingReview.dataset_id == dataset_id)
+        ).all()
+        for review in reviews:
+            self.db.delete(review)
+        self.db.delete(dataset)
+        self.db.flush()
+        return sorted(set(files))
+
+    def delete_run(self, run_id: int) -> list[str]:
+        run = self.db.get(MlTrainRun, run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run introuvable")
+        if run.status.lower() in {"pending", "queued", "running"}:
+            raise HTTPException(status_code=409, detail="Impossible de supprimer un run en cours")
+        files = self._run_files(run)
+        self.db.delete(run)
+        self.db.flush()
+        return files
+
+    @staticmethod
+    def remove_training_files(paths: list[str]) -> None:
+        root = (Path(get_settings().model_patch_manifest_path).resolve().parent / "train_runs").resolve()
+        for raw_path in paths:
+            path = Path(raw_path)
+            try:
+                resolved = path.resolve(strict=False)
+                resolved.relative_to(root)
+            except (OSError, ValueError):
+                logger.warning("Skipping training artifact outside train_runs: %s", raw_path)
+                continue
+            try:
+                resolved.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Could not remove training artifact: %s", resolved)
+
+    @staticmethod
+    def _run_files(run: MlTrainRun) -> list[str]:
+        root = (Path(get_settings().model_patch_manifest_path).resolve().parent / "train_runs").resolve()
+        candidates = []
+        if run.artifact_path:
+            artifact = Path(run.artifact_path)
+            candidates.extend([artifact, artifact.with_suffix(".pub")])
+        candidates.append(root / f"dataset_{run.dataset_id}_{run.id}.json")
+        safe = []
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve(strict=False)
+                resolved.relative_to(root)
+                if resolved.exists():
+                    safe.append(str(resolved))
+            except (OSError, ValueError):
+                logger.warning("Skipping training artifact outside train_runs: %s", candidate)
+        return safe
 
     def create_dataset(
         self,

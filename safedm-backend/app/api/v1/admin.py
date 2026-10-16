@@ -11,6 +11,7 @@ from app.schemas.admin import (
     AdminAggregationRunResponse,
     AdminFalsePositiveRequest,
     AdminPatchActionRequest,
+    AdminReportLabelRequest,
     AdminReportsDatasetRequest,
     AdminTenantPolicyRequest,
     AdminTenantPolicyResponse,
@@ -36,7 +37,12 @@ from app.schemas.guide import (
 )
 from app.schemas.monitoring import ApplicationResponse
 from app.schemas.report import ReportResponse, ThreatResponse
-from app.schemas.ml_ops import MlDatasetCreateRequest, MlTrainStartRequest, MlTryMessageRequest
+from app.schemas.ml_ops import (
+    MlDatasetCreateRequest,
+    MlReviewQueueDatasetRequest,
+    MlTrainStartRequest,
+    MlTryMessageRequest,
+)
 from app.services.admin_service import AdminService
 from app.services.audit_service import record_access
 from app.services.guide_service import GuideService
@@ -244,7 +250,9 @@ def admin_get_report(
         resource=str(report_id),
         purpose="Review community report content",
     )
-    return AdminService(db).get_report_detail(report_id)
+    result = AdminService(db).get_report_detail(report_id)
+    db.commit()
+    return result
 
 
 @router.get("/guide/categories", response_model=list[GuideCategoryResponse])
@@ -420,6 +428,26 @@ def admin_get_dataset(
     return MlOpsService(db).get_dataset(dataset_id)
 
 
+@router.delete("/ml/datasets/{dataset_id}")
+def admin_delete_ml_dataset(
+    dataset_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    service = MlOpsService(db)
+    files = service.delete_dataset(dataset_id)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_dataset_delete",
+        resource=str(dataset_id),
+        purpose="Delete dataset, its runs and local training artifacts",
+    )
+    db.commit()
+    service.remove_training_files(files)
+    return {"ok": True, "deleted_dataset_id": dataset_id, "deleted_artifact_count": len(files)}
+
+
 @router.post("/ml/datasets", status_code=status.HTTP_201_CREATED)
 def admin_create_dataset(
     payload: MlDatasetCreateRequest,
@@ -465,6 +493,82 @@ def admin_create_dataset_from_reports(
     return result
 
 
+@router.get("/ml/report-review-queue")
+def admin_list_report_review_queue(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    items = MlOpsService(db).list_report_training_queue()
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_report_queue_view",
+        resource="review-queue",
+        purpose="Review queued report labels and previews",
+    )
+    db.commit()
+    return {"items": items}
+
+
+@router.put("/ml/report-review-queue/{report_id}")
+def admin_queue_report_for_training(
+    report_id: int,
+    payload: AdminReportLabelRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).queue_report_for_training(
+        report_id=report_id,
+        expected=payload.expected,
+        admin=current_admin,
+    )
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_report_label",
+        resource=str(report_id),
+        purpose=f"Label report as {result['expected']} for training review",
+    )
+    db.commit()
+    return result
+
+
+@router.delete("/ml/report-review-queue/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_remove_report_from_training_queue(
+    report_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    MlOpsService(db).remove_report_from_training_queue(report_id)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_report_unqueue",
+        resource=str(report_id),
+        purpose="Remove report from training review queue",
+    )
+    db.commit()
+    return None
+
+
+@router.post("/ml/datasets/from-review-queue", status_code=status.HTTP_201_CREATED)
+def admin_create_dataset_from_review_queue(
+    payload: MlReviewQueueDatasetRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).create_dataset_from_review_queue(name=payload.name, admin=current_admin)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_dataset_from_review_queue",
+        resource=str(result["id"]),
+        purpose="Create training dataset from persisted human-reviewed reports",
+    )
+    db.commit()
+    return result
+
+
 @router.post("/ml/datasets/seed-builtin", status_code=status.HTTP_201_CREATED)
 def admin_seed_builtin_dataset(
     current_admin: User = Depends(get_current_admin),
@@ -499,6 +603,26 @@ def admin_get_train_run(
 ):
     _ = current_admin
     return MlOpsService(db).get_run(run_id)
+
+
+@router.delete("/ml/runs/{run_id}")
+def admin_delete_ml_run(
+    run_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    service = MlOpsService(db)
+    files = service.delete_run(run_id)
+    record_access(
+        db,
+        user_id=current_admin.id,
+        action="ml_train_run_delete",
+        resource=str(run_id),
+        purpose="Delete training run and local artifacts",
+    )
+    db.commit()
+    service.remove_training_files(files)
+    return {"ok": True, "deleted_run_id": run_id, "deleted_artifact_count": len(files)}
 
 
 @router.post("/ml/runs", status_code=status.HTTP_201_CREATED)

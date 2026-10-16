@@ -178,12 +178,32 @@ export function getMlDataset(id) {
   return apiRequest(`/admin/ml/datasets/${id}`);
 }
 
+export function deleteMlDataset(id) {
+  return apiRequest(`/admin/ml/datasets/${id}`, { method: "DELETE" });
+}
+
 export function createMlDataset(payload) {
   return apiRequest("/admin/ml/datasets", { method: "POST", body: payload });
 }
 
 export function createMlDatasetFromReports(payload) {
   return apiRequest("/admin/ml/datasets/from-reports", { method: "POST", body: payload });
+}
+
+export function listReportTrainingQueue() {
+  return apiRequest("/admin/ml/report-review-queue");
+}
+
+export function reviewReportForTraining(id, expected) {
+  return apiRequest(`/admin/ml/report-review-queue/${id}`, { method: "PUT", body: { expected } });
+}
+
+export function removeReportFromTrainingQueue(id) {
+  return apiRequest(`/admin/ml/report-review-queue/${id}`, { method: "DELETE" });
+}
+
+export function createMlDatasetFromReviewQueue(name) {
+  return apiRequest("/admin/ml/datasets/from-review-queue", { method: "POST", body: { name } });
 }
 
 export function seedBuiltinMlDataset() {
@@ -196,6 +216,10 @@ export function listMlRuns(options) {
 
 export function getMlRun(id) {
   return apiRequest(`/admin/ml/runs/${id}`);
+}
+
+export function deleteMlRun(id) {
+  return apiRequest(`/admin/ml/runs/${id}`, { method: "DELETE" });
 }
 
 export function startMlTrain(payload) {

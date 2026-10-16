@@ -8,6 +8,10 @@ class MlDatasetCreateRequest(BaseModel):
     content: str | list | dict
 
 
+class MlReviewQueueDatasetRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
 class MlTrainStartRequest(BaseModel):
     dataset_id: int
     promote_canary: bool = False

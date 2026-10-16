@@ -158,6 +158,10 @@ class AdminReportsDatasetRequest(BaseModel):
     items: list[AdminReportTrainingItem] = Field(min_length=1, max_length=1000)
 
 
+class AdminReportLabelRequest(BaseModel):
+    expected: str = Field(min_length=1, max_length=16)
+
+
 class ApplicationCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     package_name: str = Field(min_length=2, max_length=255)
