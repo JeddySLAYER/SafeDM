@@ -3,6 +3,8 @@
 import json
 from unittest.mock import MagicMock
 
+import pytest
+from fastapi import HTTPException
 from app.api.v1.models import latest_model_manifest
 from app.core.config import get_settings
 from app.models import User
@@ -86,6 +88,20 @@ def test_latest_manifest_no_deployment_honours_file_rollout(tmp_path, monkeypatc
     body = json.loads(latest_model_manifest(User(id=1), db).body)
     assert body["rollout"]["stage"] == "canary"
     assert body["rollout"]["percentage"] == 0.0
+
+
+def test_latest_model_endpoint_rejects_policy_only_manifest(tmp_path, monkeypatch):
+    path = tmp_path / "latest.json"
+    path.write_text(
+        json.dumps({"version": "policy-weekly", "policy": {"safe_score": 35}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(get_settings(), "model_patch_manifest_path", str(path))
+
+    with pytest.raises(HTTPException) as exc:
+        latest_model_manifest(User(id=1), MagicMock())
+
+    assert exc.value.status_code == 404
 
 
 def test_try_message_scores_manifest_patch(tmp_path, monkeypatch):

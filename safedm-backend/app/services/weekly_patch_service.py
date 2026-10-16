@@ -1,4 +1,4 @@
-"""Deterministic weekly model-policy patch generation.
+"""Deterministic weekly policy aggregation manifest generation.
 
 The MVP does not persist feature vectors, so this job deliberately aggregates
 only anonymous report metadata. It produces a versioned policy manifest rather
@@ -33,7 +33,7 @@ def build_weekly_patch(
     db: Session,
     *,
     period_end: datetime | None = None,
-    output_dir: str | Path = "artifacts/weekly",
+    output_dir: str | Path | None = None,
 ) -> dict:
     end = period_end or datetime.now(timezone.utc)
     start = end - timedelta(days=7)
@@ -48,24 +48,22 @@ def build_weekly_patch(
     )
     threat_ids = {report.threat_id for report in reports}
     threats = list(
-        db.scalars(
-            select(Threat).where(
+        db.execute(
+            select(Threat.id, Threat.severity).where(
                 Threat.id.in_(threat_ids) if threat_ids else False,
                 Threat.status == ThreatStatus.ACTIVE,
             )
         ).all()
     )
     severity_counts = {}
-    for threat in threats:
-        key = threat.severity.value
+    for _, severity in threats:
+        key = severity.value
         severity_counts[key] = severity_counts.get(key, 0) + 1
 
     version = _version_for(end)
     manifest = {
         "schema_version": 1,
         "version": version,
-        "model_url": get_settings().model_patch_url or None,
-        "artifact_sha256": get_settings().model_patch_artifact_sha256 or None,
         "period": {"start": start.isoformat(), "end": end.isoformat()},
         "source": {
             "active_reports": len(reports),
@@ -83,7 +81,7 @@ def build_weekly_patch(
             "false_positive_rate": None,
             "status": "unlabeled_data",
         },
-        "rollout": {"stage": "canary", "percentage": 1},
+        "deployment": {"applied": False, "status": "POLICY_ONLY"},
     }
     body = _canonical(manifest)
     manifest["manifest_sha256"] = hashlib.sha256(body).hexdigest()
@@ -99,7 +97,10 @@ def build_weekly_patch(
                 hashes.SHA256(),
             )
         ).decode()
-    destination = Path(output_dir)
+    settings = get_settings()
+    destination = Path(output_dir) if output_dir is not None else Path(settings.weekly_aggregation_manifest_path).parent
+    if destination.resolve() == Path(settings.model_patch_manifest_path).resolve().parent:
+        raise ValueError("Weekly aggregation output must not share the model manifest directory")
     destination.mkdir(parents=True, exist_ok=True)
     (destination / f"{version}.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

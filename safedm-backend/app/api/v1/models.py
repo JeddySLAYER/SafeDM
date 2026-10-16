@@ -27,6 +27,8 @@ def latest_model_manifest(
         if not isinstance(loaded, dict):
             raise ValueError("invalid manifest")
         patch = loaded.get("patch") if isinstance(loaded.get("patch"), dict) else loaded
+        if not isinstance(patch.get("quantization"), dict) or not patch["quantization"].get("weights"):
+            raise HTTPException(status_code=404, detail="No deployable model patch available")
         version = loaded.get("version") or (
             f"ml-{patch.get('model_version', 1)}" if patch.get("quantization") else None
         )
@@ -44,16 +46,19 @@ def latest_model_manifest(
         )
         if deployment and deployment.status == "ROLLED_BACK":
             raise HTTPException(status_code=404, detail="Model manifest rolled back")
-        if deployment:
+        if deployment and deployment.status == "APPROVED":
             percentage = float(deployment.rollout_percentage)
-            stage = "canary"
-            if deployment.status == "APPROVED":
-                stage = "production" if percentage >= 100 else "canary"
+            stage = "production" if percentage >= 100 else "canary"
             manifest["rollout"] = {"percentage": percentage, "stage": stage}
-        elif not deployment:
+        elif deployment:
+            # Staged (CANARY) but not approved yet — no device should pull.
+            manifest["rollout"] = {"percentage": 0, "stage": "canary"}
+        else:
+            # File-only fallback: honour manifest rollout (never invent production 100%).
+            file_rollout = manifest.get("rollout") or {}
             manifest["rollout"] = {
-                "stage": "production",
-                "percentage": float((manifest.get("rollout") or {}).get("percentage") or 100),
+                "stage": file_rollout.get("stage") or "canary",
+                "percentage": float(file_rollout.get("percentage") or 0),
             }
         return JSONResponse(
             content=manifest,

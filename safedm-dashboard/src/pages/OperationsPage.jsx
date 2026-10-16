@@ -27,7 +27,7 @@ import {
 
 function Status({ value }) {
   const normalized = String(value || "").toLowerCase();
-  const ok = ["ok", "ready", "canary", "configured", "approved", "production"].includes(normalized);
+  const ok = ["ok", "ready", "canary", "configured", "approved", "production", "succeeded"].includes(normalized);
   return <span className={`health-badge ${ok ? "ok" : "warn"}`}>{value || "N/D"}</span>;
 }
 
@@ -106,11 +106,9 @@ export default function OperationsPage() {
             />
           ) : null}
           {tab === "aggregation" ? (
-            <ActionConfirmation
-              title="Dernière exécution"
-              value={data.aggregation.last_run || "Jamais"}
-              note={data.aggregation.note}
-              actionLabel="Exécuter l’agrégation"
+            <AggregationPanel
+              aggregation={data.aggregation}
+              runs={data.aggregation_runs || []}
               busy={actionBusy}
               onAction={() => runAction(requestAggregation, "Agrégation terminée")}
             />
@@ -303,17 +301,51 @@ function PatchDetails({ patch, busy, onAction }) {
   );
 }
 
-function ActionConfirmation({ title, value, note, actionLabel, busy, onAction }) {
+function AggregationPanel({ aggregation, runs, busy, onAction }) {
+  const manifest = aggregation.manifest || {};
+  const source = manifest.source || {};
+  const severity = source.severity_counts || {};
+  const policy = manifest.policy || {};
+  const metrics = manifest.metrics || {};
+  const latestRun = runs[0];
+  const status = latestRun?.status || aggregation.last_status || (manifest.version ? "SUCCEEDED" : "NEVER_RUN");
+  const period = manifest.period || {};
   return (
-    <div className="action-confirmation">
-      <p className="eyebrow">{title}</p>
-      <strong>{value}</strong>
-      <p className="muted">{note}</p>
-      <BusyButton busy={busy} busyLabel="Envoi…" onClick={onAction}>
-        <CloudCog size={16} aria-hidden /> {actionLabel}
+    <div className="aggregation-panel">
+      <div className="aggregation-heading">
+        <div>
+          <p className="eyebrow">Agrégation hebdomadaire</p>
+          <h2>{aggregation.last_run ? new Date(aggregation.last_run).toLocaleString("fr-FR") : "Aucune exécution"}</h2>
+        </div>
+        <Status value={status} />
+      </div>
+      <p className="panel-note">{aggregation.note}</p>
+      <div className="metrics-grid">
+        <article className="metric-card"><span className="muted">Signalements actifs sur 7 jours</span><strong>{source.active_reports ?? "—"}</strong><small>Remontées reçues pendant la période.</small></article>
+        <article className="metric-card"><span className="muted">Menaces actives correspondantes</span><strong>{source.affected_signatures ?? "—"}</strong><small>Signatures distinctes encore actives.</small></article>
+        <article className="metric-card"><span className="muted">Rappel / faux positifs</span><strong>{formatRate(metrics.recall)} / {formatRate(metrics.false_positive_rate)}</strong><small>Non calculés : les signalements ne sont pas des labels de vérité terrain.</small></article>
+      </div>
+      {manifest.version ? <p className="muted">Période : {formatDate(period.start)} → {formatDate(period.end)} · Manifeste : <code>{aggregation.manifest_path}</code></p> : <p className="muted">Le manifeste sera écrit ici : <code>{aggregation.manifest_path}</code></p>}
+      <div className="aggregation-explainer">
+        <h3>Ce que fait cette action</h3>
+        <ol>
+          <li>Compte les signalements <strong>actifs</strong> créés dans les 7 jours précédant l’exécution.</li>
+          <li>Compte les menaces actives associées et les répartit par sévérité : {Object.keys(severity).length ? Object.entries(severity).map(([key, value]) => `${key} ${value}`).join(" · ") : "aucune donnée"}.</li>
+          <li>Écrit les seuils actuellement configurés et ces statistiques dans un manifeste de suivi.</li>
+        </ol>
+        <p><strong>Effet :</strong> aucun réentraînement, aucun contenu de message ni empreinte exportés, aucun changement du canary et aucun changement des seuils utilisés en direct par <code>/analysis</code>. Le manifeste d’agrégation est stocké séparément du manifeste de modèle.</p>
+        {Object.keys(policy).length ? <p>Seuils recopiés : sûr {policy.safe_score} · suspect {policy.suspicious_score} · critique {policy.critical_score} · confiance {policy.escalation_confidence}.</p> : null}
+      </div>
+      <BusyButton className="btn primary" busy={busy} busyLabel="Agrégation…" onClick={onAction}>
+        <CloudCog size={16} aria-hidden /> Exécuter maintenant
       </BusyButton>
+      {runs.length ? <div className="aggregation-runs"><h3>Exécutions récentes</h3>{runs.slice(0, 5).map((run) => <div className="aggregation-run" key={run.id}><Status value={run.status} /><span>{run.message}</span><time>{formatDate(run.finished_at || run.created_at)}</time></div>)}</div> : null}
     </div>
   );
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString("fr-FR") : "—";
 }
 
 const HISTORY_PAGE_SIZE = 8;

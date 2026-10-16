@@ -278,8 +278,12 @@ L'entraînement local et le déploiement mobile sont deux étapes distinctes :
    régression 50-dim, seuil hors-pli, patch JSON signé. Alternative CI :
    workflow GitHub `train-model.yml` (pas besoin de Cloud Scheduler ni Play).
 3. `scripts/export_tflite_model.py` exporte séparément le runtime Android.
-4. `scripts/generate_weekly_patch.py` agrège des métadonnées anonymes seulement
-   (pas un réentraînement des poids).
+4. `scripts/generate_weekly_patch.py` agrège les signalements actifs et les
+   menaces actives associées des 7 derniers jours. Le manifeste policy est écrit
+   dans `artifacts/weekly/aggregation/`, séparé du manifeste modèle
+   `MODEL_PATCH_MANIFEST_PATH`. Il contient des compteurs et les seuils configurés;
+   il ne lit/exporte pas les contenus ni empreintes, ne réentraîne aucun poids,
+   et ne change ni le canary ni les seuils actifs de `/analysis`.
 5. Opérations : Approuver / Rollback + `rollout_percentage` (canary appareils).
    Firebase (Auth → Storage) est planifié progressivement — JWT admin reste
    la source d'identité actuelle.

@@ -96,16 +96,20 @@ class AdminService:
                 if isinstance(manifest.get("patch"), dict)
                 else manifest
             )
-            model_metrics = {
-                "version": manifest.get("version"),
-                "recall": extracted.get("recall"),
-                "false_positive_rate": extracted.get("false_positive_rate"),
-                "status": (
-                    (patch_body or {}).get("status")
-                    or (manifest.get("rollout") or {}).get("stage")
-                    or "unavailable"
-                ),
-            }
+            quantization = patch_body.get("quantization") if isinstance(patch_body, dict) else None
+            if isinstance(quantization, dict) and quantization.get("weights"):
+                model_metrics = {
+                    "version": manifest.get("version"),
+                    "recall": extracted.get("recall"),
+                    "false_positive_rate": extracted.get("false_positive_rate"),
+                    "status": (
+                        (patch_body or {}).get("status")
+                        or (manifest.get("rollout") or {}).get("stage")
+                        or "unavailable"
+                    ),
+                }
+            else:
+                model_metrics = {"status": "unavailable"}
         except (FileNotFoundError, json.JSONDecodeError):
             model_metrics = {"status": "unavailable"}
 
@@ -263,23 +267,33 @@ threats_under_review_count=threats_under_review,
         settings = get_settings()
         manifest = {}
         manifest_path = Path(settings.model_patch_manifest_path)
+        aggregation_manifest_path = Path(settings.weekly_aggregation_manifest_path)
         try:
             loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest = loaded_manifest if isinstance(loaded_manifest, dict) else {}
         except (FileNotFoundError, json.JSONDecodeError):
             manifest = {}
 
+        aggregation_manifest = {}
+        try:
+            loaded_aggregation = json.loads(aggregation_manifest_path.read_text(encoding="utf-8"))
+            aggregation_manifest = loaded_aggregation if isinstance(loaded_aggregation, dict) else {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            aggregation_manifest = {}
+
         patch_body = manifest.get("patch") if isinstance(manifest.get("patch"), dict) else manifest
-        metrics = extract_patch_metrics(manifest)
+        quantization = patch_body.get("quantization") if isinstance(patch_body, dict) else None
+        has_deployable_patch = isinstance(quantization, dict) and bool(quantization.get("weights"))
+        metrics = extract_patch_metrics(manifest) if has_deployable_patch else {}
         rollout = manifest.get("rollout") or {}
         suggested_canary = (
             int(patch_body.get("canary_percent") or 5)
             if isinstance(patch_body, dict)
             else 5
         )
-        manifest_version = manifest.get("version") or (
+        manifest_version = (manifest.get("version") or (
             f"ml-{patch_body.get('model_version')}" if isinstance(patch_body, dict) and patch_body.get("quantization") else None
-        )
+        )) if has_deployable_patch else None
         current_deployment = (
             self.db.scalar(
                 select(PatchDeployment).where(
@@ -305,12 +319,12 @@ threats_under_review_count=threats_under_review,
             patch_status = current_deployment.status
             patch_pct = current_deployment.rollout_percentage
         else:
-            patch_status = rollout.get("stage") or "unavailable"
-            patch_pct = rollout.get("percentage", 0)
+            patch_status = (rollout.get("stage") or "unavailable") if has_deployable_patch else "unavailable"
+            patch_pct = rollout.get("percentage", 0) if has_deployable_patch else 0
 
         return {
             "patch": {
-                "version": manifest.get("version"),
+                "version": manifest.get("version") if has_deployable_patch else None,
                 "status": patch_status,
                 "rollout_percentage": patch_pct,
                 "suggested_canary_percent": suggested_canary,
@@ -320,11 +334,18 @@ threats_under_review_count=threats_under_review,
             "aggregation": {
                 "last_run": latest_aggregation.finished_at.isoformat()
                 if latest_aggregation and latest_aggregation.finished_at
-                else (datetime.fromtimestamp(manifest_path.stat().st_mtime, tz=timezone.utc).isoformat() if manifest_path.exists() else None),
+                else (datetime.fromtimestamp(aggregation_manifest_path.stat().st_mtime, tz=timezone.utc).isoformat() if aggregation_manifest_path.exists() else None),
                 "last_status": latest_aggregation.status if latest_aggregation else None,
                 "source": "weekly_reports_and_threats",
-                "note": "Agrège les signalements et menaces anonymes des 7 derniers jours vers un manifeste policy (seuils + statistiques), sans réentraîner les poids.",
-                "manifest_path": str(manifest_path),
+                "note": "Compte les signalements actifs reçus sur les 7 derniers jours et les menaces actives correspondantes. Produit des compteurs et recopie les seuils configurés; ne lit ni contenu ni empreinte, ne modifie pas le modèle canary ni les seuils actifs de /analysis.",
+                "manifest_path": str(aggregation_manifest_path),
+                "manifest": {
+                    "version": aggregation_manifest.get("version"),
+                    "period": aggregation_manifest.get("period", {}),
+                    "source": aggregation_manifest.get("source", {}),
+                    "policy": aggregation_manifest.get("policy", {}),
+                    "metrics": aggregation_manifest.get("metrics", {}),
+                },
             },
             "policy": {
                 "thresholds": {
@@ -381,6 +402,8 @@ threats_under_review_count=threats_under_review,
                     "status": item.status,
                     "message": item.message,
                     "created_at": item.created_at.isoformat(),
+                    "started_at": item.started_at.isoformat() if item.started_at else None,
+                    "finished_at": item.finished_at.isoformat() if item.finished_at else None,
                 }
                 for item in self.db.scalars(
                     select(AggregationRun).order_by(AggregationRun.created_at.desc()).limit(10)
@@ -434,14 +457,14 @@ threats_under_review_count=threats_under_review,
         self.db.commit()
         self.db.refresh(run)
         try:
-            manifest = build_weekly_patch(self.db, output_dir=Path(get_settings().model_patch_manifest_path).parent)
+            aggregation_manifest_path = Path(get_settings().weekly_aggregation_manifest_path)
+            manifest = build_weekly_patch(self.db, output_dir=aggregation_manifest_path.parent)
             run.status = "SUCCEEDED"
             run.finished_at = datetime.now(timezone.utc)
             run.message = (
                 f"Agrégation terminée : {manifest['source']['active_reports']} signalements, "
                 f"{manifest['source']['affected_signatures']} menaces. Manifeste : "
-                f"{Path(get_settings().model_patch_manifest_path).parent / 'latest.json'}. "
-                "Statistiques de politique, sans réentraînement des poids."
+                f"{aggregation_manifest_path}. Aucun changement du patch canary ou des seuils actifs."
             )
         except Exception as exc:
             run.status = "FAILED"
