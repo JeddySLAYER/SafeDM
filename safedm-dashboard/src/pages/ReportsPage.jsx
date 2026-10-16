@@ -137,20 +137,26 @@ export default function ReportsPage() {
 
       <section className="panel report-training-queue">
         <div className="report-training-queue-heading">
-          <strong>File de revue enregistrée en base · {trainingQueue.length}</strong>
-          <p className="muted">Labels conservés sur le serveur. Seuls les signalements actifs avec texte peuvent être ajoutés.</p>
+          <div>
+            <strong>File de revue</strong>
+            <span className="pill soft">{trainingQueue.length}</span>
+          </div>
+          <p className="muted">Les labels sont enregistrés en base. Seuls les signalements actifs avec texte peuvent former un dataset.</p>
         </div>
         {queueLoading ? <span className="muted">Chargement de la file…</span> : null}
         {!queueLoading && trainingQueue.length === 0 ? <p className="muted">Aucun signalement relu pour l’instant. Ouvre une ligne avec « Lire et annoter ».</p> : null}
         {trainingQueue.some((item) => item.status !== "ACTIVE" || !item.content_available) ? <Alert>Retire de la file les signalements retirés ou sans texte avant de créer le dataset.</Alert> : null}
-        {trainingQueue.length ? <>
-          <input aria-label="Nom du dataset" value={datasetName} onChange={(event) => setDatasetName(event.target.value)} />
-          <button type="button" className="btn primary" disabled={queueBusy || !datasetName.trim() || !trainingQueue.every((item) => item.status === "ACTIVE" && item.content_available)} onClick={createTrainingDataset}>
-            {queueBusy ? "Enregistrement…" : `Créer un dataset (${trainingQueue.length})`}
-          </button>
-        </> : null}
-        {createdDataset ? <span className="muted">Dataset #{createdDataset.id} créé. <Link to="/training">Ouvrir Entraînement</Link></span> : null}
-        {trainingQueue.length ? <ul className="report-training-queue-list">{trainingQueue.map((item) => <li key={item.report_id}><span>Signalement #{item.report_id} · <strong>{item.expected === "malicious" ? "Malveillant" : "Bénin"}</strong> · {item.status !== "ACTIVE" ? "Retiré" : item.threat_preview || "Texte indisponible"}</span><button type="button" className="btn small ghost" disabled={queueBusy} onClick={() => removeFromTrainingQueue(item.report_id)}>Retirer</button></li>)}</ul> : null}
+        {trainingQueue.length ? <div className="report-dataset-controls">
+          <label htmlFor="report-dataset-name">Nom du dataset</label>
+          <div className="report-dataset-create">
+            <input id="report-dataset-name" value={datasetName} onChange={(event) => setDatasetName(event.target.value)} />
+            <button type="button" className="btn primary" disabled={queueBusy || !datasetName.trim() || !trainingQueue.every((item) => item.status === "ACTIVE" && item.content_available)} onClick={createTrainingDataset}>
+              {queueBusy ? "Enregistrement…" : `Créer le dataset`}
+            </button>
+          </div>
+        </div> : null}
+        {createdDataset ? <p className="report-dataset-created muted">Dataset #{createdDataset.id} créé. <Link to="/training">Ouvrir Entraînement</Link></p> : null}
+        {trainingQueue.length ? <ul className="report-training-queue-list">{trainingQueue.map((item) => <li key={item.report_id}><span className="report-queue-label">#{item.report_id} · <strong>{item.expected === "malicious" ? "Malveillant" : "Bénin"}</strong></span><span className="report-queue-preview">{item.status !== "ACTIVE" ? "Signalement retiré" : item.threat_preview || "Texte indisponible"}</span><button type="button" className="btn small ghost" disabled={queueBusy} onClick={() => removeFromTrainingQueue(item.report_id)}>Retirer</button></li>)}</ul> : null}
       </section>
 
       <div className="toolbar">
@@ -178,7 +184,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          <div className="table-wrap">
+          <section className="report-list" aria-label="Liste des signalements">
             <LoadingOverlay show={refreshing} />
             {data.items.length === 0 ? (
               <EmptyState
@@ -186,57 +192,25 @@ export default function ReportsPage() {
                 description="Changez le filtre ou attendez les premiers reports utilisateurs."
               />
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>User</th>
-                    <th>Source</th>
-                    <th>Sévérité</th>
-                    <th>Statut</th>
-                    <th>Menace</th>
-                    <th>Contenu</th>
-                    <th>Label entraînement</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.id}</td>
-                      <td>{r.username}</td>
-                      <td>{r.source}</td>
-                      <td>
-                        <span
-                          className={`pill sev-${String(r.severity).toLowerCase()}`}
-                        >
-                          {r.severity}
-                        </span>
-                      </td>
-                      <td>{r.status}</td>
-                      <td><Link className="btn small ghost" to={`/threats/${r.threat_id}`}>#{r.threat_id}</Link></td>
-                      <td>{r.content_available ? r.threat_preview : <span className="muted">Contenu non stocké (empreinte)</span>}</td>
-                      <td>{trainingQueue.find((item) => item.report_id === r.id) ? <span className="pill soft">{trainingQueue.find((item) => item.report_id === r.id).expected === "malicious" ? "Malveillant" : "Bénin"}</span> : <span className="muted">À relire</span>}</td>
-                      <td className="actions">
-                        <button type="button" className="btn small primary" onClick={async () => { setSelected(null); setSelectedExpected(""); try { const report = await getReport(r.id); setSelected(report); setSelectedExpected(trainingQueue.find((item) => item.report_id === report.id)?.expected || ""); } catch (err) { setError(err.message); } }}>{r.content_available ? "Lire et annoter" : "Détails"}</button>
-                        {r.status === "ACTIVE" ? (
-                          <button
-                            type="button"
-                            className="btn small danger"
-                            disabled={busyId === r.id}
-                            onClick={() => setWithdrawId(r.id)}
-                          >
-                            {busyId === r.id ? <span className="btn-spinner" /> : null}
-                            Retirer
-                          </button>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="report-card-list">
+                {data.items.map((r) => {
+                  const queued = trainingQueue.find((item) => item.report_id === r.id);
+                  return <article className="report-card" key={r.id}>
+                    <div className="report-card-top">
+                      <div className="report-card-title"><strong>Signalement #{r.id}</strong><span className={`pill sev-${String(r.severity).toLowerCase()}`}>{r.severity}</span><span className={`report-status ${r.status === "ACTIVE" ? "is-active" : ""}`}>{r.status === "ACTIVE" ? "Actif" : "Retiré"}</span></div>
+                      <span className="report-card-source">{r.source} · {r.username || "Utilisateur inconnu"}</span>
+                    </div>
+                    <div className="report-card-content">{r.content_available ? <p>{r.threat_preview || "Contenu stocké · ouvrir pour lire"}</p> : <p className="muted"><strong>Contenu non stocké</strong> · signalement par empreinte</p>}</div>
+                    <div className="report-card-bottom">
+                      <div className="report-card-meta"><Link to={`/threats/${r.threat_id}`}>Menace #{r.threat_id}</Link>{queued ? <span className="pill soft">Relu · {queued.expected === "malicious" ? "Malveillant" : "Bénin"}</span> : <span className="muted">À relire</span>}</div>
+                      <div className="report-card-actions">
+                        <button type="button" className="btn small primary" onClick={async () => { setSelected(null); setSelectedExpected(""); try { const report = await getReport(r.id); setSelected(report); setSelectedExpected(trainingQueue.find((item) => item.report_id === report.id)?.expected || ""); } catch (err) { setError(err.message); } }}>{r.content_available ? "Lire et annoter" : "Voir les détails"}</button>
+                        {r.status === "ACTIVE" ? <button type="button" className="btn small danger" disabled={busyId === r.id} onClick={() => setWithdrawId(r.id)}>{busyId === r.id ? <span className="btn-spinner" /> : null}Retirer</button> : null}
+                      </div>
+                    </div>
+                  </article>;
+                })}
+              </div>
             )}
             <ConfirmDialog
               open={withdrawId !== null}
@@ -248,9 +222,23 @@ export default function ReportsPage() {
               onCancel={() => setWithdrawId(null)}
               onConfirm={() => onWithdraw(withdrawId)}
             />
-          </div>
+          </section>
       <DetailSheet open={Boolean(selected)} title={selected ? `Signalement #${selected.id}` : "Signalement"} eyebrow="Revue admin" onClose={() => setSelected(null)}>
-        {selected ? <div className="form-grid"><p><strong>Utilisateur :</strong> {selected.username} (#{selected.user_id}) · <strong>Source :</strong> {selected.source}</p><p><strong>Statut :</strong> {selected.status} · <strong>Sévérité :</strong> {selected.severity}</p><p><strong>Date :</strong> {new Date(selected.created_at).toLocaleString("fr-FR")}{selected.withdrawn_at ? ` · Retiré le ${new Date(selected.withdrawn_at).toLocaleString("fr-FR")}` : ""} · <strong>Signalements menace :</strong> {selected.report_count} · <strong>Score communauté :</strong> {selected.community_score}</p>{selected.content ? <div><h3>Contenu complet</h3><pre className="report-content">{selected.content}</pre></div> : <Alert>Contenu non stocké (signalement par empreinte). Cette entrée ne peut pas servir de message d’entraînement.</Alert>}<p>Faux positif : {selected.false_positive ? "Oui" : "Non"} · Menace #{selected.threat_id}</p><Link className="btn ghost" to={`/threats/${selected.threat_id}`}>Ouvrir la fiche menace</Link>{selected.content && selected.status === "ACTIVE" ? <div className="report-training-review"><h3>Ajouter à la file d’entraînement</h3><p className="muted">Choisis le label après lecture. Le fait qu’un utilisateur ait signalé le message ne décide pas du label.</p><label>Étiquette relue<select value={selectedExpected} onChange={(event) => setSelectedExpected(event.target.value)}><option value="">À annoter…</option><option value="malicious">Malveillant</option><option value="legitimate">Bénin</option></select></label><button type="button" className="btn primary" disabled={!selectedExpected || queueBusy} onClick={addSelectedToTrainingQueue}>{queueBusy ? "Enregistrement…" : trainingQueue.some((item) => item.report_id === selected.id) ? "Mettre à jour l’étiquette" : "Enregistrer le label en base"}</button></div> : null}{selected.status === "ACTIVE" ? <button type="button" className="btn danger" onClick={() => setWithdrawId(selected.id)}>Retirer ce signalement</button> : null}</div> : null}
+        {selected ? <div className="report-detail">
+          <dl className="report-detail-meta">
+            <div><dt>Utilisateur</dt><dd>{selected.username || "Inconnu"} (#{selected.user_id})</dd></div>
+            <div><dt>Source</dt><dd>{selected.source || "—"}</dd></div>
+            <div><dt>Statut · sévérité</dt><dd>{selected.status} · {selected.severity}</dd></div>
+            <div><dt>Reçu le</dt><dd>{new Date(selected.created_at).toLocaleString("fr-FR")}</dd></div>
+            {selected.withdrawn_at ? <div><dt>Retiré le</dt><dd>{new Date(selected.withdrawn_at).toLocaleString("fr-FR")}</dd></div> : null}
+            <div><dt>Revue communauté</dt><dd>{selected.report_count} signalement(s) · score {selected.community_score ?? "—"}</dd></div>
+          </dl>
+          {selected.content ? <section className="report-detail-message"><h3>Message signalé</h3><pre className="report-content">{selected.content}</pre></section> : <Alert>Contenu non stocké (signalement par empreinte). Cette entrée ne peut pas servir de message d’entraînement.</Alert>}
+          <p className="report-detail-fp">Faux positif : <strong>{selected.false_positive ? "Oui" : "Non"}</strong></p>
+          <Link className="btn ghost" to={`/threats/${selected.threat_id}`}>Ouvrir la menace #{selected.threat_id}</Link>
+          {selected.content && selected.status === "ACTIVE" ? <div className="report-training-review"><h3>Ajouter à la file d’entraînement</h3><p className="muted">Choisis le label après lecture. Le signalement seul ne détermine pas la classe.</p><label>Étiquette relue<select value={selectedExpected} onChange={(event) => setSelectedExpected(event.target.value)}><option value="">À annoter…</option><option value="malicious">Malveillant</option><option value="legitimate">Bénin</option></select></label><button type="button" className="btn primary" disabled={!selectedExpected || queueBusy} onClick={addSelectedToTrainingQueue}>{queueBusy ? "Enregistrement…" : trainingQueue.some((item) => item.report_id === selected.id) ? "Mettre à jour l’étiquette" : "Enregistrer le label en base"}</button></div> : null}
+          {selected.status === "ACTIVE" ? <button type="button" className="btn danger" onClick={() => setWithdrawId(selected.id)}>Retirer ce signalement</button> : null}
+        </div> : null}
       </DetailSheet>
 
           <div className="pager">
