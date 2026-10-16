@@ -691,7 +691,9 @@ function DatasetList({ datasets, datasetId, onOpen, onDelete }) {
             </span>
             <span className="pill soft">Aperçu</span>
           </button>
-          <button type="button" className="btn small danger" aria-label={`Supprimer le dataset ${d.name}`} onClick={() => onDelete(d.id, d.name)}><Trash2 size={15} aria-hidden /> Supprimer</button>
+          <div className="training-row-actions">
+            <button type="button" className="btn small danger" aria-label={`Supprimer le dataset ${d.name}`} title="Supprimer ce dataset" onClick={() => onDelete(d.id, d.name)}><Trash2 size={15} aria-hidden /> Supprimer</button>
+          </div>
         </li>
       ))}
     </ul>
@@ -723,7 +725,9 @@ function RunList({ runs, selectedId, onOpen, onDelete }) {
             </span>
             <span className="pill soft">Détail</span>
           </button>
-          <button type="button" className="btn small danger" aria-label={`Supprimer le run ${r.id}`} onClick={() => onDelete(r.id)}><Trash2 size={15} aria-hidden /> Supprimer</button>
+          <div className="training-row-actions">
+            <button type="button" className="btn small danger" aria-label={`Supprimer le run ${r.id}`} title="Supprimer ce run" onClick={() => onDelete(r.id)}><Trash2 size={15} aria-hidden /> Supprimer</button>
+          </div>
         </li>
       ))}
     </ul>

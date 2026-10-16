@@ -53,6 +53,43 @@ def test_hashes_stable_and_normalized():
     )
 
 
+def test_fusion_tenant_thresholds_change_status():
+    """Une politique stricte doit basculer un score moyen en DANGEROUS."""
+    semantic = SemanticResult(
+        available=True,
+        risk_score=50,
+        severity=ThreatSeverity.MEDIUM,
+        threat_type=ThreatType.SUSPICIOUS_REQUEST,
+        reasons=["Demande suspecte"],
+        recommendations=["Ne pas répondre"],
+        confidence=0.9,
+    )
+    default_fused = fuse_analysis(
+        semantic=semantic,
+        url_results=[],
+        community=CommunityMatch(matched=False),
+        urls_detected=False,
+    )
+    assert default_fused["status"] == AnalysisStatus.SUSPICIOUS
+
+    strict = fuse_analysis(
+        semantic=semantic,
+        url_results=[],
+        community=CommunityMatch(matched=False),
+        urls_detected=False,
+        thresholds={
+            "safe": 20,
+            "suspicious": 40,
+            "critical": 70,
+            "escalation": 0.65,
+            "uncertainty": 0.65,
+            "uncertain_score_floor": 40,
+        },
+    )
+    assert strict["status"] == AnalysisStatus.DANGEROUS
+    assert strict["providers"]["policy"]["suspicious"] == 40
+
+
 def test_fusion_vt_malicious_overrides_medium_semantic():
     semantic = SemanticResult(
         available=True,

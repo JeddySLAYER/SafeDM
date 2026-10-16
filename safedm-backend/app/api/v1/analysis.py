@@ -18,6 +18,13 @@ from app.services.analysis_service import AnalysisService
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
 
+def authorized_analysis_payload(current_user: User, payload):
+    """Only platform admins may select a tenant policy until memberships exist."""
+    if current_user.is_admin:
+        return payload
+    return payload.model_copy(update={"tenant_key": None, "region": None})
+
+
 @router.post("", response_model=AnalysisResponse)
 @router.post("/", response_model=AnalysisResponse, include_in_schema=False)
 def analyze_message(
@@ -27,10 +34,9 @@ def analyze_message(
     db: Session = Depends(get_db),
 ):
     """Analyse un message. Le contenu n'est pas stocké côté serveur."""
-    _ = current_user  # auth required
     if get_settings().rate_limit_enabled:
         check_rate_limit(request, "/analysis")
-    return AnalysisService(db).analyze(payload)
+    return AnalysisService(db).analyze(authorized_analysis_payload(current_user, payload))
 
 
 @router.post("/features", response_model=AnalysisResponse)
@@ -40,10 +46,11 @@ def analyze_features(
     db: Session = Depends(get_db),
 ):
     """Analyse uniquement le vecteur local, sans recevoir le texte."""
-    _ = current_user
     if not payload.consent_external:
         raise HTTPException(status_code=400, detail="Explicit consent is required")
-    return AnalysisService(db).analyze_encrypted_features(payload)
+    return AnalysisService(db).analyze_encrypted_features(
+        authorized_analysis_payload(current_user, payload)
+    )
 
 
 @router.post("/link", response_model=UrlGateResponse)
@@ -54,4 +61,6 @@ def analyze_url(
     db: Session = Depends(get_db),
 ):
     """Analyse un lien avant ouverture (Link Gate). Journal léger côté ops."""
-    return AnalysisService(db).analyze_url(payload, user_id=current_user.id)
+    return AnalysisService(db).analyze_url(
+        authorized_analysis_payload(current_user, payload), user_id=current_user.id
+    )

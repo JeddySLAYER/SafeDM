@@ -26,9 +26,10 @@ from app.schemas.analysis import (
 )
 from app.services.fingerprint_envelope import decrypt_fingerprint_envelope, FingerprintEnvelopeError
 from app.schemas.analysis_enums import AnalysisSource, AnalysisStatus, ThreatType
-from app.services.fusion_service import fuse_analysis
+from app.services.fusion_service import default_thresholds, fuse_analysis
 from app.services.jev_service import JevService
 from app.services.semantic_types import SemanticResult
+from app.services.tenant_policy_service import resolve_analysis_thresholds
 from app.services.virustotal_service import VirusTotalService
 from app.utils.hashing import compute_normalized_hash, compute_raw_hash
 from app.utils.url_extraction import extract_domain, extract_urls
@@ -44,11 +45,16 @@ def _link_gate_decision(
     severity: ThreatSeverity,
     risk_score: int,
     url_results: list,
+    thresholds: dict | None = None,
 ) -> tuple[str, str, bool]:
     """
     Décision d'ouverture d'un lien.
     UNKNOWN/PARTIAL ne sont JAMAIS traités comme sûrs.
     """
+    t = thresholds or default_thresholds()
+    safe_floor = int(t["safe"])
+    suspicious_floor = int(t["suspicious"])
+
     vt_malicious = any(
         getattr(u, "result", None) == VirusTotalResult.MALICIOUS for u in url_results
     )
@@ -60,7 +66,7 @@ def _link_gate_decision(
     if (
         status == AnalysisStatus.DANGEROUS
         or severity in (ThreatSeverity.HIGH, ThreatSeverity.CRITICAL)
-        or risk_score >= 65
+        or risk_score >= suspicious_floor
         or vt_malicious
     ):
         return (
@@ -79,7 +85,7 @@ def _link_gate_decision(
         or vt_unavailable
         or status == AnalysisStatus.SUSPICIOUS
         or severity == ThreatSeverity.MEDIUM
-        or risk_score >= 35
+        or risk_score >= safe_floor
         or vt_suspicious
     ):
         return (
@@ -107,17 +113,29 @@ class AnalysisService:
         self.virustotal = virustotal or VirusTotalService()
         self.threats = ThreatRepository(db)
 
+    def _resolve_policy(
+        self, *, tenant_key: str | None = None, region: str | None = None
+    ) -> tuple[dict, dict]:
+        return resolve_analysis_thresholds(
+            self.db, tenant_key=tenant_key, region=region
+        )
+
     def analyze(self, payload: AnalysisRequest) -> AnalysisResponse:
         content = (payload.content or "").strip()
         raw_hash = compute_raw_hash(content)
         normalized_hash = compute_normalized_hash(content)
+        thresholds, policy_meta = self._resolve_policy(
+            tenant_key=payload.tenant_key, region=payload.region
+        )
 
         # Ne jamais logger le contenu
         logger.info(
-            "analysis_start source=%s package=%s content_len=%s",
+            "analysis_start source=%s package=%s content_len=%s tenant=%s policy=%s",
             payload.source.value,
             payload.application_package,
             len(content),
+            policy_meta.get("tenant_key"),
+            policy_meta.get("source"),
         )
 
         if len(content) < MIN_CONTENT_LENGTH:
@@ -170,14 +188,17 @@ class AnalysisService:
             url_results=url_results,
             community=community,
             urls_detected=bool(urls),
+            thresholds=thresholds,
         )
+        fused["providers"]["policy"] = policy_meta
 
         logger.info(
-            "analysis_done status=%s score=%s urls=%s community=%s content_stored=false",
+            "analysis_done status=%s score=%s urls=%s community=%s policy=%s content_stored=false",
             fused["status"].value,
             fused["risk_score"],
             len(url_results),
             community.matched,
+            policy_meta.get("source"),
         )
 
         return AnalysisResponse(
@@ -227,6 +248,9 @@ class AnalysisService:
             from fastapi import HTTPException
             raise HTTPException(status_code=400, detail="Invalid feature envelope") from exc
 
+        thresholds, policy_meta = self._resolve_policy(
+            tenant_key=payload.tenant_key, region=payload.region
+        )
         raw_hash = hashlib.sha256(bytes(features)).hexdigest()
         semantic = self.jev.analyze_features(features)
         fused = fuse_analysis(
@@ -234,7 +258,9 @@ class AnalysisService:
             url_results=[],
             community=CommunityMatch(matched=False),
             urls_detected=False,
+            thresholds=thresholds,
         )
+        fused["providers"]["policy"] = policy_meta
         return AnalysisResponse(
             status=fused["status"],
             risk_score=fused["risk_score"],
@@ -335,8 +361,16 @@ class AnalysisService:
         domain = extract_domain(url)
         raw_hash = compute_raw_hash(url)
         normalized_hash = compute_normalized_hash(url)
+        thresholds, policy_meta = self._resolve_policy(
+            tenant_key=payload.tenant_key, region=payload.region
+        )
 
-        logger.info("link_gate_start domain=%s", domain)
+        logger.info(
+            "link_gate_start domain=%s tenant=%s policy=%s",
+            domain,
+            policy_meta.get("tenant_key"),
+            policy_meta.get("source"),
+        )
 
         community = self.threats.find_by_url(url)
 
@@ -365,6 +399,7 @@ class AnalysisService:
                 else ThreatSeverity.LOW,
                 risk_score=score,
                 url_results=[],
+                thresholds=thresholds,
             )
 
             return UrlGateResponse(
@@ -386,6 +421,7 @@ class AnalysisService:
                         "skipped": True,
                         "reason": "consentement non fourni",
                     },
+                    "policy": policy_meta,
                 },
                 raw_hash=raw_hash,
                 normalized_hash=normalized_hash,
@@ -412,7 +448,9 @@ class AnalysisService:
             url_results=url_results,
             community=community,
             urls_detected=True,
+            thresholds=thresholds,
         )
+        fused["providers"]["policy"] = policy_meta
 
         # Renforce si communauté a signalé l'URL
         if community.matched and community.severity in (
@@ -432,6 +470,7 @@ class AnalysisService:
             severity=fused["severity"],
             risk_score=fused["risk_score"],
             url_results=url_results,
+            thresholds=thresholds,
         )
 
         logger.info(
