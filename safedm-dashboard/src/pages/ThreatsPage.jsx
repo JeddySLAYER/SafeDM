@@ -5,6 +5,7 @@ import {
   Alert,
   BusyButton,
   EmptyState,
+  Freshness,
   LoadingOverlay,
   PageHeader,
   Skeleton,
@@ -26,6 +27,7 @@ export default function ThreatsPage() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState("");
 
   const load = useCallback(async (page = 1, { soft = false } = {}) => {
     setError("");
@@ -34,6 +36,7 @@ export default function ThreatsPage() {
     try {
       const res = await getThreats({ page, pageSize: 20, status: status || undefined });
       setData(res);
+      setUpdatedAt(new Date().toISOString());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -88,7 +91,16 @@ export default function ThreatsPage() {
 
   return (
     <div>
-      <PageHeader title="Menaces" subtitle="Examinez le contenu, les signalements associés et l’activité des URLs, puis choisissez une action de modération." />
+      <PageHeader
+        title="Menaces"
+        subtitle="Examinez le contenu, les signalements associés et l’activité des URLs, puis choisissez une action de modération."
+        actions={
+          <>
+            <Freshness updatedAt={updatedAt} refreshing={refreshing} />
+            <button type="button" className="btn ghost" disabled={refreshing} onClick={() => load(data.page || 1, { soft: true })}>Actualiser</button>
+          </>
+        }
+      />
 
       <div className="toolbar">
         <label>
@@ -154,7 +166,7 @@ export default function ThreatsPage() {
           </div>
           <section className="detail-content-preview">
             <h3>Contenu signalé</h3>
-            {detail.content_available || detail.content ? <p>{detail.content}</p> : <Alert>Contenu non stocké. La revue est limitée à l’empreinte et aux métadonnées.</Alert>}
+            {detail.content_available || detail.content ? <p>{detail.content}</p> : <Alert tone="info">Contenu non stocké. La revue est limitée à l’empreinte et aux métadonnées.</Alert>}
           </section>
           <dl className="details-list">
             <div><dt>Faux positif</dt><dd>{detail.false_positive ? "Oui" : "Non"}</dd></div>

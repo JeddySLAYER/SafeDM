@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   Activity,
+  ArrowRight,
   BrainCircuit,
   CloudUpload,
   FlaskConical,
@@ -19,10 +29,12 @@ import {
   DetailSheet,
   EmptyState,
   Field,
+  Freshness,
   PageHeader,
   Spinner,
 } from "../components/ui";
 import { useToast } from "../context/ToastContext";
+import { binaryLabel, mlStatus, reviewStatus } from "../copy/glossary";
 import { DATASET_COLUMN_ALIASES, normalizeDatasetRows, parseDatasetFile, suggestColumn } from "../utils/datasetImport";
 import {
   createMlDataset,
@@ -34,19 +46,38 @@ import {
   listMlDatasets,
   listMlRuns,
   promoteMlRun,
+  reviewMlArtifact,
+  reviewMlRun,
   seedBuiltinMlDataset,
   startMlTrain,
   tryMlMessage,
 } from "../services/adminApi";
 
+const TAB_IDS = ["data", "add", "train", "runs", "try", "tflite"];
+
+const TESTED_RUNS_KEY = "safedm.ml.testedRuns";
+
+function readTestedRuns() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TESTED_RUNS_KEY) || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function TrainingPage() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [datasets, setDatasets] = useState([]);
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [datasetId, setDatasetId] = useState("");
   const [preview, setPreview] = useState(null);
-  const [tab, setTab] = useState("data");
+  const [tab, setTab] = useState(() => {
+    const requested = searchParams.get("tab");
+    return TAB_IDS.includes(requested) ? requested : "data";
+  });
   const [processOpen, setProcessOpen] = useState(false);
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
@@ -62,6 +93,8 @@ export default function TrainingPage() {
   );
   const [tryResult, setTryResult] = useState(null);
   const [tfliteResult, setTfliteResult] = useState(null);
+  const [testedRuns, setTestedRuns] = useState(readTestedRuns);
+  const [tfliteModelFile, setTfliteModelFile] = useState(null);
   const [mobileFeatures, setMobileFeatures] = useState(null);
   const [mobileResults, setMobileResults] = useState(null);
   const [mobileMessages, setMobileMessages] = useState(null);
@@ -73,6 +106,7 @@ export default function TrainingPage() {
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState("");
 
   const refresh = useCallback(async () => {
     setError("");
@@ -82,6 +116,7 @@ export default function TrainingPage() {
       setDatasets(d.items || []);
       setRuns(r.items || []);
       setDatasetId((current) => current || (d.items?.[0] ? String(d.items[0].id) : ""));
+      setUpdatedAt(new Date().toISOString());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -93,6 +128,14 @@ export default function TrainingPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const runParam = searchParams.get("run");
+    if (!runParam || selectedRun) return;
+    if (runs.some((r) => String(r.id) === runParam)) openRun(Number(runParam));
+    // openRun is stable enough for this one-shot restore
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs]);
 
   async function runAction(actionKey, action, successMessage) {
     setBusy(true);
@@ -121,12 +164,12 @@ export default function TrainingPage() {
           content: importRows ? JSON.stringify(validImportRows.map(({ message, expected }) => ({ message, expected }))) : content,
           source: "upload",
         }),
-      "Dataset enregistré");
+      "Jeu enregistré");
       setName("");
       setContent("");
       setImportRows(null);
       setDatasetId(String(created.id));
-      setTab("data");
+      selectTab("data");
       await refresh();
     } catch {
       /* toast already shown */
@@ -156,7 +199,7 @@ export default function TrainingPage() {
     try {
       const created = await runAction("seed", () => seedBuiltinMlDataset(), "Jeu intégré importé");
       setDatasetId(String(created.id));
-      setTab("data");
+      selectTab("data");
       await refresh();
     } catch {
       /* toast already shown */
@@ -173,24 +216,59 @@ export default function TrainingPage() {
             dataset_id: Number(datasetId),
             promote_canary: promoteCanary,
           }),
-        promoteCanary
-          ? "Entraînement terminé (canary si publiable)"
-          : "Entraînement terminé",
+        null,
       );
-      setSelectedRun(run);
-      setTab("runs");
+      if (promoteCanary) {
+        toast(run.publishable ? "Entraînement terminé — préparé pour le canary à 0 %." : "Entraînement terminé — seuils non atteints, aucun canary préparé.", run.publishable ? "success" : "error");
+      } else {
+        toast("Entraînement terminé");
+      }
+      showRun(run);
       await refresh();
     } catch {
       /* toast already shown */
     }
   }
 
+  function selectTab(id) {
+    if (!TAB_IDS.includes(id)) return;
+    setTab(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", id);
+      if (id !== "runs") next.delete("run");
+      return next;
+    }, { replace: true });
+  }
+
+  function showRun(run, { activate = true } = {}) {
+    setSelectedRun(run);
+    if (run) {
+      if (activate) setTab("runs");
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (activate) next.set("tab", "runs");
+        next.set("run", String(run.id));
+        return next;
+      }, { replace: true });
+    }
+  }
+
   async function openRun(id) {
     try {
-      setSelectedRun(await runAction("open-run", () => getMlRun(id)));
+      showRun(await runAction("open-run", () => getMlRun(id)), { activate: false });
     } catch {
       /* toast already shown */
     }
+  }
+
+  function closeRun() {
+    setSelectedRun(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("run");
+      return next;
+    }, { replace: true });
   }
 
   async function openDataset(id) {
@@ -212,12 +290,12 @@ export default function TrainingPage() {
           setPreview(null);
           setDatasetId("");
         }
-        if (selectedRun?.dataset_id === deleteTarget.id) setSelectedRun(null);
+        if (selectedRun?.dataset_id === deleteTarget.id) closeRun();
       } else {
         await deleteMlRun(deleteTarget.id);
-        if (selectedRun?.id === deleteTarget.id) setSelectedRun(null);
+        if (selectedRun?.id === deleteTarget.id) closeRun();
       }
-      toast(deleteTarget.type === "dataset" ? "Dataset et fichiers associés supprimés" : "Run et fichiers associés supprimés");
+      toast(deleteTarget.type === "dataset" ? "Jeu et entraînements associés supprimés" : "Entraînement et fichiers associés supprimés");
       await refresh();
     } catch (err) {
       setError(err.message);
@@ -230,12 +308,26 @@ export default function TrainingPage() {
 
   async function onPromote(id) {
     try {
-      await runAction("promote", () => promoteMlRun(id), "Modèle poussé en canary (0 %)");
+      await runAction("promote", () => promoteMlRun(id), "Modèle placé en canary à 0 %.");
       setSelectedRun(await getMlRun(id));
-      toast("Ouvrez Opérations pour Approuver un pourcentage", "success");
+      toast("Ouvrez Opérations pour activer un pourcentage.", "success");
     } catch {
       /* toast already shown */
     }
+  }
+
+  function markTested(runId) {
+    const key = runId ?? "adhoc";
+    setTestedRuns((current) => {
+      if (current.includes(key)) return current;
+      const next = [...current, key];
+      try {
+        localStorage.setItem(TESTED_RUNS_KEY, JSON.stringify(next));
+      } catch {
+        /* storage unavailable — keep in memory only */
+      }
+      return next;
+    });
   }
 
   async function onTry() {
@@ -250,6 +342,7 @@ export default function TrainingPage() {
         "Évaluation terminée",
       );
       setTryResult(result);
+      markTested(selectedRun?.id);
     } catch {
       setTryResult(null);
     }
@@ -259,10 +352,33 @@ export default function TrainingPage() {
     if (!datasetId) return;
     const result = await runAction(
       "tflite-evaluate",
-      () => evaluateMlTflite(datasetId, selectedRun?.id || null, mobileFeatures, mobileResults, mobileMessages),
+      () => evaluateMlTflite(datasetId, selectedRun?.id || null, mobileFeatures, mobileResults, mobileMessages, tfliteModelFile),
       "Évaluation du fichier TFLite terminée",
     );
     setTfliteResult(result);
+    markTested(selectedRun?.id);
+  }
+
+  async function onReviewArtifact(status) {
+    const id = tfliteResult?.artifact?.id;
+    if (!id) return;
+    try {
+      const updated = await runAction("review-artifact", () => reviewMlArtifact(id, status), "Revue de l’artefact enregistrée");
+      setTfliteResult((current) => ({ ...current, artifact: updated }));
+    } catch {
+      /* toast already shown */
+    }
+  }
+
+  async function onReviewRun(status) {
+    if (!selectedRun?.id) return;
+    try {
+      const updated = await runAction("review-run", () => reviewMlRun(selectedRun.id, status), "Revue de l’entraînement enregistrée");
+      setSelectedRun(updated);
+      await refresh();
+    } catch {
+      /* toast already shown */
+    }
   }
 
   function importMobileReport(data, label = "rapport Android") {
@@ -270,7 +386,7 @@ export default function TrainingPage() {
       ? data
       : data.mobile_features || data.features || data.rows?.map((row) => row.features || row.mobile_features);
     if (!Array.isArray(vectors) || vectors.some((vector) => !Array.isArray(vector))) {
-      throw new Error("Le JSON doit contenir une liste de vecteurs de features.");
+      throw new Error("Le JSON doit contenir une liste de vecteurs de caractéristiques.");
     }
     setMobileFeatures(vectors);
     setMobileResults(Array.isArray(data.mobile_results) ? data.mobile_results : null);
@@ -283,6 +399,22 @@ export default function TrainingPage() {
   const summary = selectedRun?.metrics_summary;
   const fullMetrics = selectedRun?.metrics;
   const operational = fullMetrics?.at_operational_threshold || summary;
+  const tabIds = TAB_IDS;
+  const testKey = selectedRun?.id ?? "adhoc";
+  const hasTestResult = Boolean(tryResult || tfliteResult) || testedRuns.includes(testKey);
+  const stages = buildStages({ datasets, runs, hasTestResult });
+  const nextStage = stages.find((stage) => !stage.done);
+  const tabState = Object.fromEntries(TAB_IDS.map((id) => [id, stageTabState(id, stages, nextStage)]));
+
+  function moveTab(event, currentId) {
+    const currentIndex = tabIds.indexOf(currentId);
+    if (currentIndex < 0 || !["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const offset = event.key === "Home" ? 0 : event.key === "End" ? tabIds.length - 1 : (currentIndex + (event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1) + tabIds.length) % tabIds.length;
+    const nextId = tabIds[offset];
+    selectTab(nextId);
+    document.getElementById(`tab-${nextId}`)?.focus();
+  }
 
   return (
     <div>
@@ -291,6 +423,7 @@ export default function TrainingPage() {
         subtitle="Préparez un jeu, entraînez, testez un message, puis activez depuis Opérations."
         actions={
           <>
+            <Freshness updatedAt={updatedAt} refreshing={busyAction === "refresh"} />
             <button type="button" className="btn ghost" onClick={() => setProcessOpen(true)}>
               Comment ça marche
             </button>
@@ -311,29 +444,50 @@ export default function TrainingPage() {
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       <div className="panel">
-        <div className="tabs" role="tablist">
-          <Tab id="data" current={tab} onSelect={setTab} icon={CloudUpload} title="Jeux" hint="Voir les exemples" />
-          <Tab id="add" current={tab} onSelect={setTab} icon={FlaskConical} title="Ajouter" hint="Importer un fichier" />
-          <Tab id="train" current={tab} onSelect={setTab} icon={BrainCircuit} title="Entraîner" hint="Calculer le modèle" />
-          <Tab id="runs" current={tab} onSelect={setTab} icon={Play} title="Résultats" hint="Métriques et canary" />
-          <Tab id="try" current={tab} onSelect={setTab} icon={MessageSquareText} title="Tester" hint="Message → verdict" />
-          <Tab id="tflite" current={tab} onSelect={setTab} icon={Activity} title="Diagnostic local" hint="TFLite et patch" />
+        <div className="stage-banner">
+          <div className="stage-banner-text">
+            <p className="eyebrow">Parcours d’entraînement</p>
+            {nextStage ? (
+              <button
+                type="button"
+                className="stage-next"
+                onClick={() => selectTab(nextStage.tab)}
+                title={`Aller à l’onglet ${nextStage.label}`}
+              >
+                Prochaine étape : <strong>{nextStage.label}</strong>
+                <ArrowRight size={15} aria-hidden />
+              </button>
+            ) : (
+              <p className="stage-next is-complete">
+                Cycle complet — <strong>prêt pour la production</strong>
+              </p>
+            )}
+          </div>
+          {selectedRun ? <span className="pill soft">Entraînement #{selectedRun.id}</span> : null}
+        </div>
+        <div className="tabs" role="tablist" aria-label="Parcours d’entraînement">
+          <Tab id="data" current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={CloudUpload} title="Jeux" hint="Voir les exemples" state={tabState.data} />
+          <Tab id="add" current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={FlaskConical} title="Ajouter" hint="Importer un fichier" state={tabState.add} />
+          <Tab id="train" current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={BrainCircuit} title="Entraîner" hint="Calculer le modèle" state={tabState.train} />
+          <Tab id="runs" current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={Play} title="Résultats" hint="Métriques et déploiement" state={tabState.runs} />
+          <Tab id="try" current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={MessageSquareText} title="Tester" hint="Message → verdict" state={tabState.try} />
+          <Tab id="tflite" current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={Activity} title="Diagnostic TFLite" hint="Vérifier le modèle" state={tabState.tflite} />
         </div>
 
         {loading ? <Spinner label="Chargement…" /> : null}
 
         {!loading && tab === "data" ? (
-          <DatasetList datasets={datasets} datasetId={datasetId} onOpen={openDataset} onDelete={(id, name) => setDeleteTarget({ type: "dataset", id, name })} />
+          <div id="panel-data" role="tabpanel" tabIndex={0} aria-labelledby="tab-data"><DatasetList datasets={datasets} datasetId={datasetId} onOpen={openDataset} onDelete={(id, name) => setDeleteTarget({ type: "dataset", id, name })} /></div>
         ) : null}
 
         {!loading && tab === "add" ? (
-          <form className="form-grid" onSubmit={onUpload}>
+          <form id="panel-add" className="form-grid" role="tabpanel" tabIndex={0} aria-labelledby="tab-add" onSubmit={onUpload}>
             <Field label="Nom du jeu">
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ex. phishing-mars" />
             </Field>
             <Field
               label="Fichier JSON ou CSV"
-              hint="JSON: liste {message, expected}. CSV: colonnes message,expected."
+              hint="Indiquez ensuite quelles colonnes contiennent le message et son étiquette (bénin ou malveillant)."
             >
               <input type="file" accept=".json,.csv,text/csv,application/json" onChange={(e) => onFile(e.target.files?.[0])} />
             </Field>
@@ -341,10 +495,10 @@ export default function TrainingPage() {
             {importRows ? (
               <>
                 <div className="form-grid">
-                  <Field label="message ← colonne"><select value={messageColumn} onChange={(e) => setMessageColumn(e.target.value)}>{importColumns.map((col) => <option key={col}>{col}</option>)}</select></Field>
-                  <Field label="expected ← colonne"><select value={labelColumn} onChange={(e) => setLabelColumn(e.target.value)}>{importColumns.map((col) => <option key={col}>{col}</option>)}</select></Field>
+                  <Field label="Colonne du message"><select value={messageColumn} onChange={(e) => setMessageColumn(e.target.value)}>{importColumns.map((col) => <option key={col}>{col}</option>)}</select></Field>
+                  <Field label="Colonne de l'étiquette"><select value={labelColumn} onChange={(e) => setLabelColumn(e.target.value)}>{importColumns.map((col) => <option key={col}>{col}</option>)}</select></Field>
                 </div>
-                <p className="muted">{normalizedRows.length} lignes non vides · {validImportRows.length} valides · {normalizedRows.length - validImportRows.length} étiquettes à corriger</p>
+                <p className="muted">{normalizedRows.length} lignes non vides · {validImportRows.length} valides · {normalizedRows.length - validImportRows.length} à vérifier</p>
                 <div className="table-wrap"><table><thead><tr><th>Message</th><th>Étiquette normalisée</th><th>État</th></tr></thead><tbody>{importPageRows.map((row) => <tr key={row.index}><td>{row.message}</td><td><select value={row.expected === "legitimate" || row.expected === "malicious" ? row.expected : ""} onChange={(e) => setImportRows(importRows.map((item, index) => index === row.index ? { ...item, [labelColumn]: e.target.value } : item))}><option value="">Choisir…</option><option value="legitimate">Bénin</option><option value="malicious">Malveillant</option></select></td><td>{row.valid ? "Prêt" : "À vérifier"}</td></tr>)}</tbody></table></div>
                 {normalizedRows.length > importPageSize ? <div className="pager"><button type="button" className="btn ghost" disabled={importPage === 0} onClick={() => setImportPage((page) => page - 1)}>Précédent</button><span>Page {importPage + 1} / {Math.ceil(normalizedRows.length / importPageSize)}</span><button type="button" className="btn ghost" disabled={(importPage + 1) * importPageSize >= normalizedRows.length} onClick={() => setImportPage((page) => page + 1)}>Suivant</button></div> : null}
               </>
@@ -365,7 +519,7 @@ export default function TrainingPage() {
             ) : null}
             <div className="form-actions">
               <BusyButton type="submit" busy={busyAction === "upload"} busyLabel="Envoi…" disabled={importRows ? validImportRows.length === 0 : !content.trim()}>
-                <CloudUpload size={16} aria-hidden /> Envoyer le dataset
+                <CloudUpload size={16} aria-hidden /> Enregistrer le jeu
               </BusyButton>
               <BusyButton
                 className="btn ghost"
@@ -380,13 +534,13 @@ export default function TrainingPage() {
         ) : null}
 
         {!loading && tab === "train" ? (
-          <div className="form-grid">
+          <div id="panel-train" className="form-grid" role="tabpanel" tabIndex={0} aria-labelledby="tab-train">
             <p className="panel-note">
               L’entraînement produit un patch JSON à poids entiers — c’est ce que le téléphone utilise en OTA.
-              La case ci-dessous le copie vers le canary à 0 % seulement s’il est publiable.
+              La case ci-dessous le copie vers le canary à <strong>0 %</strong> seulement s’il est <strong>publiable</strong> (seuils atteints : rappel ≥ 60 %, faux positifs ≤ 10 %) : aucun appareil ne change tant qu’Opérations n’a pas approuvé un pourcentage.
             </p>
-            <Field label="Dataset">
-              <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)}>
+            <Field label="Jeu">
+              <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} disabled={Boolean(preview) || loading}>
                 {datasets.map((d) => (
                   <option key={d.id} value={d.id}>
                     #{d.id} {d.name} ({d.sample_count})
@@ -395,7 +549,7 @@ export default function TrainingPage() {
               </select>
             </Field>
             <CheckboxField
-              label="Si le run est publiable, le pousser vers le canary à la fin"
+              label="Si publiable, préparer le canary à 0 % à la fin (aucun impact appareil)"
               checked={promoteCanary}
               onChange={(e) => setPromoteCanary(e.target.checked)}
             />
@@ -413,23 +567,23 @@ export default function TrainingPage() {
         ) : null}
 
         {!loading && tab === "runs" ? (
-          <RunList runs={runs} selectedId={selectedRun?.id} onOpen={openRun} onDelete={(id) => setDeleteTarget({ type: "run", id })} />
+          <div id="panel-runs" role="tabpanel" tabIndex={0} aria-labelledby="tab-runs"><RunList runs={runs} selectedId={selectedRun?.id} onOpen={openRun} onDelete={(id) => setDeleteTarget({ type: "run", id })} /></div>
         ) : null}
 
         {!loading && tab === "try" ? (
-          <div className="form-grid">
+          <div id="panel-try" className="form-grid" role="tabpanel" tabIndex={0} aria-labelledby="tab-try">
             <p className="panel-note">
               Teste le <strong>patch JSON entier</strong> (même math que l’app après mise à jour OTA).
-              Ce n’est pas le fichier TFLite bundlé. Sans run sélectionné, le manifeste canary du serveur est utilisé.
-              En CLI : <code>make evaluate</code> dans <code>safedm-backend</code>.
+              Ce n’est pas le fichier TFLite bundlé. Sans entraînement sélectionné, le manifeste canary du serveur est utilisé
+              (le canary est la version de modèle actuellement déployée sur une partie du trafic).
             </p>
-            <Field label="Run à évaluer (optionnel)">
+            <Field label="Entraînement à évaluer (optionnel)">
               <select
                 value={selectedRun?.id || ""}
                 onChange={(e) => {
                   const id = Number(e.target.value);
                   if (id) openRun(id);
-                  else setSelectedRun(null);
+                  else closeRun();
                 }}
               >
                 <option value="">Manifeste canary actuel</option>
@@ -437,7 +591,7 @@ export default function TrainingPage() {
                   .filter((r) => r.status === "succeeded")
                   .map((r) => (
                     <option key={r.id} value={r.id}>
-                      Run #{r.id}
+                      Entraînement #{r.id}
                       {r.publishable ? " · publiable" : ""}
                     </option>
                   ))}
@@ -456,13 +610,23 @@ export default function TrainingPage() {
         ) : null}
 
         {!loading && tab === "tflite" ? (
-          <div className="form-grid">
+          <div id="panel-tflite" className="form-grid" role="tabpanel" tabIndex={0} aria-labelledby="tab-tflite">
             <p className="panel-note">
-              Exécute le fichier <strong>safedm_v3.tflite réellement présent dans l’app mobile</strong> sur les messages
-              étiquetés. L’inférence se fait sur le backend local. Les features Kotlin exportées depuis un téléphone
-              peuvent être comparées avec le rapport natif généré depuis Paramètres sur le mobile.
+              Évaluez un fichier TFLite sur les messages étiquetés. Choisissez un modèle ci-dessous ou laissez le champ
+              vide pour utiliser le modèle bundlé dans l’app. L’analyse s’exécute sur le serveur de l’API configurée,
+              en local ou après déploiement. Le fichier envoyé est supprimé après l’évaluation.
             </p>
-            <Field label="Dataset d’évaluation">
+            <h3 className="substep">1 · Sources</h3>
+            <Field label="Modèle TFLite à évaluer (optionnel)" hint="Fichier .tflite, jusqu’à 25 Mio. Il est transmis à l’API configurée et conservé temporairement pendant l’évaluation uniquement.">
+              <input key={tfliteModelFile ? "model-selected" : "model-empty"} type="file" accept=".tflite,application/octet-stream" onChange={(event) => { setTfliteModelFile(event.target.files?.[0] || null); setTfliteResult(null); }} />
+            </Field>
+            {tfliteModelFile ? (
+              <div className="form-actions">
+                <span className="muted">Modèle choisi : {tfliteModelFile.name} · {(tfliteModelFile.size / (1024 * 1024)).toFixed(2)} Mio</span>
+                <button type="button" className="btn ghost" onClick={() => { setTfliteModelFile(null); setTfliteResult(null); }}>Utiliser le modèle bundlé</button>
+              </div>
+            ) : null}
+            <Field label="Jeu d’évaluation">
               <select value={datasetId} onChange={(event) => { setDatasetId(event.target.value); setTfliteResult(null); setMobileFeatures(null); setMobileResults(null); setMobileMessages(null); setMobileFeatureFile(""); }}>
                 {datasets.map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
@@ -473,7 +637,7 @@ export default function TrainingPage() {
             </Field>
             <Field
               label="Coller le rapport Android (optionnel)"
-              hint="Sur Android : Paramètres → Diagnostic du modèle local → copier le rapport. Le JSON doit correspondre au dataset choisi."
+              hint="Sur Android : Paramètres → Diagnostic du modèle local → copier le rapport. Le JSON doit correspondre au jeu choisi."
             >
               <textarea
                 rows={4}
@@ -525,33 +689,48 @@ export default function TrainingPage() {
                 }}
               />
             </Field>
-            {mobileFeatures ? <p className="muted">Rapport Android chargé : {mobileFeatureFile} · {mobileFeatures.length} vecteurs. Le nombre doit correspondre au dataset.</p> : null}
-            <Field label="Patch JSON à comparer" hint="Le run sélectionné est comparé au TFLite. Sans run, le manifeste canary est utilisé s’il existe.">
+            {mobileFeatures ? <p className="muted">Rapport Android chargé : {mobileFeatureFile} · {mobileFeatures.length} vecteurs. Le nombre doit correspondre au jeu.</p> : null}
+            <Field label="Patch JSON à comparer" hint="L’entraînement sélectionné est comparé au TFLite. Sans entraînement, le manifeste canary est utilisé s’il existe.">
               <select
                 value={selectedRun?.id || ""}
                 onChange={(event) => {
                   const id = Number(event.target.value);
                   if (id) openRun(id);
-                  else setSelectedRun(null);
+                  else closeRun();
                 }}
               >
                 <option value="">Manifeste canary actuel</option>
                 {runs.filter((run) => run.status === "succeeded").map((run) => (
-                  <option key={run.id} value={run.id}>Run #{run.id}{run.publishable ? " · publiable" : ""}</option>
+                  <option key={run.id} value={run.id}>Entraînement #{run.id}{run.publishable ? " · publiable" : ""}</option>
                 ))}
               </select>
             </Field>
+            <h3 className="substep">2 · Évaluer</h3>
             <div className="form-actions">
               <BusyButton
                 busy={busyAction === "tflite-evaluate"}
-                busyLabel="Exécution du TFLite…"
+                busyLabel="Envoi et évaluation…"
                 onClick={onEvaluateTflite}
                 disabled={!datasetId || busy}
               >
-                <Activity size={16} aria-hidden /> Exécuter le diagnostic
+                <Activity size={16} aria-hidden /> Évaluer le modèle
               </BusyButton>
             </div>
-            {tfliteResult ? <TfliteDiagnostic result={tfliteResult} /> : null}
+            <h3 className="substep">3 · Résultats</h3>
+            {tfliteResult ? (
+              <>
+                <TfliteDiagnostic result={tfliteResult} />
+                {tfliteResult.artifact ? (
+                  <div className="form-actions">
+                    <span className="muted">Revue artefact : {reviewStatus(tfliteResult.artifact.review_status)}</span>
+                    <BusyButton className="btn ghost" busy={busyAction === "review-artifact"} onClick={() => onReviewArtifact("approved")}>Approuver l’artefact</BusyButton>
+                    <BusyButton className="btn ghost" busy={busyAction === "review-artifact"} onClick={() => onReviewArtifact("rejected")}>Rejeter</BusyButton>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="muted">Lancez une évaluation pour afficher le diagnostic ici.</p>
+            )}
           </div>
         ) : null}
       </div>
@@ -574,7 +753,7 @@ export default function TrainingPage() {
             <span className="process-num">2</span>
             <div>
               <strong>Lancer l’entraînement</strong>
-              <p>Produit des métriques. Un run publiable a passé les seuils (rappel ≥ 60 %, faux positifs ≤ 10 %).</p>
+              <p>Produit des métriques. Un entraînement publiable a passé les seuils (rappel ≥ 60 %, faux positifs ≤ 10 %).</p>
             </div>
           </li>
           <li>
@@ -605,10 +784,10 @@ export default function TrainingPage() {
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title={deleteTarget?.type === "dataset" ? "Supprimer ce dataset ?" : "Supprimer ce run ?"}
+        title={deleteTarget?.type === "dataset" ? "Supprimer ce jeu ?" : "Supprimer cet entraînement ?"}
         message={deleteTarget?.type === "dataset"
           ? `« ${deleteTarget.name} » et son historique de runs seront supprimés, ainsi que leurs fichiers locaux d’entraînement. Un patch déjà copié dans le canary n’est pas retiré.`
-          : "L’historique de ce run et ses fichiers locaux seront supprimés. Un patch déjà copié dans le canary n’est pas retiré."}
+          : "L’historique de cet entraînement et ses fichiers locaux seront supprimés. Un patch déjà copié dans le canary n’est pas retiré."}
         confirmLabel="Supprimer"
         danger
         busy={deleteBusy}
@@ -618,7 +797,7 @@ export default function TrainingPage() {
 
       <DetailSheet
         open={Boolean(preview)}
-        title={preview ? preview.name : "Dataset"}
+        title={preview ? preview.name : "Jeu"}
         eyebrow="Aperçu du jeu"
         onClose={() => setPreview(null)}
       >
@@ -633,7 +812,7 @@ export default function TrainingPage() {
                 onClick={() => {
                   setDatasetId(String(preview.id));
                   setPreview(null);
-                  setTab("train");
+                  selectTab("train");
                 }}
               >
                 Entraîner avec ce jeu
@@ -644,22 +823,24 @@ export default function TrainingPage() {
       </DetailSheet>
 
       <DetailSheet
-        open={Boolean(selectedRun) && tab !== "try"}
-        title={selectedRun ? `Run #${selectedRun.id}` : "Run"}
+        open={Boolean(selectedRun) && tab !== "try" && tab !== "tflite"}
+        title={selectedRun ? `Entraînement #${selectedRun.id}` : "Entraînement"}
         eyebrow="Résultat d’entraînement"
-        onClose={() => setSelectedRun(null)}
+        onClose={closeRun}
       >
         {selectedRun ? (
           <>
             <p>
-              Statut : <strong>{selectedRun.status}</strong>
-              {selectedRun.publishable ? " · publiable" : " · non publiable"}
+              Statut : <strong>{mlStatus(selectedRun.status)}</strong>
+              {selectedRun.publishable ? " · publiable" : " · non publiable"} · revue{" "}
+              <strong>{reviewStatus(selectedRun.review_status)}</strong>
             </p>
             <MetricsPanel operational={operational} metrics={fullMetrics} publishable={selectedRun.publishable} />
-            <p className="panel-note">
-              Pousser vers le canary met ce modèle dans le manifeste à 0 % (en attente).
-              Ensuite, dans <Link to="/operations">Opérations</Link>, Approuver avec un pourcentage.
-            </p>
+            <div className="canary-callout">
+              <strong>Impact canary : 0 %</strong>
+              <p>La promotion prépare le modèle sans changer le verdict sur les appareils.</p>
+              <p className="muted">Prochaine action : approuver un pourcentage dans <Link to="/operations">Opérations</Link>.</p>
+            </div>
             {selectedRun.error_message ? <Alert tone="error">{selectedRun.error_message}</Alert> : null}
             {selectedRun.log_text ? (
               <>
@@ -670,16 +851,27 @@ export default function TrainingPage() {
             {selectedRun.status === "succeeded" ? (
               <div className="form-actions">
                 <BusyButton
+                  className="btn ghost"
+                  busy={busyAction === "review-run"}
+                  onClick={() => onReviewRun("approved")}
+                >
+                  Approuver la revue
+                </BusyButton>
+                <BusyButton
                   busy={busyAction === "promote"}
                   busyLabel="Envoi canary…"
                   onClick={() => onPromote(selectedRun.id)}
+                  disabled={selectedRun.review_status !== "approved"}
                 >
                   <Rocket size={16} aria-hidden /> Pousser vers le canary
                 </BusyButton>
+                {selectedRun.review_status !== "approved" ? (
+                  <small className="muted">Approuvez la revue avant la promotion canary.</small>
+                ) : null}
                 <BusyButton
                   className="btn ghost"
                   onClick={() => {
-                    setTab("try");
+                    selectTab("try");
                   }}
                 >
                   <MessageSquareText size={16} aria-hidden /> Tester un message
@@ -724,8 +916,8 @@ function MetricsPanel({ operational, metrics, publishable }) {
       hint: "Seuils opérationnels atteints (rappel + faux positifs).",
     },
     {
-      label: "CV folds",
-      value: metrics?.cv_folds ?? "—",
+      label: "Validation croisée",
+      value: metrics?.cv_folds != null ? `${metrics.cv_folds} plis` : "—",
       hint: "Nombre de plis de validation croisée utilisés pour estimer les métriques.",
     },
   ];
@@ -762,7 +954,7 @@ function TryResultCard({ result }) {
       <p className="muted">{result.note}</p>
       {result.top_features?.length ? (
         <>
-          <h3 className="stack-top">Features les plus contributives</h3>
+          <h3 className="stack-top">Caractéristiques les plus influentes</h3>
           <ul className="sample-list">
             {result.top_features.map((f) => (
               <li key={f.name} className="sample-row">
@@ -791,28 +983,65 @@ function TfliteDiagnostic({ result }) {
     (row.tflite_mobile_score_delta != null && row.tflite_mobile_score_delta > 0.00001) ||
     (row.patch_decision && (row.patch_decision === "MALVEILLANT") !== row.tflite_binary_dangerous)
   );
+  const parityBlocked = (result.parity?.feature_value_mismatches || 0) > 0 ||
+    (result.parity?.patch_comparable_samples > 0 && result.parity.tflite_patch_same_binary_decision < result.parity.patch_comparable_samples) ||
+    (result.parity?.mobile_score_rows_compared > 0 && result.parity.mobile_score_exact_decisions < result.parity.mobile_score_rows_compared);
+  const blocked = Boolean(result.data_quality?.warning) || errors.length > 0 || parityBlocked;
   return (
     <section className="form-grid">
-      <div className="panel-note">
-        <strong>Modèle réellement exécuté :</strong> {result.model?.path} · {result.model?.bytes} octets · entrée {result.model?.input_shape?.join("×")} {result.model?.input_dtype} · {result.sample_count} exemples.
+      <div className={`diagnostic-decision ${blocked ? "is-blocked" : "is-pass"}`} role="status">
+        <strong>{blocked ? "DÉCISION : BLOQUÉ" : "DÉCISION : PASSÉ"}</strong>
+        <span>{blocked ? "Corrigez les divergences ou les exemples signalés avant toute promotion." : "Aucune divergence bloquante détectée sur le jeu évalué."}</span>
       </div>
-      {result.data_quality?.warning ? <Alert tone="error">{result.data_quality.warning}</Alert> : null}
+      <div className="panel-note">
+        <strong>Modèle réellement exécuté :</strong> {result.model?.filename || result.model?.path || "fichier transmis"} · source {result.model?.source || "bundled"} · {result.model?.bytes} octets · entrée {result.model?.input_shape?.join("×")} {result.model?.input_dtype} · {result.sample_count} exemples.
+        {result.model?.sha256 ? <div>SHA-256 : <code>{result.model.sha256}</code></div> : null}
+      </div>
+      {result.data_quality?.warning ? <Alert tone="warn">{result.data_quality.warning}</Alert> : null}
       <div className="metrics-grid">
-        <DiagnosticMetric label="Features Android = Python" value={result.parity?.feature_rows_compared ? `${result.parity.feature_rows_exact}/${result.parity.feature_rows_compared}` : "À mesurer"} detail={`${result.parity?.feature_value_mismatches ?? 0} valeurs différentes`} />
+        <DiagnosticMetric label="Caractéristiques Android = Python" value={result.parity?.feature_rows_compared ? `${result.parity.feature_rows_exact}/${result.parity.feature_rows_compared}` : "À mesurer"} detail={`${result.parity?.feature_value_mismatches ?? 0} valeurs différentes`} />
         <DiagnosticMetric label="Patch/TFLite identiques" value={result.parity?.patch_comparable_samples ? `${result.parity.tflite_patch_same_binary_decision}/${result.parity.patch_comparable_samples}` : "—"} detail="Comparaison de la décision binaire" />
         <DiagnosticMetric label="Score mobile/Python cohérent" value={result.parity?.mobile_score_rows_compared ? `${result.parity.mobile_score_exact_decisions}/${result.parity.mobile_score_rows_compared}` : "À mesurer"} detail={`Écart max : ${result.parity?.mobile_score_max_delta == null ? "—" : Number(result.parity.mobile_score_max_delta).toFixed(6)}`} />
         <DiagnosticMetric label="Bénins classés dangereux" value={summary.benign_dangerous} detail={`sur ${summary.benign} bénins`} />
         <DiagnosticMetric label="Menaces classées sûres" value={summary.malicious_safe} detail={`sur ${summary.malicious} menaces`} />
         <DiagnosticMetric label="Menaces incertaines" value={summary.malicious_uncertain} detail="Alerte non définitive" />
         <DiagnosticMetric label="Bénins incertains" value={summary.benign_uncertain} detail="À examiner, pas dangereux" />
+        <DiagnosticMetric label="Exactitude TFLite" value={formatRate(result.metrics?.per_class?.BENIN?.accuracy != null && result.metrics?.per_class?.MALVEILLANT?.accuracy != null ? ((result.metrics.per_class.BENIN.correct + result.metrics.per_class.MALVEILLANT.correct) / result.sample_count) : null)} detail="Sur le jeu sélectionné" />
       </div>
+      {result.metrics?.confusion_matrix ? (
+        <>
+          <p className="muted">
+            Matrice TFLite — TN {result.metrics.confusion_matrix.tn} · FP {result.metrics.confusion_matrix.fp} · FN {result.metrics.confusion_matrix.fn} · TP {result.metrics.confusion_matrix.tp}
+          </p>
+          <div style={{ width: "100%", height: 220 }}>
+            <ResponsiveContainer>
+              <BarChart
+                data={[
+                  { label: "TN", count: result.metrics.confusion_matrix.tn },
+                  { label: "FP", count: result.metrics.confusion_matrix.fp },
+                  { label: "FN", count: result.metrics.confusion_matrix.fn },
+                  { label: "TP", count: result.metrics.confusion_matrix.tp },
+                ]}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" className="chart-bar" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      ) : null}
+      {result.metrics?.production_comparison?.available ? (
+        <p className="muted">
+          Comparaison production — {result.metrics.production_comparison.same_decision}/{result.metrics.production_comparison.rows_compared} décisions identiques au modèle bundlé.
+        </p>
+      ) : null}
       <p className="muted">
-        Décisions TFLite : sûr &lt; {result.model?.thresholds?.safe_below} · incertain jusqu’à {result.model?.thresholds?.dangerous_from} · dangereux à partir de {result.model?.thresholds?.dangerous_from}.
+        Décisions TFLite : sûr &lt; {result.model?.thresholds?.safe_below} · incertain de {result.model?.thresholds?.safe_below} à {result.model?.thresholds?.dangerous_from} · dangereux ≥ {result.model?.thresholds?.dangerous_from}.
         {patch ? ` Comparaison patch : ${result.parity?.tflite_patch_same_binary_decision}/${result.parity?.patch_comparable_samples} décisions identiques (${patch.source}).` : " Aucun patch JSON scorable pour comparaison."}
       </p>
-      <Alert tone="info">
-        La comparaison des 50 valeurs Kotlin avec Python n’est pas encore faite dans ce sprint. Ici, les deux modèles utilisent le vecteur de référence Python; le sprint Android ajoutera le contrôle exact de parité.
-      </Alert>
       <div className="table-wrap">
         <table>
           <thead><tr><th>Étiquette</th><th>Verdict TFLite</th><th>Verdict app</th><th>Score brut</th><th>Patch</th><th>Catégorie</th><th>Message</th></tr></thead>
@@ -822,24 +1051,24 @@ function TfliteDiagnostic({ result }) {
               if (row.expected_binary === "BENIN" && row.tflite_decision === "DANGEREUX") categories.push("Faux positif");
               if (row.expected_binary === "MALVEILLANT" && row.tflite_decision === "BENIN") categories.push("Menace manquée");
               if (row.tflite_decision === "INCERTAIN") categories.push("Incertitude");
-              if (row.feature_differences?.length) categories.push(`${row.feature_differences.length} features différentes`);
+              if (row.feature_differences?.length) categories.push(`${row.feature_differences.length} caractéristiques différentes`);
               if (row.tflite_mobile_decision_match === false) categories.push("Décision app/TFLite différente");
               if (row.tflite_mobile_score_delta != null && row.tflite_mobile_score_delta > 0.00001) categories.push(`Score mobile écart ${Number(row.tflite_mobile_score_delta).toFixed(5)}`);
               if (row.patch_decision && (row.patch_decision === "MALVEILLANT") !== row.tflite_binary_dangerous) categories.push("Divergence patch/TFLite");
               const category = categories.join(" · ");
               return (
                 <tr key={row.index}>
-                  <td>{row.expected_binary}</td>
-                  <td>{row.tflite_decision}</td>
-                  <td>{row.mobile_decision || "—"}</td>
+                  <td>{binaryLabel(row.expected_binary)}</td>
+                  <td>{binaryLabel(row.tflite_decision)}</td>
+                  <td>{binaryLabel(row.mobile_decision)}</td>
                   <td>{Number(row.tflite_probability).toFixed(4)}{row.mobile_probability != null ? ` · score app ${Number(row.mobile_probability).toFixed(4)}` : ""}</td>
-                  <td>{row.patch_decision || "—"}</td>
+                  <td>{binaryLabel(row.patch_decision)}</td>
                   <td>{category}</td>
                   <td>
                     {row.message}
                     {row.feature_differences?.length ? (
                       <details className="stack-top">
-                        <summary>Voir les features divergentes</summary>
+                        <summary>Voir les caractéristiques divergentes</summary>
                         <ul className="sample-list">
                           {row.feature_differences.map((feature) => (
                             <li key={feature.index} className="sample-row">
@@ -872,30 +1101,59 @@ function DiagnosticMetric({ label, value, detail }) {
   );
 }
 
-function Tab({ id, current, onSelect, icon: Icon, title, hint }) {
+function Tab({ id, current, onSelect, onKeyDown, icon: Icon, title, hint, state = "none" }) {
   const active = current === id;
+  const stateLabel = state === "done" ? "terminée" : state === "next" ? "prochaine étape" : state === "todo" ? "à faire" : "";
   return (
     <button
+      id={`tab-${id}`}
       type="button"
       className={active ? "tab active" : "tab"}
       role="tab"
       aria-selected={active}
+      aria-controls={`panel-${id}`}
+      tabIndex={active ? 0 : -1}
       onClick={() => onSelect(id)}
+      onKeyDown={(event) => onKeyDown(event, id)}
     >
-      <Icon size={17} aria-hidden />
-      <span>
+      <span className="tab-icon" data-state={state}>
+        <Icon size={17} aria-hidden />
+        {state === "done" ? <span className="tab-check" aria-hidden>✓</span> : null}
+      </span>
+      <span className="tab-text">
         <strong>{title}</strong>
         <small>{hint}</small>
       </span>
+      {stateLabel ? <span className="sr-only">{stateLabel}</span> : null}
     </button>
   );
+}
+
+const LIFECYCLE_TABS = new Set(["data", "train", "runs", "try"]);
+
+function buildStages({ datasets, runs, hasTestResult }) {
+  return [
+    { id: "data", tab: "data", label: "Données", done: datasets.length > 0 },
+    { id: "train", tab: "train", label: "Entraînement", done: runs.some((run) => run.status === "succeeded") },
+    { id: "review", tab: "runs", label: "Revue", done: runs.some((run) => run.review_status === "approved") },
+    { id: "test", tab: "try", label: "Tests", done: hasTestResult },
+    { id: "promote", tab: "runs", label: "Promotion", done: runs.some((run) => run.status === "succeeded" && run.review_status === "approved" && run.promoted_at) },
+  ];
+}
+
+function stageTabState(tabId, stages, nextStage) {
+  if (!LIFECYCLE_TABS.has(tabId)) return "none";
+  const owned = stages.filter((stage) => stage.tab === tabId);
+  if (owned.length && owned.every((stage) => stage.done)) return "done";
+  if (nextStage && nextStage.tab === tabId) return "next";
+  return "todo";
 }
 
 function DatasetList({ datasets, datasetId, onOpen, onDelete }) {
   if (!datasets.length) {
     return (
       <EmptyState
-        title="Aucun dataset"
+        title="Aucun jeu"
         description="Ouvrez Ajouter pour importer un fichier, ou chargez le jeu intégré."
       />
     );
@@ -918,7 +1176,7 @@ function DatasetList({ datasets, datasetId, onOpen, onDelete }) {
             <span className="pill soft">Aperçu</span>
           </button>
           <div className="training-row-actions">
-            <button type="button" className="btn small danger" aria-label={`Supprimer le dataset ${d.name}`} title="Supprimer ce dataset" onClick={() => onDelete(d.id, d.name)}><Trash2 size={15} aria-hidden /> Supprimer</button>
+            <button type="button" className="btn small danger" aria-label={`Supprimer le jeu ${d.name}`} title="Supprimer ce jeu" onClick={() => onDelete(d.id, d.name)}><Trash2 size={15} aria-hidden /> Supprimer</button>
           </div>
         </li>
       ))}
@@ -928,7 +1186,7 @@ function DatasetList({ datasets, datasetId, onOpen, onDelete }) {
 
 function RunList({ runs, selectedId, onOpen, onDelete }) {
   if (!runs.length) {
-    return <EmptyState title="Aucun run" description="Lancez un entraînement pour voir les métriques ici." />;
+    return <EmptyState title="Aucun entraînement" description="Lancez un entraînement pour voir les métriques ici." />;
   }
   return (
     <ul className="catalog-list">
@@ -940,7 +1198,7 @@ function RunList({ runs, selectedId, onOpen, onDelete }) {
             onClick={() => onOpen(r.id)}
           >
             <span>
-              Run #{r.id} · {r.status}
+              Entraînement #{r.id} · {mlStatus(r.status)}
               {r.publishable ? " · publiable" : ""}
               {r.metrics_summary ? (
                 <small>
@@ -952,7 +1210,7 @@ function RunList({ runs, selectedId, onOpen, onDelete }) {
             <span className="pill soft">Détail</span>
           </button>
           <div className="training-row-actions">
-            <button type="button" className="btn small danger" aria-label={`Supprimer le run ${r.id}`} title="Supprimer ce run" onClick={() => onDelete(r.id)}><Trash2 size={15} aria-hidden /> Supprimer</button>
+            <button type="button" className="btn small danger" aria-label={`Supprimer l’entraînement ${r.id}`} title="Supprimer cet entraînement" onClick={() => onDelete(r.id)}><Trash2 size={15} aria-hidden /> Supprimer</button>
           </div>
         </li>
       ))}

@@ -84,7 +84,7 @@ export default function ModelDiagnosticsScreen({ navigation }) {
       <ScreenHeader title="Diagnostic du modèle local" onBack={() => navigation.goBack()} />
       <Text style={styles.lead}>
         Calcule les features avec le module Kotlin et exécute directement le TFLite bundlé, sans utiliser le patch JSON OTA.
-        Le rapport reste copié dans le presse-papiers de cet appareil.
+        Le rapport contient les messages du dataset et les features : il reste copié dans le presse-papiers de cet appareil, ne le partagez qu’avec une destination de confiance.
       </Text>
       {loading ? <ActivityIndicator color={colors.bluePrimary} /> : null}
       {datasets.map((dataset) => (
@@ -93,6 +93,7 @@ export default function ModelDiagnosticsScreen({ navigation }) {
           label={`#${dataset.id} ${dataset.name} · ${dataset.sample_count} exemples`}
           variant={dataset.id === datasetId ? "primary" : "outline"}
           onPress={() => { setDatasetId(dataset.id); setSummary(null); }}
+          accessibilityLabel={`Sélectionner le dataset ${dataset.name}, ${dataset.sample_count} exemples`}
           style={styles.datasetButton}
         />
       ))}
@@ -102,9 +103,15 @@ export default function ModelDiagnosticsScreen({ navigation }) {
         <View style={styles.resultCard}>
           <Text style={styles.resultTitle}>Rapport prêt · {summary.count} messages</Text>
           <Text style={styles.resultBody}>TFLite : {summary.dangerous} dangereux · {summary.uncertain} incertains · {summary.safe} bénins</Text>
-          <Text style={styles.resultBody}>Le JSON avec les 50 features et les scores bruts est copié.</Text>
+          <Text style={styles.resultBody}>Le JSON avec les messages, 50 features et les scores bruts est copié. Il peut contenir des données sensibles.</Text>
           <Text style={styles.hint}>Collez-le dans Entraînement → Diagnostic local sur le dashboard puis relancez la comparaison.</Text>
-          <Button label="Recopier le dernier rapport" onPress={() => Clipboard.setStringAsync(reportText)} variant="outline" style={styles.runButton} />
+          <Button
+            label="Recopier le dernier rapport"
+            onPress={() => Clipboard.setStringAsync(reportText)}
+            accessibilityLabel="Recopier le rapport sensible dans le presse-papiers"
+            variant="outline"
+            style={styles.runButton}
+          />
         </View>
       ) : null}
     </Screen>

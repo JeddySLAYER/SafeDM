@@ -58,6 +58,9 @@ def test_evaluates_bundled_tflite_and_compares_mobile_vectors():
     assert result["parity"]["feature_value_mismatches"] == 0
     assert result["parity"]["mobile_score_max_delta"] == 0
     assert result["parity"]["mobile_score_exact_decisions"] == 2
+    assert result["metrics"]["confusion_matrix"]["tp"] + result["metrics"]["confusion_matrix"]["fn"] == 1
+    assert result["metrics"]["per_class"]["BENIN"]["count"] == 1
+    assert result["metrics"]["slices"]["malicious"]["count"] == 1
     json.dumps(result)
 
 

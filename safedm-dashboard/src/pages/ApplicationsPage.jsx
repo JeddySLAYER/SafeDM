@@ -13,6 +13,7 @@ import {
   DetailSheet,
   EmptyState,
   Field,
+  Freshness,
   PageHeader,
   Skeleton,
   Spinner,
@@ -33,12 +34,14 @@ export default function ApplicationsPage() {
   const [deleteId, setDeleteId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       setItems(await getApplications());
+      setUpdatedAt(new Date().toISOString());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -102,10 +105,14 @@ export default function ApplicationsPage() {
         title="Applications"
         subtitle="Applications Android que le téléphone peut surveiller."
         actions={
-          <button type="button" className="btn primary" onClick={() => setAddOpen(true)}>
-            <Plus size={16} aria-hidden />
-            Ajouter
-          </button>
+          <>
+            <Freshness updatedAt={updatedAt} refreshing={loading} />
+            <button type="button" className="btn ghost" onClick={load} disabled={loading}>Actualiser</button>
+            <button type="button" className="btn primary" onClick={() => setAddOpen(true)}>
+              <Plus size={16} aria-hidden />
+              Ajouter
+            </button>
+          </>
         }
       />
       <Alert tone="error" onDismiss={() => setError("")}>{error}</Alert>

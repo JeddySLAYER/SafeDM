@@ -57,6 +57,7 @@ function resultFromLocal(local) {
         : [],
     urls: [],
     providers: { local: { available: true } },
+    model_source: local.modelSource || "local",
     content_stored: false,
   };
 }

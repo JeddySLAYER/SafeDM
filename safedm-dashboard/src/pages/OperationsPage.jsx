@@ -25,16 +25,48 @@ import {
   saveTenantPolicy,
 } from "../services/adminApi";
 
+const STATUS_DISPLAY = {
+  SUCCEEDED: "Réussi",
+  FAILED: "Échoué",
+  RUNNING: "En cours",
+  PENDING: "En attente",
+  NEVER_RUN: "Jamais exécutée",
+  canary: "Canary",
+  approved: "Approuvé",
+  production: "Production",
+  configured: "Configuré",
+  ok: "OK",
+  ready: "Prêt",
+};
+
 function Status({ value }) {
   const normalized = String(value || "").toLowerCase();
   const ok = ["ok", "ready", "canary", "configured", "approved", "production", "succeeded"].includes(normalized);
-  return <span className={`health-badge ${ok ? "ok" : "warn"}`}>{value || "N/D"}</span>;
+  return <span className={`health-badge ${ok ? "ok" : "warn"}`}>{STATUS_DISPLAY[value] || value || "N/D"}</span>;
 }
+
+const OPS_TABS = [
+  { id: "model", icon: RotateCcw, title: "Modèle", hint: (data) => data.patch.version || "Aucun patch" },
+  { id: "policy", icon: Gauge, title: "Seuils", hint: "Politique de décision" },
+  { id: "aggregation", icon: CloudCog, title: "Agrégation", hint: (data) => data.aggregation.last_run || "Jamais lancée" },
+  { id: "history", icon: FileClock, title: "Historique", hint: (data) => `${data.audit.length} actions` },
+];
 
 export default function OperationsPage() {
   const { toast } = useToast();
   const { data, error, loading, refreshing, updatedAt, refresh } = useOperationsOverview();
   const [tab, setTab] = useState("model");
+  const tabIds = OPS_TABS.map((entry) => entry.id);
+  const selectTab = (id) => setTab(id);
+  function moveTab(event, currentId) {
+    const currentIndex = tabIds.indexOf(currentId);
+    if (currentIndex < 0 || !["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const offset = event.key === "Home" ? 0 : event.key === "End" ? tabIds.length - 1 : (currentIndex + (event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1) + tabIds.length) % tabIds.length;
+    const nextId = tabIds[offset];
+    setTab(nextId);
+    document.getElementById(`tab-${nextId}`)?.focus();
+  }
   const [actionError, setActionError] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [policy, setPolicy] = useState({
@@ -90,13 +122,14 @@ export default function OperationsPage() {
       {data ? (
         <div className="panel">
           <div className="tabs" role="tablist">
-            <Tab id="model" current={tab} onSelect={setTab} icon={RotateCcw} title="Modèle" hint={data.patch.version || "Aucun patch"} />
-            <Tab id="policy" current={tab} onSelect={setTab} icon={Gauge} title="Seuils" hint="Politique de décision" />
-            <Tab id="aggregation" current={tab} onSelect={setTab} icon={CloudCog} title="Agrégation" hint={data.aggregation.last_run || "Jamais lancée"} />
-            <Tab id="history" current={tab} onSelect={setTab} icon={FileClock} title="Historique" hint={`${data.audit.length} actions`} />
+            {OPS_TABS.map(({ id, icon, title, hint }) => (
+              <Tab key={id} id={id} current={tab} onSelect={selectTab} onKeyDown={moveTab} icon={icon} title={title} hint={typeof hint === "function" ? hint(data) : hint} />
+            ))}
           </div>
-          {tab === "model" ? <PatchDetails patch={data.patch} busy={actionBusy} onAction={runAction} /> : null}
-          {tab === "policy" ? (
+          <div id="panel-model" role="tabpanel" aria-labelledby="tab-model" tabIndex={0} hidden={tab !== "model"}>
+            <PatchDetails patch={data.patch} busy={actionBusy} onAction={runAction} />
+          </div>
+          <div id="panel-policy" role="tabpanel" aria-labelledby="tab-policy" tabIndex={0} hidden={tab !== "policy"}>
             <PolicyForm
               policy={policy}
               setPolicy={setPolicy}
@@ -104,16 +137,18 @@ export default function OperationsPage() {
               savedPolicies={data.policies || []}
               onSubmit={() => runAction(() => saveTenantPolicy(policy), "Politique enregistrée")}
             />
-          ) : null}
-          {tab === "aggregation" ? (
+          </div>
+          <div id="panel-aggregation" role="tabpanel" aria-labelledby="tab-aggregation" tabIndex={0} hidden={tab !== "aggregation"}>
             <AggregationPanel
               aggregation={data.aggregation}
               runs={data.aggregation_runs || []}
               busy={actionBusy}
               onAction={() => runAction(requestAggregation, "Agrégation terminée")}
             />
-          ) : null}
-          {tab === "history" ? <HistoryDetails data={data} /> : null}
+          </div>
+          <div id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabIndex={0} hidden={tab !== "history"}>
+            {tab === "history" ? <HistoryDetails data={data} /> : null}
+          </div>
         </div>
       ) : !loading ? (
         <EmptyState title="Opérations indisponibles" description={error || "Le serveur n’a pas renvoyé l’état du modèle."} />
@@ -125,9 +160,21 @@ export default function OperationsPage() {
 function Tab({ id, current, onSelect, icon: Icon, title, hint }) {
   const active = current === id;
   return (
-    <button type="button" className={active ? "tab active" : "tab"} role="tab" aria-selected={active} onClick={() => onSelect(id)}>
-      <Icon size={17} aria-hidden />
-      <span>
+    <button
+      id={`tab-${id}`}
+      type="button"
+      className={active ? "tab active" : "tab"}
+      role="tab"
+      aria-selected={active}
+      aria-controls={`panel-${id}`}
+      tabIndex={active ? 0 : -1}
+      onClick={() => onSelect(id)}
+      onKeyDown={(event) => onKeyDown(event, id)}
+    >
+      <span className="tab-icon" data-state="none">
+        <Icon size={17} aria-hidden />
+      </span>
+      <span className="tab-text">
         <strong>{title}</strong>
         <small>{hint}</small>
       </span>
@@ -263,7 +310,7 @@ function PatchDetails({ patch, busy, onAction }) {
         </div>
       </dl>
       <p className="panel-note">
-        Après « Pousser vers le canary », le modèle est en attente (0 %). Approuver à 5 % le propose à environ un téléphone sur vingt ; 100 % à tous. Rollback le retire. Le téléphone demande confirmation avant d’appliquer le patch.
+        Après « Pousser vers le canary », le modèle est en attente (0 %). Approuver à 5 % le propose à environ un téléphone sur vingt ; 100 % à tous. Rétablir le retire. Le téléphone demande confirmation avant d’appliquer le patch.
       </p>
       {patch.version ? (
         <div className="form-grid">
@@ -288,15 +335,15 @@ function PatchDetails({ patch, busy, onAction }) {
             <BusyButton
               className="btn danger"
               busy={busy}
-              busyLabel="Rollback…"
-              onClick={() => onAction(() => rollbackPatch(patch.version), "Rollback effectué")}
+              busyLabel="Rétablissement…"
+              onClick={() => onAction(() => rollbackPatch(patch.version), "Version précédente rétablie")}
             >
-              <ArrowDownToLine size={16} aria-hidden /> Rollback
+              <ArrowDownToLine size={16} aria-hidden /> Rétablir
             </BusyButton>
           </div>
         </div>
       ) : (
-        <EmptyState title="Aucun patch disponible" description="Poussez d’abord un run depuis Entraînement." />
+        <EmptyState title="Aucun patch disponible" description="Lancez d’abord un entraînement depuis la page Entraînement." />
       )}
     </>
   );

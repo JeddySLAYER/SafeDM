@@ -245,9 +245,52 @@ export function tryMlMessage({ message, run_id = null }) {
   });
 }
 
-export function evaluateMlTflite(dataset_id, run_id = null, mobile_features = null, mobile_results = null, mobile_messages = null) {
+export function evaluateMlTflite(dataset_id, run_id = null, mobile_features = null, mobile_results = null, mobile_messages = null, modelFile = null) {
+  const evaluation = { dataset_id: Number(dataset_id), run_id: run_id ? Number(run_id) : null, mobile_features, mobile_results, mobile_messages };
+  if (modelFile) {
+    const body = new FormData();
+    body.append("model_file", modelFile);
+    body.append("payload", JSON.stringify(evaluation));
+    return apiRequest("/admin/ml/evaluate-tflite-upload", { method: "POST", body });
+  }
+
   return apiRequest("/admin/ml/evaluate-tflite", {
     method: "POST",
-    body: { dataset_id: Number(dataset_id), run_id: run_id ? Number(run_id) : null, mobile_features, mobile_results, mobile_messages },
+    body: evaluation,
+  });
+}
+
+export function listMlArtifacts(options) {
+  return apiRequest("/admin/ml/artifacts", options);
+}
+
+export function listMlEvaluations(artifactId) {
+  const query = artifactId ? `?artifact_id=${Number(artifactId)}` : "";
+  return apiRequest(`/admin/ml/evaluations${query}`);
+}
+
+export function getMlMetrics(artifactId) {
+  return apiRequest(`/admin/ml/metrics?artifact_id=${Number(artifactId)}`);
+}
+
+export function getMlArtifact(id) {
+  return apiRequest(`/admin/ml/artifacts/${id}`);
+}
+
+export function evaluateMlArtifact(id) {
+  return apiRequest(`/admin/ml/artifacts/${id}/evaluate`, { method: "POST" });
+}
+
+export function reviewMlArtifact(id, status, note = null) {
+  return apiRequest(`/admin/ml/artifacts/${id}/review`, {
+    method: "PUT",
+    body: { status, note },
+  });
+}
+
+export function reviewMlRun(id, status, note = null) {
+  return apiRequest(`/admin/ml/runs/${id}/review`, {
+    method: "PUT",
+    body: { status, note },
   });
 }

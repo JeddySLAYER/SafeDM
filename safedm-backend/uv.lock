@@ -1055,6 +1055,7 @@ name = "safedm-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "ai-edge-litert" },
     { name = "alembic" },
     { name = "bcrypt" },
     { name = "email-validator" },
@@ -1072,11 +1073,6 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
-[package.optional-dependencies]
-local-eval = [
-    { name = "ai-edge-litert" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "numpy" },
@@ -1087,7 +1083,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ai-edge-litert", marker = "extra == 'local-eval'", specifier = ">=2.1.0" },
+    { name = "ai-edge-litert", specifier = ">=2.1.0" },
     { name = "alembic", specifier = "==1.15.2" },
     { name = "bcrypt", specifier = "==4.0.1" },
     { name = "email-validator", specifier = "==2.2.0" },
@@ -1104,7 +1100,6 @@ requires-dist = [
     { name = "typesafe-sdk", specifier = "==0.7.2" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.34.2" },
 ]
-provides-extras = ["local-eval"]
 
 [package.metadata.requires-dev]
 dev = [

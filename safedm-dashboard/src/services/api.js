@@ -28,9 +28,10 @@ export function getStoredUser() {
 }
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, detail) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -41,12 +42,25 @@ function formatDetail(detail) {
   return JSON.stringify(detail);
 }
 
+const STATUS_MESSAGE = {
+  401: "Session expirée. Reconnectez-vous.",
+  403: "Accès refusé pour cette action.",
+  404: "Élément introuvable — il a peut-être été supprimé.",
+};
+
+function apiErrorMessage(status, detail) {
+  if (status === 0) return "Connexion au serveur impossible. Vérifiez votre réseau puis réessayez.";
+  if (status >= 500) return "Le serveur a rencontré une erreur. Réessayez dans un instant.";
+  return STATUS_MESSAGE[status] || detail;
+}
+
 export async function apiRequest(
   path,
   { method = "GET", body, auth = true, signal } = {},
 ) {
   const headers = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body !== undefined && !isFormData) headers["Content-Type"] = "application/json";
   if (auth) {
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -54,12 +68,18 @@ export async function apiRequest(
 
   const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
   const started = performance.now();
-  const res = await fetch(`${base}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal,
-  });
+  let res;
+  try {
+    res = await fetch(`${base}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw new ApiError(apiErrorMessage(0, ""), 0, error?.message);
+  }
   const ms = Math.round(performance.now() - started);
   if (import.meta.env.DEV) {
     // Aide à distinguer latence réseau/DB vs UI
@@ -84,7 +104,8 @@ export async function apiRequest(
 
   if (!res.ok) {
     if (res.status === 401) clearSession();
-    throw new ApiError(formatDetail(data?.detail ?? data), res.status);
+    const detail = formatDetail(data?.detail ?? data);
+    throw new ApiError(apiErrorMessage(res.status, detail), res.status, detail);
   }
   return data;
 }

@@ -52,7 +52,16 @@ export default function ThreatDetailPage() {
 
   if (loading) return <div><PageHeader title="Menace" subtitle="Chargement de la fiche…" /><div className="panel"><Spinner label="Chargement…" /><Skeleton rows={6} /></div></div>;
 
-  if (!threat) return <div><PageHeader title="Menace" /><Alert tone="error">{error || "Menace introuvable"}</Alert><Link className="btn" to="/threats">Retour aux menaces</Link></div>;
+  if (!threat) return (
+    <div className="detail-fallback">
+      <PageHeader title="Menace" />
+      <Alert tone="error">{error || "Menace introuvable"}</Alert>
+      <div className="actions">
+        <button type="button" className="btn primary" onClick={load}>Réessayer</button>
+        <Link className="btn ghost" to="/threats">Retour aux menaces</Link>
+      </div>
+    </div>
+  );
 
   return (
     <div className="threat-detail-page">
@@ -68,7 +77,7 @@ export default function ThreatDetailPage() {
           <div><p className="eyebrow">Contenu signalé</p><h2>Message et empreintes</h2></div>
           <div className="threat-primary-badges"><span className={`pill sev-${String(threat.severity).toLowerCase()}`}>{SEVERITY_LABELS[threat.severity] || threat.severity}</span><span className="pill">{STATUS_LABELS[threat.status] || threat.status}</span>{threat.false_positive ? <span className="pill draft">Faux positif</span> : null}</div>
         </div>
-        {threat.content_available || threat.content ? <pre className="threat-message">{threat.content}</pre> : <Alert>Contenu non stocké (signalement par empreinte). La revue repose sur les métadonnées et les URLs associées.</Alert>}
+        {threat.content_available || threat.content ? <pre className="threat-message">{threat.content}</pre> : <Alert tone="info">Contenu non stocké (signalement par empreinte). La revue repose sur les métadonnées et les URLs associées.</Alert>}
         <dl className="threat-hashes">
           <div><dt>Empreinte de similarité</dt><dd>{threat.similarity_hash || "—"}</dd></div>
           <div><dt>Empreinte brute</dt><dd>{threat.raw_hash || "—"}</dd></div>

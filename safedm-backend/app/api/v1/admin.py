@@ -1,13 +1,19 @@
+import hashlib
 import json
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_admin
 from app.models import User
 from app.models.enums import ReportStatus, ThreatStatus
-from app.models.ml_ops import MlDataset
+from app.models.ml_ops import MlDataset, MlModelArtifact
 from app.schemas.admin import (
     AdminAggregationRunResponse,
     AdminFalsePositiveRequest,
@@ -39,6 +45,7 @@ from app.schemas.guide import (
     GuideCategoryUpdateRequest,
 )
 from app.schemas.ml_ops import (
+    MlArtifactReviewRequest,
     MlDatasetCreateRequest,
     MlReviewQueueDatasetRequest,
     MlTfliteEvaluateRequest,
@@ -729,5 +736,200 @@ def admin_evaluate_tflite(
         resource=f"dataset:{payload.dataset_id}",
         purpose="Local TFLite and integer patch diagnostic",
     )
+    db.commit()
+    return result
+
+
+@router.post("/ml/evaluate-tflite-upload")
+def admin_evaluate_uploaded_tflite(
+    model_file: UploadFile = File(...),
+    payload: str = Form(...),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Persist and evaluate an admin-supplied TFLite model."""
+    temp_path = None
+    stored_path = None
+    try:
+        try:
+            evaluation = MlTfliteEvaluateRequest.model_validate_json(payload)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail="Paramètres du diagnostic invalides") from exc
+
+        filename = (model_file.filename or "model.tflite").replace("\\", "/").rsplit("/", 1)[-1]
+        if Path(filename).suffix.lower() != ".tflite":
+            raise HTTPException(status_code=422, detail="Le fichier doit avoir l’extension .tflite")
+        max_bytes = 25 * 1024 * 1024
+        data = model_file.file.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            raise HTTPException(status_code=413, detail="Le modèle dépasse la limite de 25 Mio")
+        if len(data) < 8 or data[4:8] != b"TFL3":
+            raise HTTPException(status_code=422, detail="Fichier invalide : signature FlatBuffer TFL3 absente")
+
+        digest = hashlib.sha256(data).hexdigest()
+        with tempfile.NamedTemporaryFile(prefix="safedm-tflite-", suffix=".tflite", delete=False) as temp_file:
+            temp_file.write(data)
+            temp_path = Path(temp_file.name)
+        result = evaluate_tflite_dataset(
+            db,
+            dataset_id=evaluation.dataset_id,
+            run_id=evaluation.run_id,
+            mobile_features=evaluation.mobile_features,
+            mobile_results=evaluation.mobile_results,
+            mobile_messages=evaluation.mobile_messages,
+            model_path_override=temp_path,
+            model_source="uploaded",
+            model_filename=filename,
+            model_sha256=digest,
+        )
+        dataset_dir = Path(get_settings().model_patch_manifest_path).resolve().parent / "tflite_artifacts"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        stored_path = dataset_dir / f"{digest}.tflite"
+        stored_path.write_bytes(data)
+        artifact = MlModelArtifact(
+            dataset_id=evaluation.dataset_id,
+            run_id=evaluation.run_id,
+            filename=filename,
+            storage_path=str(stored_path),
+            sha256=digest,
+            size_bytes=len(data),
+            status="evaluated",
+            evaluation_json=json.dumps(result, ensure_ascii=False),
+            created_by_user_id=current_admin.id,
+            evaluated_at=datetime.now(UTC),
+        )
+        db.add(artifact)
+        db.flush()
+        result["artifact"] = MlOpsService._artifact_public(artifact, full=False)
+        record_access(
+            db,
+            user_id=current_admin.id,
+            action="ml_evaluate_tflite_upload",
+            resource=f"dataset:{evaluation.dataset_id}",
+            purpose="Evaluate temporary uploaded TFLite model",
+        )
+        db.commit()
+        return result
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        model_file.file.close()
+
+
+@router.get("/ml/artifacts")
+def admin_list_tflite_artifacts(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return {"items": MlOpsService(db).list_artifacts()}
+
+
+@router.get("/ml/evaluations")
+def admin_list_tflite_evaluations(
+    artifact_id: int | None = Query(default=None, ge=1),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    query = db.query(MlModelArtifact).filter(MlModelArtifact.evaluation_json.is_not(None))
+    if artifact_id is not None:
+        query = query.filter(MlModelArtifact.id == artifact_id)
+    return {
+        "items": [
+            {
+                "artifact_id": artifact.id,
+                "dataset_id": artifact.dataset_id,
+                "run_id": artifact.run_id,
+                "evaluated_at": artifact.evaluated_at.isoformat() if artifact.evaluated_at else None,
+                "metrics": json.loads(artifact.evaluation_json).get("metrics", {}),
+            }
+            for artifact in query.order_by(MlModelArtifact.id.desc()).limit(100).all()
+        ]
+    }
+
+
+@router.get("/ml/metrics")
+def admin_get_tflite_metrics(
+    artifact_id: int = Query(..., ge=1),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    artifact = db.get(MlModelArtifact, artifact_id)
+    if artifact is None or not artifact.evaluation_json:
+        raise HTTPException(status_code=404, detail="Évaluation TFLite introuvable")
+    evaluation = json.loads(artifact.evaluation_json)
+    return {"artifact_id": artifact.id, "metrics": evaluation.get("metrics", {}), "tflite": evaluation.get("tflite", {})}
+
+
+@router.get("/ml/artifacts/{artifact_id}")
+def admin_get_tflite_artifact(
+    artifact_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    _ = current_admin
+    return MlOpsService(db).get_artifact(artifact_id)
+
+
+@router.post("/ml/artifacts/{artifact_id}/evaluate")
+def admin_evaluate_tflite_artifact(
+    artifact_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    artifact = db.get(MlModelArtifact, artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artefact TFLite introuvable")
+    result = evaluate_tflite_dataset(
+        db,
+        dataset_id=artifact.dataset_id,
+        run_id=artifact.run_id,
+        model_path_override=Path(artifact.storage_path),
+        model_source="stored",
+        model_filename=artifact.filename,
+        model_sha256=artifact.sha256,
+    )
+    artifact.evaluation_json = json.dumps(result, ensure_ascii=False)
+    artifact.status = "evaluated"
+    artifact.evaluated_at = datetime.now(UTC)
+    record_access(db, user_id=current_admin.id, action="ml_evaluate_tflite_artifact", resource=str(artifact_id), purpose="Re-evaluate persisted TFLite artifact")
+    db.commit()
+    return result
+
+
+@router.put("/ml/artifacts/{artifact_id}/review")
+def admin_review_tflite_artifact(
+    artifact_id: int,
+    payload: MlArtifactReviewRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).review_artifact(
+        artifact_id,
+        status_value=payload.status,
+        note=payload.note,
+        admin=current_admin,
+    )
+    record_access(db, user_id=current_admin.id, action="ml_review_tflite_artifact", resource=str(artifact_id), purpose=f"TFLite artifact review: {payload.status}")
+    db.commit()
+    return result
+
+
+@router.put("/ml/runs/{run_id}/review")
+def admin_review_train_run(
+    run_id: int,
+    payload: MlArtifactReviewRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    result = MlOpsService(db).review_run(
+        run_id,
+        status_value=payload.status,
+        note=payload.note,
+        admin=current_admin,
+    )
+    record_access(db, user_id=current_admin.id, action="ml_review_train_run", resource=str(run_id), purpose=f"ML run review: {payload.status}")
     db.commit()
     return result

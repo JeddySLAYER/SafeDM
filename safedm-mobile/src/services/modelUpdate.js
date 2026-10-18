@@ -180,6 +180,23 @@ export async function updateModelFromManifest() {
   const manifest = await apiRequest(
     `models/latest?app_version=${encodeURIComponent(APP_VERSION)}`,
   );
+  if (manifest.patch?.quantization?.weights) {
+    if (!(await verifyPatchManifest(manifest))) {
+      throw new Error("Patch manifest signature invalid");
+    }
+    const percentage = Number(manifest.rollout?.percentage) || 0;
+    const stage = manifest.rollout?.stage;
+    if (!(stage === "production" || (stage === "canary" && isCanary(deviceId, percentage)))) {
+      return { updated: false, reason: "not_in_canary" };
+    }
+    const store = storage();
+    if (!store) throw new Error("AsyncStorage unavailable");
+    await store.multiSet([
+      [ACTIVE_PATCH_KEY, JSON.stringify(manifest.patch)],
+      [ACTIVE_MANIFEST_KEY, JSON.stringify(manifest)],
+    ]);
+    return { updated: true, version: manifest.version, modelType: "patch" };
+  }
   const percentage = Number(manifest.rollout?.percentage) || 0;
   const stage = manifest.rollout?.stage;
   const inRollout =

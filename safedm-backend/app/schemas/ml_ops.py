@@ -30,6 +30,11 @@ class MlTfliteEvaluateRequest(BaseModel):
     mobile_messages: list[str] | None = Field(default=None, max_length=5000)
 
 
+class MlArtifactReviewRequest(BaseModel):
+    status: str = Field(pattern="^(approved|rejected|pending)$")
+    note: str | None = Field(default=None, max_length=2000)
+
+
 class ModelReceiptRequest(BaseModel):
     version: str = Field(min_length=1, max_length=128)
     device_identifier: str = Field(min_length=3, max_length=255)

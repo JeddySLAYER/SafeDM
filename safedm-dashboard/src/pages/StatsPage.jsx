@@ -28,7 +28,7 @@ export default function StatsPage() {
   if (error && !stats) {
     return (
       <div>
-        <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
+        <PageHeader title="Statistiques" subtitle="Indicateurs SafeDM" />
         <Alert tone="error">{error}</Alert>
         <button type="button" className="btn primary" onClick={() => refresh()}>
           Réessayer
@@ -40,7 +40,7 @@ export default function StatsPage() {
   if (loading && !stats) {
     return (
       <div>
-        <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
+        <PageHeader title="Statistiques" subtitle="Indicateurs SafeDM" />
         <Spinner label="Chargement…" />
         <SkeletonCards count={8} />
       </div>
@@ -50,7 +50,7 @@ export default function StatsPage() {
   if (!stats) {
     return (
       <div>
-        <PageHeader title="Stats" subtitle="Indicateurs SafeDM" />
+        <PageHeader title="Statistiques" subtitle="Indicateurs SafeDM" />
         <Alert tone="error">
           Les statistiques sont indisponibles. Vérifiez votre connexion et vos droits administrateur.
         </Alert>
@@ -71,7 +71,7 @@ export default function StatsPage() {
     { label: "Sous revue", value: stats.threats_under_review_count ?? 0 },
     { label: "Menaces rejetées", value: stats.threats_dismissed_count },
     { label: "Articles publiés", value: stats.guide_articles_published },
-    { label: "Apps supportées", value: stats.supported_applications },
+    { label: "Applications prises en charge", value: stats.supported_applications },
     { label: "Link Gate (events)", value: stats.link_gate_events_count ?? 0 },
     {
       label: "Rappel modèle",
@@ -91,7 +91,7 @@ export default function StatsPage() {
   return (
     <div>
       <PageHeader
-        title="Stats"
+        title="Statistiques"
         subtitle="Activité, providers et tendances (7 jours)."
         actions={
           <>
@@ -170,7 +170,7 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
+      <div className="panel stack-top">
         <h2>7 derniers jours</h2>
         {(stats.reports_last_7_days || []).length === 0 ? (
           <EmptyState title="Pas de données" />
@@ -194,12 +194,12 @@ export default function StatsPage() {
         )}
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
+      <div className="panel stack-top">
         <h2>Top menaces</h2>
         {(stats.top_reported_threats || []).length === 0 ? (
           <EmptyState title="Pas encore de menaces" />
         ) : (
-          <div className="table-wrap" style={{ border: "none" }}>
+          <div className="table-wrap table-flush">
             <table>
               <thead>
                 <tr>

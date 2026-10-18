@@ -22,7 +22,7 @@ from app.core.config import get_settings
 from app.models import CommunityReport, User
 from app.models.admin_operations import PatchDeployment
 from app.models.enums import ReportStatus
-from app.models.ml_ops import MlDataset, MlTrainRun
+from app.models.ml_ops import MlDataset, MlModelArtifact, MlTrainRun
 from app.models.report_training_review import ReportTrainingReview
 from app.models.threat import Threat
 
@@ -212,6 +212,12 @@ class MlOpsService:
         files: list[str] = []
         for run in runs:
             files.extend(self._run_files(run))
+            artifacts = self.db.scalars(
+                select(MlModelArtifact).where(MlModelArtifact.run_id == run.id)
+            ).all()
+            for artifact in artifacts:
+                files.append(artifact.storage_path)
+                self.db.delete(artifact)
             self.db.delete(run)
         reviews = self.db.scalars(
             select(ReportTrainingReview).where(ReportTrainingReview.dataset_id == dataset_id)
@@ -229,20 +235,30 @@ class MlOpsService:
         if run.status.lower() in {"pending", "queued", "running"}:
             raise HTTPException(status_code=409, detail="Impossible de supprimer un run en cours")
         files = self._run_files(run)
+        artifacts = self.db.scalars(
+            select(MlModelArtifact).where(MlModelArtifact.run_id == run.id)
+        ).all()
+        for artifact in artifacts:
+            files.append(artifact.storage_path)
+            self.db.delete(artifact)
         self.db.delete(run)
         self.db.flush()
         return files
 
     @staticmethod
     def remove_training_files(paths: list[str]) -> None:
-        root = (Path(get_settings().model_patch_manifest_path).resolve().parent / "train_runs").resolve()
+        roots = [
+            (Path(get_settings().model_patch_manifest_path).resolve().parent / "train_runs").resolve(),
+            (Path(get_settings().model_patch_manifest_path).resolve().parent / "tflite_artifacts").resolve(),
+        ]
         for raw_path in paths:
             path = Path(raw_path)
             try:
                 resolved = path.resolve(strict=False)
-                resolved.relative_to(root)
+                if not any(resolved.is_relative_to(root) for root in roots):
+                    raise ValueError("outside artifact roots")
             except (OSError, ValueError):
-                logger.warning("Skipping training artifact outside train_runs: %s", raw_path)
+                logger.warning("Skipping training artifact outside managed roots: %s", raw_path)
                 continue
             try:
                 resolved.unlink(missing_ok=True)
@@ -377,13 +393,45 @@ class MlOpsService:
             .limit(limit)
             .all()
         )
-        return [self._run_public(r) for r in rows]
+        return [self._run_with_artifacts(r) for r in rows]
+
+    def list_artifacts(self, limit: int = 50) -> list[dict[str, Any]]:
+        rows = self.db.query(MlModelArtifact).order_by(MlModelArtifact.id.desc()).limit(limit).all()
+        return [self._artifact_public(row, full=True) for row in rows]
+
+    def get_artifact(self, artifact_id: int) -> dict[str, Any]:
+        row = self.db.get(MlModelArtifact, artifact_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Artefact TFLite introuvable")
+        return self._artifact_public(row, full=True)
+
+    def review_run(self, run_id: int, *, status_value: str, note: str | None, admin: User) -> dict[str, Any]:
+        run = self.db.get(MlTrainRun, run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run introuvable")
+        run.review_status = status_value
+        run.review_note = note
+        run.reviewed_by_user_id = admin.id
+        self.db.flush()
+        return self._run_public(run, full=True)
+
+    def review_artifact(
+        self, artifact_id: int, *, status_value: str, note: str | None, admin: User
+    ) -> dict[str, Any]:
+        artifact = self.db.get(MlModelArtifact, artifact_id)
+        if artifact is None:
+            raise HTTPException(status_code=404, detail="Artefact TFLite introuvable")
+        artifact.review_status = status_value
+        artifact.review_note = note
+        artifact.reviewed_by_user_id = admin.id
+        self.db.flush()
+        return self._artifact_public(artifact, full=True)
 
     def get_run(self, run_id: int) -> dict[str, Any]:
         row = self.db.get(MlTrainRun, run_id)
         if not row:
             raise HTTPException(status_code=404, detail="Run introuvable")
-        return self._run_public(row, full=True)
+        return self._run_with_artifacts(row, full=True)
 
     def start_train(self, *, dataset_id: int, admin: User, promote_canary: bool = False) -> dict[str, Any]:
         dataset = self.db.get(MlDataset, dataset_id)
@@ -430,11 +478,13 @@ class MlOpsService:
             pub = result.get("public_key_hex") or ""
             if pub:
                 artifact.with_suffix(".pub").write_text(pub, encoding="utf-8")
-            if promote_canary and result.get("publishable"):
+            if promote_canary and result.get("publishable") and run.review_status == "approved":
                 self._promote_artifact(artifact, pub)
                 run.log_text = (run.log_text or "") + "\n[promote] copied to MODEL_PATCH_MANIFEST_PATH\n"
             elif promote_canary and not result.get("publishable"):
                 run.log_text = (run.log_text or "") + "\n[promote] skipped: not publishable\n"
+            elif promote_canary:
+                run.log_text = (run.log_text or "") + "\n[promote] skipped: review approval required\n"
 
         except Exception as exc:  # noqa: BLE001 — surface to admin UI
             logger.exception("train run %s failed", run.id)
@@ -450,6 +500,16 @@ class MlOpsService:
         run = self.db.get(MlTrainRun, run_id)
         if not run or run.status != "succeeded" or not run.artifact_path:
             raise HTTPException(status_code=400, detail="Run non promuable")
+        if run.review_status != "approved":
+            raise HTTPException(status_code=409, detail="Le run doit être approuvé avant la promotion canary")
+        artifacts = self.db.scalars(
+            select(MlModelArtifact).where(MlModelArtifact.run_id == run.id)
+        ).all()
+        if any(artifact.review_status != "approved" for artifact in artifacts):
+            raise HTTPException(
+                status_code=409,
+                detail="Tous les artefacts TFLite liés doivent être approuvés avant la promotion canary",
+            )
         path = Path(run.artifact_path)
         if not path.exists():
             raise HTTPException(status_code=404, detail="Artefact disparu (FS éphémère?)")
@@ -598,6 +658,8 @@ class MlOpsService:
             "dataset_id": row.dataset_id,
             "status": row.status,
             "publishable": row.publishable,
+            "review_status": row.review_status,
+            "review_note": row.review_note,
             "artifact_sha256": row.artifact_sha256,
             "error_message": row.error_message,
             "triggered_by_user_id": row.triggered_by_user_id,
@@ -611,4 +673,42 @@ class MlOpsService:
             out["metrics"] = metrics
             out["log_text"] = row.log_text
             out["artifact_path"] = row.artifact_path
+        return out
+
+    @staticmethod
+    def _artifact_public(row: MlModelArtifact, *, full: bool = False) -> dict[str, Any]:
+        evaluation = None
+        if row.evaluation_json:
+            try:
+                evaluation = json.loads(row.evaluation_json)
+            except json.JSONDecodeError:
+                evaluation = None
+        out = {
+            "id": row.id,
+            "dataset_id": row.dataset_id,
+            "run_id": row.run_id,
+            "filename": row.filename,
+            "sha256": row.sha256,
+            "size_bytes": row.size_bytes,
+            "status": row.status,
+            "review_status": row.review_status,
+            "review_note": row.review_note,
+            "created_by_user_id": row.created_by_user_id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "evaluated_at": row.evaluated_at.isoformat() if row.evaluated_at else None,
+            "metrics": evaluation.get("metrics") if isinstance(evaluation, dict) else None,
+        }
+        if full:
+            out["evaluation"] = evaluation
+            out["storage_path"] = row.storage_path
+        return out
+
+    def _run_with_artifacts(self, row: MlTrainRun, *, full: bool = False) -> dict[str, Any]:
+        out = self._run_public(row, full=full)
+        out["tflite_artifacts"] = [
+            self._artifact_public(artifact)
+            for artifact in self.db.scalars(
+                select(MlModelArtifact).where(MlModelArtifact.run_id == row.id)
+            ).all()
+        ]
         return out

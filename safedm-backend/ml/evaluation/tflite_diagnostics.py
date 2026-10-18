@@ -116,8 +116,8 @@ def _load_interpreter(model_path: Path):
         raise HTTPException(
             status_code=503,
             detail=(
-                "Interpréteur TFLite indisponible. Dans safedm-backend, installez le groupe "
-                "optionnel local-eval (uv sync --extra local-eval), puis redémarrez l’API."
+                "Interpréteur LiteRT indisponible. Installez les dépendances du backend "
+                "(uv sync), puis redémarrez l’API."
             ),
         ) from exc
     if not model_path.is_file():
@@ -148,8 +148,12 @@ def evaluate_tflite_dataset(
     mobile_features: list[list[int]] | None = None,
     mobile_results: list[dict[str, Any]] | None = None,
     mobile_messages: list[str] | None = None,
+    model_path_override: Path | None = None,
+    model_source: str = "bundled",
+    model_filename: str | None = None,
+    model_sha256: str | None = None,
 ) -> dict[str, Any]:
-    """Evaluate the actual bundled .tflite on stored labeled messages."""
+    """Evaluate a bundled or uploaded .tflite on stored labeled messages."""
     cases = _dataset_cases(db, dataset_id)
     overlap = _training_overlap(cases)
     if mobile_features is not None and len(mobile_features) != len(cases):
@@ -162,8 +166,13 @@ def evaluate_tflite_dataset(
     if mobile_messages is not None and len(mobile_messages) != len(cases):
         raise HTTPException(status_code=422, detail="Le rapport Android ne correspond pas au nombre de messages du dataset.")
     root = repo_root()
-    model_path = root.parent / "safedm-mobile" / "assets" / "models" / "safedm_v3.tflite"
+    model_path = model_path_override or (root.parent / "safedm-mobile" / "assets" / "models" / "safedm_v3.tflite")
     interpreter, input_info, output_info = _load_interpreter(model_path)
+    production_interpreter = None
+    production_input = production_output = None
+    production_path = root.parent / "safedm-mobile" / "assets" / "models" / "safedm_v3.tflite"
+    if model_path.resolve() != production_path.resolve() and production_path.is_file():
+        production_interpreter, production_input, production_output = _load_interpreter(production_path)
     patch, patch_source = _get_patch(db, run_id)
     quantized = patch.get("quantization") if patch else None
     if patch and (not isinstance(quantized, dict) or not isinstance(quantized.get("weights"), list)):
@@ -232,6 +241,11 @@ def evaluate_tflite_dataset(
             raise HTTPException(status_code=422, detail=f"Inférence TFLite exemple {index + 1}: {exc}") from exc
         if not np.isfinite(probability) or not 0 <= probability <= 1:
             raise HTTPException(status_code=422, detail=f"Sortie TFLite invalide à l’exemple {index + 1}")
+        production_probability = None
+        if production_interpreter is not None:
+            production_interpreter.set_tensor(production_input["index"], np.asarray(features, dtype=production_input["dtype"]).reshape(production_input["shape"]))
+            production_interpreter.invoke()
+            production_probability = float(np.asarray(production_interpreter.get_tensor(production_output["index"])).reshape(-1)[0])
 
         tflite_decision = (
             "DANGEREUX" if probability >= DANGEROUS_THRESHOLD
@@ -261,6 +275,12 @@ def evaluate_tflite_dataset(
             "tflite_mobile_score_delta": abs(probability - mobile_probability) if mobile_probability is not None else None,
             "tflite_mobile_decision_match": tflite_decision == mobile_decision_normalized if mobile_decision else None,
             "tflite_probability": probability,
+            "production_probability": production_probability,
+            "production_decision": (
+                "DANGEREUX" if production_probability is not None and production_probability >= DANGEROUS_THRESHOLD
+                else "INCERTAIN" if production_probability is not None and production_probability >= SAFE_THRESHOLD
+                else "BENIN" if production_probability is not None else None
+            ),
             "tflite_decision": tflite_decision,
             "tflite_binary_dangerous": probability >= DANGEROUS_THRESHOLD,
             "patch_score": patch_score,
@@ -292,6 +312,45 @@ def evaluate_tflite_dataset(
             "benign_dangerous": sum(row["patch_decision"] == "MALVEILLANT" for row in patch_benign),
             "malicious_safe": sum(row["patch_decision"] == "BENIN" for row in patch_malicious),
         }
+    def confusion(predicted_key: str, dangerous_value: str = "DANGEREUX") -> dict[str, int]:
+        return {
+            "tn": sum(row["expected_binary"] == "BENIN" and row[predicted_key] != dangerous_value for row in rows),
+            "fp": sum(row["expected_binary"] == "BENIN" and row[predicted_key] == dangerous_value for row in rows),
+            "fn": sum(row["expected_binary"] == "MALVEILLANT" and row[predicted_key] != dangerous_value for row in rows),
+            "tp": sum(row["expected_binary"] == "MALVEILLANT" and row[predicted_key] == dangerous_value for row in rows),
+        }
+
+    def class_metrics(subset: list[dict[str, Any]], predicted_key: str) -> dict[str, Any]:
+        if not subset:
+            return {"count": 0, "correct": 0, "accuracy": None}
+        correct = sum(
+            (row["expected_binary"] == "MALVEILLANT") == (row[predicted_key] == "DANGEREUX")
+            for row in subset
+        )
+        return {"count": len(subset), "correct": correct, "accuracy": correct / len(subset)}
+
+    tflite_confusion = confusion("tflite_decision")
+    tflite_class = {
+        "BENIN": class_metrics(benign, "tflite_decision"),
+        "MALVEILLANT": class_metrics(malicious, "tflite_decision"),
+    }
+    production_rows = [row for row in rows if row["production_decision"] is not None]
+    production_confusion = None
+    if production_rows:
+        production_confusion = {
+            "tn": sum(row["expected_binary"] == "BENIN" and row["production_decision"] != "DANGEREUX" for row in production_rows),
+            "fp": sum(row["expected_binary"] == "BENIN" and row["production_decision"] == "DANGEREUX" for row in production_rows),
+            "fn": sum(row["expected_binary"] == "MALVEILLANT" and row["production_decision"] != "DANGEREUX" for row in production_rows),
+            "tp": sum(row["expected_binary"] == "MALVEILLANT" and row["production_decision"] == "DANGEREUX" for row in production_rows),
+        }
+    slices = {}
+    for slice_name, predicate in (
+        ("benign", lambda row: row["expected_binary"] == "BENIN"),
+        ("malicious", lambda row: row["expected_binary"] == "MALVEILLANT"),
+        ("uncertain", lambda row: row["tflite_decision"] == "INCERTAIN"),
+    ):
+        selected = [row for row in rows if predicate(row)]
+        slices[slice_name] = {"count": len(selected), "indices": [row["index"] for row in selected[:100]]}
     parity_rows = [row for row in rows if row["patch_matches_tflite_dangerous"] is not None]
     feature_rows = [row for row in rows if row["features_match"] is not None]
     mobile_rows = [row for row in rows if row["mobile_probability"] is not None]
@@ -300,7 +359,10 @@ def evaluate_tflite_dataset(
         "sample_count": len(rows),
         "data_quality": overlap,
         "model": {
-            "path": str(model_path),
+            "source": model_source,
+            "filename": model_filename,
+            "sha256": model_sha256,
+            "path": str(model_path) if model_source == "bundled" else None,
             "bytes": model_path.stat().st_size,
             "input_shape": list(input_info["shape"]),
             "input_dtype": str(input_info["dtype"]),
@@ -310,6 +372,19 @@ def evaluate_tflite_dataset(
         },
         "features": {"count": len(FEATURE_NAMES), "names": list(FEATURE_NAMES), "source": "python_reference", "mobile_vectors_received": len(feature_rows)},
         "tflite": tflite_metrics,
+        "metrics": {
+            "confusion_matrix": tflite_confusion,
+            "per_class": tflite_class,
+            "slices": slices,
+            "production_comparison": {
+                "available": production_confusion is not None,
+                "confusion_matrix": production_confusion,
+                "rows_compared": len(production_rows),
+                "same_decision": sum(
+                    row["tflite_decision"] == row["production_decision"] for row in production_rows
+                ),
+            },
+        },
         "patch": {"source": patch_source, **patch_metrics} if patch_metrics else None,
         "parity": {
             "patch_comparable_samples": len(parity_rows),

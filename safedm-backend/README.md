@@ -288,21 +288,28 @@ L'entraînement local et le déploiement mobile sont deux étapes distinctes :
    Firebase (Auth → Storage) est planifié progressivement — JWT admin reste
    la source d'identité actuelle.
 
-### Diagnostic réel du TFLite mobile
+### Diagnostic TFLite et comparaison mobile facultative
 
-Dans un environnement de développement local, installez l’interpréteur optionnel puis
-redémarrez l’API : `cd safedm-backend && uv sync --extra local-eval`. Dans
-Entraînement → Diagnostic local, sélectionnez un dataset : l’API exécute le vrai
-`safedm-mobile/assets/models/safedm_v3.tflite`, retourne les probabilités brutes,
+Pour une API locale avec uv : `cd safedm-backend && uv sync`.
+L’image Docker de l’API inclut aussi l’interpréteur LiteRT. Dans Entraînement →
+Diagnostic TFLite, sélectionnez un dataset et, facultativement, votre propre
+fichier `.tflite` (25 Mio maximum). Sans fichier, l’API évalue
+`safedm-mobile/assets/models/safedm_v3.tflite`. L’upload est envoyé à l’URL d’API
+configurée dans le dashboard, évalué côté serveur, puis supprimé; aucun artefact
+modèle importé n’est ajouté à la base de données. La réponse indique son SHA-256.
+Ce parcours fonctionne aussi depuis le dashboard déployé si celui-ci pointe vers
+l’API distante, que l’origine du dashboard est autorisée dans `CORS_ORIGINS` et que
+l’API utilise les dépendances mises à jour. L’API retourne les probabilités brutes,
 les décisions de l’app, les erreurs par catégorie et la comparaison patch JSON.
 
-Pour comparer avec l’extracteur Kotlin et l’inférence du téléphone, utilisez un
-compte admin dans l’app Android de développement : Paramètres → Diagnostic du
-modèle local → même dataset → Exécuter. Collez le rapport copié dans le champ
-Android du dashboard. Le rapport vérifie l’ordre et le texte exact des exemples,
+Pour comparer avec l’extracteur Kotlin et l’inférence du téléphone, un compte admin
+dans l’app Android de développement peut générer un rapport depuis Paramètres →
+Diagnostic du modèle local. Cette étape est facultative; l’évaluation du fichier
+TFLite sur l’API ne nécessite pas de test sur téléphone. Collez le rapport dans le
+champ Android du dashboard. Le rapport vérifie l’ordre et le texte exact des exemples,
 les 50 features et le score TFLite. Un build Android de développement est requis
-pour cette fonction native. Le bouton TFLite du dashboard utilise le modèle
-bundlé et ignore volontairement le patch OTA pour tester ce fichier précis.
+pour cette fonction native. Le diagnostic utilise le modèle uploadé s’il est choisi,
+sinon le modèle bundlé; il compare séparément avec le patch OTA sélectionné.
 
 Le fichier TFLite bundlé a été entraîné sur `data/processed/labeled_messages.json`.
 Le diagnostic détecte les correspondances exactes avec ce jeu et avertit si les
