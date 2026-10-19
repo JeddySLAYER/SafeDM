@@ -27,6 +27,15 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+/** Dev builds need cleartext for the Metro/dev-server on the host LAN IP. */
+function computeAllowCleartext() {
+  return (
+    process.env.APP_ENV !== "production" &&
+    process.env.EAS_BUILD_PROFILE !== "production" &&
+    process.env.EAS_BUILD_PROFILE !== "apk"
+  );
+}
+
 function packageToRelPath(packageName) {
   return packageName.split(".").join(path.sep);
 }
@@ -73,7 +82,26 @@ function copyKotlinSources(projectRoot, platformProjectRoot) {
     "xml",
   );
   ensureDir(xmlDestDir);
-  fs.copyFileSync(xmlSrc, path.join(xmlDestDir, "network_security_config.xml"));
+
+  // A networkSecurityConfig overrides usesCleartextTraffic. The production
+  // template forbids cleartext everywhere but the emulator/localhost, which
+  // would block the dev server on the host LAN IP (e.g. http://172.16.x.x:8081).
+  // In dev builds permit cleartext broadly; release builds keep the template.
+  let xmlConfig = fs.readFileSync(xmlSrc, "utf8");
+  if (computeAllowCleartext()) {
+    xmlConfig = xmlConfig.replace(
+      /<base-config cleartextTrafficPermitted="false"\s*\/>/,
+      '<base-config cleartextTrafficPermitted="true" />',
+    );
+    xmlConfig = xmlConfig.replace(
+      "Cleartext limited to emulator/localhost. Production API must be HTTPS.",
+      "Dev build: cleartext allowed (Metro/dev server). Release builds restrict it.",
+    );
+  }
+  fs.writeFileSync(
+    path.join(xmlDestDir, "network_security_config.xml"),
+    xmlConfig,
+  );
 }
 
 function addNotificationListenerService(androidManifest) {
@@ -147,11 +175,7 @@ function addNotificationListenerService(androidManifest) {
 
   // Cleartext only when Expo build-properties allow it (dev). Release APKs
   // must talk HTTPS (or localhost via network_security_config exceptions).
-  const allowCleartext =
-    process.env.APP_ENV !== "production" &&
-    process.env.EAS_BUILD_PROFILE !== "production" &&
-    process.env.EAS_BUILD_PROFILE !== "apk";
-  if (allowCleartext) {
+  if (computeAllowCleartext()) {
     app.$["android:usesCleartextTraffic"] = "true";
   } else {
     delete app.$["android:usesCleartextTraffic"];
