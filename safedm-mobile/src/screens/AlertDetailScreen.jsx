@@ -136,10 +136,10 @@ export default function AlertDetailScreen({ navigation, route }) {
 
   const level = alert.level || "unknown";
   const decisionSourceLabels = {
-    "local-tflite": "Modèle TFLite embarqué",
-    "local-patch": "Patch de modèle reçu du serveur",
-    "feature-fallback": "Signaux locaux de secours (modèle indisponible)",
-    "heuristic-fallback": "Règles de secours (vecteur indisponible)",
+    "local-tflite": "Modèle local embarqué",
+    "local-patch": "Mise à jour du modèle reçue du serveur",
+    "feature-fallback": "Analyse locale de secours (modèle indisponible)",
+    "heuristic-fallback": "Règles de secours (analyse indisponible)",
     cloud: "Vérification serveur",
   };
 

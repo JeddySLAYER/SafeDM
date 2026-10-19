@@ -33,7 +33,7 @@ export default function DirectReportScreen({ navigation }) {
       }
       setContent(text.trim().slice(0, MAX));
     } catch {
-      setError("Impossible de lire le presse-papiers.");
+      setError("Impossible d'accéder au presse-papiers.");
     }
   }
 

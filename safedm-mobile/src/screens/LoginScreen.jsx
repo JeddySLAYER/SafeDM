@@ -75,7 +75,7 @@ export default function LoginScreen({ navigation }) {
             try {
               await loginFirebase(username.trim(), password);
             } catch (err) {
-              setError(err instanceof ApiError ? err.message : err?.message || "Firebase refusé.");
+              setError(err instanceof ApiError ? err.message : err?.message || "Firebase a refusé l'authentification.");
             } finally {
               setLoading(false);
             }

@@ -46,7 +46,7 @@ export default function AnalysisResultScreen({ navigation, route }) {
     return (
       <Screen>
         <ScreenHeader title="Résultat" onBack={() => navigation.goBack()} />
-        <Text style={styles.empty}>Aucun résultat à afficher.</Text>
+        <Text style={styles.empty}>Aucun résultat.</Text>
       </Screen>
     );
   }
@@ -68,9 +68,9 @@ export default function AnalysisResultScreen({ navigation, route }) {
     (providerKeys.length ? "Vérification serveur" : "Modèle local");
   const modelSourceLabel =
     modelSource === "tflite"
-      ? "Modèle TFLite embarqué"
+      ? "Modèle local embarqué"
       : modelSource === "patch"
-        ? "Patch de modèle local"
+        ? "Mise à jour du modèle local"
         : modelSource === "Vérification serveur"
           ? modelSource
           : "Modèle local";

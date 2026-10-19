@@ -73,7 +73,7 @@ export default function ModelDiagnosticsScreen({ navigation }) {
       const safe = mobileResults.filter((row) => row.decision === "SAFE").length;
       setSummary({ count: items.length, dangerous, uncertain, safe });
     } catch (err) {
-      setError(err.message || "Diagnostic mobile impossible");
+      setError(err.message || "Vérification impossible");
     } finally {
       setRunning(false);
     }
@@ -81,10 +81,10 @@ export default function ModelDiagnosticsScreen({ navigation }) {
 
   return (
     <Screen scroll style={styles.canvas}>
-      <ScreenHeader title="Diagnostic du modèle local" onBack={() => navigation.goBack()} />
+      <ScreenHeader title="Vérification du modèle local" onBack={() => navigation.goBack()} />
       <Text style={styles.lead}>
-        Calcule les features avec le module Kotlin et exécute directement le TFLite bundlé, sans utiliser le patch JSON OTA.
-        Le rapport contient les messages du dataset et les features : il reste copié dans le presse-papiers de cet appareil, ne le partagez qu’avec une destination de confiance.
+        Calcule les signaux avec le module natif et exécute directement le modèle embarqué, sans passer par le serveur.
+        Le rapport contient les messages du jeu de données et les signaux : il reste copié dans le presse-papiers de cet appareil. Ne le partagez qu’avec une destination de confiance.
       </Text>
       {loading ? <ActivityIndicator color={colors.bluePrimary} /> : null}
       {datasets.map((dataset) => (
@@ -93,17 +93,17 @@ export default function ModelDiagnosticsScreen({ navigation }) {
           label={`#${dataset.id} ${dataset.name} · ${dataset.sample_count} exemples`}
           variant={dataset.id === datasetId ? "primary" : "outline"}
           onPress={() => { setDatasetId(dataset.id); setSummary(null); }}
-          accessibilityLabel={`Sélectionner le dataset ${dataset.name}, ${dataset.sample_count} exemples`}
+          accessibilityLabel={`Sélectionner le jeu de données ${dataset.name}, ${dataset.sample_count} exemples`}
           style={styles.datasetButton}
         />
       ))}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label="Exécuter le TFLite sur ce dataset" onPress={runDiagnostic} loading={running} disabled={loading || !datasetId} style={styles.runButton} />
+      <Button label="Exécuter le modèle sur ce jeu de données" onPress={runDiagnostic} loading={running} disabled={loading || !datasetId} style={styles.runButton} />
       {summary ? (
         <View style={styles.resultCard}>
           <Text style={styles.resultTitle}>Rapport prêt · {summary.count} messages</Text>
-          <Text style={styles.resultBody}>TFLite : {summary.dangerous} dangereux · {summary.uncertain} incertains · {summary.safe} bénins</Text>
-          <Text style={styles.resultBody}>Le JSON avec les messages, 50 features et les scores bruts est copié. Il peut contenir des données sensibles.</Text>
+          <Text style={styles.resultBody}>Modèle local : {summary.dangerous} dangereux · {summary.uncertain} incertains · {summary.safe} bénins</Text>
+          <Text style={styles.resultBody}>Le rapport (JSON) avec les messages, les 50 signaux et les scores bruts est copié. Il peut contenir des données sensibles.</Text>
           <Text style={styles.hint}>Collez-le dans Entraînement → Diagnostic local sur le dashboard puis relancez la comparaison.</Text>
           <Button
             label="Recopier le dernier rapport"

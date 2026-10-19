@@ -28,11 +28,11 @@ export function friendlyAnalysisError(err) {
   if (err instanceof ApiError) {
     if (err.status === 401) return "Session expirée. Reconnectez-vous.";
     if (err.status === 0) {
-      return "Vérification distante indisponible. Le message reste sur le téléphone.";
+      return "Vérification distante indisponible.";
     }
-    return "La vérification distante n'a pas abouti. Le message reste sur le téléphone.";
+    return "La vérification distante n'a pas abouti.";
   }
-  return "Analyse impossible pour le moment. Le message reste sur le téléphone.";
+  return "Impossible d'analyser le message pour l'instant.";
 }
 
 function resultFromLocal(local) {

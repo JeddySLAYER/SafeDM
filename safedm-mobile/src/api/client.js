@@ -61,7 +61,7 @@ export async function apiRequest(path, options = {}) {
     );
   } catch {
     throw new ApiError(
-      "Vérification distante indisponible. Le message reste sur le téléphone.",
+      "Vérification distante indisponible.",
       0,
       null,
     );

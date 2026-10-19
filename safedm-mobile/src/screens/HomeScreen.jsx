@@ -108,7 +108,7 @@ export default function HomeScreen({ navigation }) {
       }
       setDraft(text.trim().slice(0, MAX));
     } catch {
-      setCaptureError("Impossible de lire le presse-papiers.");
+      setCaptureError("Impossible d'accéder au presse-papiers.");
     }
   }
 
@@ -148,7 +148,7 @@ export default function HomeScreen({ navigation }) {
       });
     } catch {
       setCaptureError(
-        "Analyse impossible pour le moment. Le message reste sur le téléphone.",
+        "Impossible d'analyser le message pour l'instant.",
       );
     } finally {
       setAnalyzing(false);

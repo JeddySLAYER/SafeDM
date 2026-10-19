@@ -34,7 +34,7 @@ export default function ManualAnalysisScreen({ navigation, route }) {
       }
       setContent(text.trim().slice(0, MAX));
     } catch {
-      setError("Impossible de lire le presse-papiers.");
+      setError("Impossible d'accéder au presse-papiers.");
     }
   }
 
@@ -58,7 +58,7 @@ export default function ManualAnalysisScreen({ navigation, route }) {
         originalContent: text,
       });
     } catch {
-      setError("Analyse impossible pour le moment. Le message reste sur le téléphone.");
+      setError("Impossible d'analyser le message pour l'instant.");
     } finally {
       setLoading(false);
     }
