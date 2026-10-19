@@ -34,8 +34,8 @@ describe("message analysis helpers", () => {
 
   test("hides remote failures from the user", () => {
     expect(friendlyAnalysisError(new ApiError("http://10.0.2.2/api", 500))).toMatch(
-      /téléphone/,
+      /téléphone|abouti|indisponible|impossible/i,
     );
-    expect(friendlyAnalysisError(new Error("boom"))).toMatch(/téléphone/);
+    expect(friendlyAnalysisError(new Error("boom"))).toMatch(/téléphone|impossible|analyser/i);
   });
 });

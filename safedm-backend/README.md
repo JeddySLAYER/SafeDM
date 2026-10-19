@@ -2,6 +2,8 @@
 
 API FastAPI pour SafeDM — analyse de messages suspects (Jev + VirusTotal), authentification, signalements communautaires et guide CMS.
 
+Le pipeline canary utilise des patches JSON à poids entiers (avec TFLite bundlé en fallback). FastText est conservé comme runtime de référence pour les tests de parité, pas comme modèle du chemin de production.
+
 ## Prérequis
 
 - Python 3.12+
@@ -276,11 +278,72 @@ L'entraînement local et le déploiement mobile sont deux étapes distinctes :
    régression 50-dim, seuil hors-pli, patch JSON signé. Alternative CI :
    workflow GitHub `train-model.yml` (pas besoin de Cloud Scheduler ni Play).
 3. `scripts/export_tflite_model.py` exporte séparément le runtime Android.
-4. `scripts/generate_weekly_patch.py` agrège des métadonnées anonymes seulement
-   (pas un réentraînement des poids).
+4. `scripts/generate_weekly_patch.py` agrège les signalements actifs et les
+   menaces actives associées des 7 derniers jours. Le manifeste policy est écrit
+   dans `artifacts/weekly/aggregation/`, séparé du manifeste modèle
+   `MODEL_PATCH_MANIFEST_PATH`. Il contient des compteurs et les seuils configurés;
+   il ne lit/exporte pas les contenus ni empreintes, ne réentraîne aucun poids,
+   et ne change ni le canary ni les seuils actifs de `/analysis`.
 5. Opérations : Approuver / Rollback + `rollout_percentage` (canary appareils).
    Firebase (Auth → Storage) est planifié progressivement — JWT admin reste
    la source d'identité actuelle.
+
+### Diagnostic TFLite et comparaison mobile facultative
+
+Pour une API locale avec uv : `cd safedm-backend && uv sync`.
+L’image Docker de l’API inclut aussi l’interpréteur LiteRT. Dans Entraînement →
+Diagnostic TFLite, sélectionnez un dataset et, facultativement, votre propre
+fichier `.tflite` (25 Mio maximum). Sans fichier, l’API évalue
+`safedm-mobile/assets/models/safedm_v3.tflite`. L’upload est envoyé à l’URL d’API
+configurée dans le dashboard, évalué côté serveur, puis supprimé; aucun artefact
+modèle importé n’est ajouté à la base de données. La réponse indique son SHA-256.
+Ce parcours fonctionne aussi depuis le dashboard déployé si celui-ci pointe vers
+l’API distante, que l’origine du dashboard est autorisée dans `CORS_ORIGINS` et que
+l’API utilise les dépendances mises à jour. L’API retourne les probabilités brutes,
+les décisions de l’app, les erreurs par catégorie et la comparaison patch JSON.
+
+Pour comparer avec l’extracteur Kotlin et l’inférence du téléphone, un compte admin
+dans l’app Android de développement peut générer un rapport depuis Paramètres →
+Diagnostic du modèle local. Cette étape est facultative; l’évaluation du fichier
+TFLite sur l’API ne nécessite pas de test sur téléphone. Collez le rapport dans le
+champ Android du dashboard. Le rapport vérifie l’ordre et le texte exact des exemples,
+les 50 features et le score TFLite. Un build Android de développement est requis
+pour cette fonction native. Le diagnostic utilise le modèle uploadé s’il est choisi,
+sinon le modèle bundlé; il compare séparément avec le patch OTA sélectionné.
+
+Le fichier TFLite bundlé a été entraîné sur `data/processed/labeled_messages.json`.
+Le diagnostic détecte les correspondances exactes avec ce jeu et avertit si les
+métriques ne sont pas indépendantes. Un score sur les exemples d’entraînement
+ne mesure pas la généralisation.
+
+### Signature des patches et accusé de réception
+
+Les patches JSON OTA ne sont acceptés que si la signature ECDSA P-256 correspond
+à la clé publique épinglée dans le build mobile. Configurez
+`ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64` côté backend et
+`MODEL_PATCH_PUBLIC_KEY_HEX` côté mobile avec la même paire. La clé privée reste
+côté backend; une rotation de clé nécessite un nouveau build mobile. Sans clé
+publique mobile configurée, l’app garde le TFLite bundlé et refuse le patch.
+Après stockage réussi d’un patch vérifié, le téléphone envoie un accusé de
+réception authentifié. Opérations compte ces reçus sans enregistrer l’identifiant
+brut du téléphone. Appliquez la nouvelle migration avec `alembic upgrade head`.
+
+Pour créer une paire de développement, générez une clé P-256 et exportez la
+clé publique au format SEC1 non compressé attendu par l’app :
+
+```sh
+openssl ecparam -name prime256v1 -genkey -noout -out patch-signing-private.pem
+openssl ec -in patch-signing-private.pem -pubout -conv_form uncompressed -outform DER \
+  -out patch-signing-public.der
+```
+
+La valeur publique à épingler est le dernier point SEC1 de 65 octets dans le
+DER (préfixe SPKI de 26 octets retiré), encodé en hexadécimal. La valeur privée
+à mettre dans `ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64` est le contenu PEM encodé
+en Base64 (`base64 -w0 patch-signing-private.pem` sur Linux). Configurez la
+valeur publique comme `MODEL_PATCH_PUBLIC_KEY_HEX` avant le build Android.
+Conservez la clé privée hors du dépôt et ne réutilisez pas une clé de
+développement en production.
 
 Une politique tenant enregistrée dans Opérations est actuellement une
 configuration persistée et auditée. Elle n'est pas encore appliquée à la

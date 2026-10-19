@@ -25,7 +25,11 @@ function ScoreRing({ score, level }) {
           : colors.textMuted;
 
   return (
-    <View style={[styles.ring, { borderColor: ringColor }]}>
+    <View
+      accessible
+      accessibilityLabel={`Score de risque : ${score} sur 100`}
+      style={[styles.ring, { borderColor: ringColor }]}
+    >
       <Text style={styles.score}>{score}</Text>
     </View>
   );
@@ -42,7 +46,7 @@ export default function AnalysisResultScreen({ navigation, route }) {
     return (
       <Screen>
         <ScreenHeader title="Résultat" onBack={() => navigation.goBack()} />
-        <Text style={styles.empty}>Aucun résultat à afficher.</Text>
+        <Text style={styles.empty}>Aucun résultat.</Text>
       </Screen>
     );
   }
@@ -53,6 +57,23 @@ export default function AnalysisResultScreen({ navigation, route }) {
   const recommendations = Array.isArray(result.recommendations)
     ? result.recommendations
     : [];
+  const score = Number.isFinite(Number(result.risk_score))
+    ? Number(result.risk_score)
+    : null;
+  const verdict = (result.status || "UNKNOWN").toUpperCase();
+  const providerKeys = Object.keys(result.providers || {});
+  const modelSource =
+    result.model_source ||
+    result.modelSource ||
+    (providerKeys.length ? "Vérification serveur" : "Modèle local");
+  const modelSourceLabel =
+    modelSource === "tflite"
+      ? "Modèle local embarqué"
+      : modelSource === "patch"
+        ? "Mise à jour du modèle local"
+        : modelSource === "Vérification serveur"
+          ? modelSource
+          : "Modèle local";
 
   async function onReport() {
     setError("");
@@ -77,10 +98,15 @@ export default function AnalysisResultScreen({ navigation, route }) {
       <ScreenHeader title="Résultat" onBack={() => navigation.goBack()} />
 
       <View style={styles.scoreCard}>
-        <ScoreRing score={result.risk_score ?? 0} level={level} />
+        <ScoreRing score={score ?? "—"} level={level} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headline}>{riskHeadline(level)}</Text>
           <Text style={styles.desc}>{riskDescription(level)}</Text>
+          <Text style={styles.meta}>Verdict : {verdict}</Text>
+          <Text style={styles.meta}>
+            Score de risque : {score == null ? "indisponible" : `${score}/100`} (plus le score est élevé, plus le risque est important)
+          </Text>
+          <Text style={styles.meta}>Source : {modelSourceLabel}</Text>
         </View>
       </View>
 
@@ -109,6 +135,9 @@ export default function AnalysisResultScreen({ navigation, route }) {
             return (
               <Pressable
                 key={item.url}
+                accessible
+                accessibilityRole="button"
+                accessibilityLabel={`${vtLabel(item.result)} : ${item.url}. Vérifier avant d’ouvrir.`}
                 onPress={() =>
                   navigation.navigate("LinkGate", { url: item.url })
                 }
@@ -173,6 +202,7 @@ export default function AnalysisResultScreen({ navigation, route }) {
         onPress={onReport}
         loading={reporting}
         icon={<IconGlyph name="flag" color={colors.bluePrimary} size={16} />}
+        accessibilityLabel="Signaler ce message à la communauté. Le texte sera envoyé au serveur."
         style={{ marginTop: 24 }}
       />
     </Screen>
@@ -214,6 +244,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: colors.textSecondary,
+  },
+  meta: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   section: {
     fontSize: 15,

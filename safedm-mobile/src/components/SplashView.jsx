@@ -1,14 +1,19 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import BrandMark from "./BrandMark";
 import { APP_VERSION } from "../config";
 import { colors } from "../theme/tokens";
 
+const FULL_LOGO_ASPECT = 1380 / 352;
+
 export default function SplashView() {
+  const { width } = useWindowDimensions();
+  const logoHeight = Math.round((width - 20) / FULL_LOGO_ASPECT);
+
   return (
     <View style={styles.root}>
       <View style={styles.center}>
-        <BrandMark size={80} showTagline centered />
+        <BrandMark size={logoHeight} showTagline centered />
       </View>
       <View style={styles.footer}>
         <ActivityIndicator color={colors.bluePrimary} style={styles.spinner} />
@@ -26,7 +31,8 @@ const styles = StyleSheet.create({
   },
   center: {
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
+    width: "100%",
   },
   footer: {
     position: "absolute",

@@ -2,8 +2,11 @@
 
 import pytest
 from fastapi import HTTPException
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from app.services.ml_ops_service import _label_counts, _parse_cases
+from app.models.enums import ReportStatus
+from app.services.ml_ops_service import MlOpsService, _label_counts, _parse_cases
 
 
 def test_parse_json_list():
@@ -28,3 +31,68 @@ def test_parse_csv():
 def test_parse_rejects_empty():
     with pytest.raises(HTTPException):
         _parse_cases([])
+
+
+def test_report_dataset_uses_only_active_stored_content(monkeypatch):
+    db = MagicMock()
+    report = SimpleNamespace(id=7, status=ReportStatus.ACTIVE)
+    db.execute.return_value.all.return_value = [(report, "  Message de fraude  ")]
+    service = MlOpsService(db)
+    monkeypatch.setattr(service, "create_dataset", lambda **kwargs: kwargs)
+
+    result = service.create_dataset_from_reports(
+        name="reports-reviewed",
+        items=[{"report_id": 7, "expected": "malicious"}],
+        admin=MagicMock(),
+    )
+
+    assert result["content"] == [{
+        "message": "Message de fraude",
+        "expected": "malicious",
+        "source_report_ids": [7],
+    }]
+    assert result["source"] == "reviewed_reports"
+
+
+def test_report_dataset_rejects_fingerprint_only_report():
+    db = MagicMock()
+    report = SimpleNamespace(id=8, status=ReportStatus.ACTIVE)
+    db.execute.return_value.all.return_value = [(report, None)]
+    service = MlOpsService(db)
+
+    with pytest.raises(HTTPException) as exc:
+        service.create_dataset_from_reports(
+            name="reports-reviewed",
+            items=[{"report_id": 8, "expected": "legitimate"}],
+            admin=MagicMock(),
+        )
+
+    assert exc.value.status_code == 422
+
+
+def test_training_cleanup_removes_only_run_files_inside_artifacts(tmp_path, monkeypatch):
+    from app.services import ml_ops_service
+
+    artifacts = tmp_path / "artifacts"
+    run_dir = artifacts / "train_runs"
+    run_dir.mkdir(parents=True)
+    artifact = run_dir / "patch_run_4.json"
+    public_key = run_dir / "patch_run_4.pub"
+    source_data = run_dir / "dataset_2_4.json"
+    outside = tmp_path / "keep.json"
+    for path in (artifact, public_key, source_data, outside):
+        path.write_text("test")
+    monkeypatch.setattr(
+        ml_ops_service,
+        "get_settings",
+        lambda: SimpleNamespace(model_patch_manifest_path=str(artifacts / "latest.json")),
+    )
+    run = SimpleNamespace(id=4, dataset_id=2, artifact_path=str(artifact))
+
+    files = MlOpsService._run_files(run)
+    MlOpsService.remove_training_files(files)
+
+    assert not artifact.exists()
+    assert not public_key.exists()
+    assert not source_data.exists()
+    assert outside.exists()

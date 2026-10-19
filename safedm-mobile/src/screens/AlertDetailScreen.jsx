@@ -135,6 +135,13 @@ export default function AlertDetailScreen({ navigation, route }) {
   }
 
   const level = alert.level || "unknown";
+  const decisionSourceLabels = {
+    "local-tflite": "Modèle local embarqué",
+    "local-patch": "Mise à jour du modèle reçue du serveur",
+    "feature-fallback": "Analyse locale de secours (modèle indisponible)",
+    "heuristic-fallback": "Règles de secours (analyse indisponible)",
+    cloud: "Vérification serveur",
+  };
 
   return (
     <Screen scroll>
@@ -165,6 +172,11 @@ export default function AlertDetailScreen({ navigation, route }) {
         <Text style={styles.meta}>
           {new Date(alert.createdAt).toLocaleString("fr-FR")}
         </Text>
+        {decisionSourceLabels[alert.decisionSource] ? (
+          <Text style={styles.meta}>
+            Source du verdict : {decisionSourceLabels[alert.decisionSource]}
+          </Text>
+        ) : null}
       </View>
 
       {(alert.reasons || []).length > 0 ? (

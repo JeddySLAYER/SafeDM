@@ -10,6 +10,7 @@ export default function Button({
   loading = false,
   icon,
   style,
+  accessibilityLabel,
 }) {
   const isPrimary = variant === "primary";
   const isOutline = variant === "outline";
@@ -18,6 +19,7 @@ export default function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || label}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [

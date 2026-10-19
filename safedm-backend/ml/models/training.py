@@ -75,7 +75,23 @@ def build_patch(
         },
         "canary_percent": 5,
     }
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    # Keep the signature canonical form compatible with JavaScript JSON.stringify:
+    # Python emits 0.0 while JS emits 0 for the same parsed number.
+    def normalize_numbers(value):
+        if isinstance(value, dict):
+            return {key: normalize_numbers(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [normalize_numbers(item) for item in value]
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
+
+    canonical = json.dumps(
+        normalize_numbers(payload),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
     signature = private_key.sign(canonical.encode(), ec.ECDSA(hashes.SHA256()))
     payload["signature"] = signature.hex()
     return payload
@@ -85,6 +101,7 @@ def train_and_export(
     out: Path,
     *,
     private_key_path: Path | None = None,
+    private_key_pem: bytes | None = None,
     register: bool = True,
     dataset_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -140,9 +157,10 @@ def train_and_export(
 
     quantized = quantize(model, threshold)
 
-    if private_key_path:
+    if private_key_path or private_key_pem:
         private_key = serialization.load_pem_private_key(
-            private_key_path.read_bytes(), password=None
+            private_key_pem if private_key_pem else private_key_path.read_bytes(),
+            password=None,
         )
         if not isinstance(private_key, ec.EllipticCurvePrivateKey):
             raise SystemExit("la cle doit etre une cle privee ECDSA (secp256r1).")
@@ -194,6 +212,7 @@ def train_and_export(
         "metrics": metrics,
         "samples": len(texts),
         "model_version": MODEL_VERSION,
+        "public_key_hex": public_key.hex(),
     }
 
     if register:

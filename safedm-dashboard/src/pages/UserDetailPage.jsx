@@ -60,12 +60,13 @@ export default function UserDetailPage() {
 
   if (!user) {
     return (
-      <div>
+      <div className="detail-fallback">
         <PageHeader title="Utilisateur" />
         <Alert tone="error">{error || "Introuvable"}</Alert>
-        <Link className="btn" to="/users">
-          Retour
-        </Link>
+        <div className="actions">
+          <button type="button" className="btn primary" onClick={load}>Réessayer</button>
+          <Link className="btn ghost" to="/users">Retour</Link>
+        </div>
       </div>
     );
   }
@@ -126,7 +127,7 @@ export default function UserDetailPage() {
           {(user.devices || []).length === 0 ? (
             <EmptyState title="Aucun appareil enregistré" />
           ) : (
-            <div className="table-wrap" style={{ border: "none" }}>
+            <div className="table-wrap table-flush">
               <table>
                 <thead>
                   <tr>
@@ -154,12 +155,12 @@ export default function UserDetailPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
+      <div className="panel stack-top">
         <h2>Monitoring (apps surveillées)</h2>
         {(user.monitoring || []).length === 0 ? (
           <EmptyState title="Aucune préférence de monitoring" />
         ) : (
-          <div className="table-wrap" style={{ border: "none" }}>
+          <div className="table-wrap table-flush">
             <table>
               <thead>
                 <tr>

@@ -112,11 +112,11 @@ export default function SettingsScreen({ navigation }) {
       <Text style={styles.section}>Analyse</Text>
       <SettingRow
         icon="globe"
-        title="Vérification distante"
+        title="Vérification en ligne"
         subtitle={
           cloudConsent
             ? "Le texte peut quitter le téléphone"
-            : "Analyse uniquement sur cet appareil"
+            : "Uniquement sur cet appareil"
         }
         switchValue={consentLoaded ? cloudConsent : false}
         onSwitchChange={toggleCloudConsent}
@@ -125,33 +125,33 @@ export default function SettingsScreen({ navigation }) {
       <Text style={styles.section}>Confidentialité</Text>
       <SettingRow
         icon="doc"
-        title="Masquer les aperçus"
-        subtitle="Cache le texte des alertes dans les listes et le détail"
+        title="Masquer le contenu des alertes"
+        subtitle="Masque le contenu des alertes dans les listes et dans le détail"
         switchValue={consentLoaded ? hidePreview : false}
         onSwitchChange={toggleHidePreview}
       />
       <SettingRow
         icon="flag"
-        title="Tout effacer l’historique"
+        title="Effacer l’historique"
         subtitle={`Rétention : ${retention.maxAgeDays} jours · max ${retention.maxAlerts} alertes`}
         onPress={onClearAlerts}
         showChevron
       />
       <Text style={styles.privacyNote}>
-        Les textes d’alertes sont stockés localement sur l’appareil (pas un
-        coffre chiffré). Effacez l’historique pour les supprimer.
+        Les alertes sont enregistrées uniquement sur cet appareil. Vous
+        pouvez les effacer à tout moment.
       </Text>
 
-      <Text style={styles.section}>Surveillance</Text>
+      <Text style={styles.section}>Protection</Text>
       <SettingRow
         icon="whatsapp"
-        title="Applications surveillées"
+        title="Applications à protéger"
         onPress={() => navigation.navigate("Apps")}
         showChevron
       />
       <SettingRow
         icon="bell"
-        title="Accès notifications"
+        title="Notifications"
         onPress={() => navigation.navigate("Permissions")}
         showChevron
       />
@@ -191,6 +191,15 @@ export default function SettingsScreen({ navigation }) {
         onPress={() => navigation.navigate("Diagnostics")}
         showChevron
       />
+      {user?.is_admin ? (
+        <SettingRow
+          icon="shield"
+          title="Vérification du modèle local"
+          subtitle="Modèle local et signaux · outil administrateur"
+          onPress={() => navigation.navigate("ModelDiagnostics")}
+          showChevron
+        />
+      ) : null}
       <SettingRow
         icon="bell"
         title="Batterie / arrière-plan"

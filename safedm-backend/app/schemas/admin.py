@@ -46,6 +46,8 @@ class AdminStatsResponse(BaseModel):
     users_count: int
     reports_active_count: int
     reports_withdrawn_count: int
+    reports_with_content_count: int = 0
+    reports_fingerprint_only_count: int = 0
     threats_active_count: int
     threats_dismissed_count: int
     threats_under_review_count: int = 0
@@ -70,8 +72,12 @@ class ThreatSeverityUpdateRequest(BaseModel):
     severity: ThreatSeverity
 
 
+class AdminThreatItem(ThreatResponse):
+    content_available: bool = False
+
+
 class AdminThreatListResponse(BaseModel):
-    items: list[ThreatResponse]
+    items: list[AdminThreatItem]
     total: int
     page: int
     page_size: int
@@ -127,6 +133,11 @@ class AdminReportItem(BaseModel):
     severity: ThreatSeverity
     threat_preview: str
     report_count: int
+    content_available: bool = False
+    content: Optional[str] = None
+    similarity_hash: Optional[str] = None
+    community_score: float = 0
+    false_positive: bool = False
 
 
 class AdminReportListResponse(BaseModel):
@@ -135,6 +146,20 @@ class AdminReportListResponse(BaseModel):
     page: int
     page_size: int
     status_filter: Optional[ReportStatus] = None
+
+
+class AdminReportTrainingItem(BaseModel):
+    report_id: int = Field(gt=0)
+    expected: str = Field(min_length=1, max_length=64)
+
+
+class AdminReportsDatasetRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    items: list[AdminReportTrainingItem] = Field(min_length=1, max_length=1000)
+
+
+class AdminReportLabelRequest(BaseModel):
+    expected: str = Field(min_length=1, max_length=16)
 
 
 class ApplicationCreateRequest(BaseModel):
@@ -161,6 +186,7 @@ class AdminThreatUrlDetail(ThreatUrlResponse):
 
 class AdminThreatDetailResponse(ThreatResponse):
     urls: list[AdminThreatUrlDetail] = Field(default_factory=list)
+    content_available: bool = False
 
 
 class LinkGateEventItem(BaseModel):
@@ -202,6 +228,7 @@ class AdminOperationsOverview(BaseModel):
 
 class AdminPatchActionRequest(BaseModel):
     version: str = Field(min_length=1, max_length=128)
+    rollout_percentage: int = Field(default=5, ge=1, le=100)
 
 
 class AdminTenantPolicyRequest(BaseModel):

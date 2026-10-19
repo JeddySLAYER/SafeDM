@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import cast, Date, func, select
+from sqlalchemy import Date, cast, func, inspect, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -14,11 +14,12 @@ from app.models import (
     Device,
     GuideArticle,
     LinkGateEvent,
+    ModelDeviceReceipt,
+    PatchDeployment,
     SupportedApplication,
+    TenantPolicy,
     Threat,
     User,
-    PatchDeployment,
-    TenantPolicy,
 )
 from app.models.enums import ReportStatus, ThreatSeverity, ThreatStatus
 from app.repositories.monitoring_repository import ApplicationRepository, MonitoringRepository
@@ -30,6 +31,7 @@ from app.schemas.admin import (
     AdminReportListResponse,
     AdminStatsResponse,
     AdminThreatDetailResponse,
+    AdminThreatItem,
     AdminThreatListResponse,
     AdminThreatUrlDetail,
     AdminUserDetailResponse,
@@ -47,6 +49,30 @@ from app.schemas.admin import (
 )
 from app.schemas.monitoring import ApplicationResponse, MonitoringPreferenceResponse
 from app.schemas.report import ReportResponse, ThreatResponse, ThreatUrlResponse
+from app.services.weekly_patch_service import build_weekly_patch
+
+
+def extract_patch_metrics(manifest: dict) -> dict:
+    """Pull recall / FPR from nested patch.training (or legacy top-level metrics)."""
+    if not isinstance(manifest, dict):
+        return {}
+    top = manifest.get("metrics")
+    if isinstance(top, dict) and (
+        top.get("recall") is not None or top.get("false_positive_rate") is not None
+    ):
+        return top
+    patch_body = manifest.get("patch") if isinstance(manifest.get("patch"), dict) else manifest
+    if not isinstance(patch_body, dict):
+        return {}
+    training = patch_body.get("training") or {}
+    validated = training.get("validated") or {}
+    operational = validated.get("at_operational_threshold") or {}
+    if isinstance(operational, dict) and (
+        operational.get("recall") is not None
+        or operational.get("false_positive_rate") is not None
+    ):
+        return operational
+    return validated if isinstance(validated, dict) else {}
 
 
 class AdminService:
@@ -65,14 +91,26 @@ class AdminService:
             manifest = json.loads(
                 Path(settings.model_patch_manifest_path).read_text(encoding="utf-8")
             )
-            model_metrics = {
-                "version": manifest.get("version"),
-                "recall": manifest.get("metrics", {}).get("recall"),
-                "false_positive_rate": manifest.get("metrics", {}).get(
-                    "false_positive_rate"
-                ),
-                "status": manifest.get("metrics", {}).get("status", "unavailable"),
-            }
+            extracted = extract_patch_metrics(manifest)
+            patch_body = (
+                manifest.get("patch")
+                if isinstance(manifest.get("patch"), dict)
+                else manifest
+            )
+            quantization = patch_body.get("quantization") if isinstance(patch_body, dict) else None
+            if isinstance(quantization, dict) and quantization.get("weights"):
+                model_metrics = {
+                    "version": manifest.get("version"),
+                    "recall": extracted.get("recall"),
+                    "false_positive_rate": extracted.get("false_positive_rate"),
+                    "status": (
+                        (patch_body or {}).get("status")
+                        or (manifest.get("rollout") or {}).get("stage")
+                        or "unavailable"
+                    ),
+                }
+            else:
+                model_metrics = {"status": "unavailable"}
         except (FileNotFoundError, json.JSONDecodeError):
             model_metrics = {"status": "unavailable"}
 
@@ -111,6 +149,15 @@ class AdminService:
         }
         reports_active = report_by_status.get(ReportStatus.ACTIVE, 0)
         reports_withdrawn = report_by_status.get(ReportStatus.WITHDRAWN, 0)
+        report_content_counts = {
+            has_content: int(count)
+            for has_content, count in self.db.execute(
+                select(Threat.content.is_not(None), func.count(CommunityReport.id))
+                .join(Threat, Threat.id == CommunityReport.threat_id)
+                .where(CommunityReport.status == ReportStatus.ACTIVE)
+                .group_by(Threat.content.is_not(None))
+            ).all()
+        }
 
         # 1 : sévérité (actives seulement)
         severity_distribution = [
@@ -198,6 +245,8 @@ class AdminService:
             users_count=int(users_count or 0),
             reports_active_count=reports_active,
             reports_withdrawn_count=reports_withdrawn,
+            reports_with_content_count=report_content_counts.get(True, 0),
+            reports_fingerprint_only_count=report_content_counts.get(False, 0),
             threats_active_count=threats_active,
             threats_dismissed_count=threats_dismissed,
 threats_under_review_count=threats_under_review,
@@ -219,15 +268,33 @@ threats_under_review_count=threats_under_review,
         settings = get_settings()
         manifest = {}
         manifest_path = Path(settings.model_patch_manifest_path)
+        aggregation_manifest_path = Path(settings.weekly_aggregation_manifest_path)
         try:
             loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest = loaded_manifest if isinstance(loaded_manifest, dict) else {}
         except (FileNotFoundError, json.JSONDecodeError):
             manifest = {}
 
-        metrics = manifest.get("metrics") or {}
+        aggregation_manifest = {}
+        try:
+            loaded_aggregation = json.loads(aggregation_manifest_path.read_text(encoding="utf-8"))
+            aggregation_manifest = loaded_aggregation if isinstance(loaded_aggregation, dict) else {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            aggregation_manifest = {}
+
+        patch_body = manifest.get("patch") if isinstance(manifest.get("patch"), dict) else manifest
+        quantization = patch_body.get("quantization") if isinstance(patch_body, dict) else None
+        has_deployable_patch = isinstance(quantization, dict) and bool(quantization.get("weights"))
+        metrics = extract_patch_metrics(manifest) if has_deployable_patch else {}
         rollout = manifest.get("rollout") or {}
-        manifest_version = manifest.get("version")
+        suggested_canary = (
+            int(patch_body.get("canary_percent") or 5)
+            if isinstance(patch_body, dict)
+            else 5
+        )
+        manifest_version = (manifest.get("version") or (
+            f"ml-{patch_body.get('model_version')}" if isinstance(patch_body, dict) and patch_body.get("quantization") else None
+        )) if has_deployable_patch else None
         current_deployment = (
             self.db.scalar(
                 select(PatchDeployment).where(
@@ -243,29 +310,52 @@ threats_under_review_count=threats_under_review,
             .order_by(AccessAuditLog.created_at.desc())
             .limit(50)
         ).all()
+        latest_aggregation = self.db.scalar(
+            select(AggregationRun)
+            .order_by(AggregationRun.created_at.desc())
+            .limit(1)
+        )
+        receipt_counts = {}
+        if inspect(self.db.get_bind()).has_table(ModelDeviceReceipt.__tablename__):
+            receipt_counts = dict(
+                self.db.execute(
+                    select(ModelDeviceReceipt.version, func.count(ModelDeviceReceipt.id))
+                    .group_by(ModelDeviceReceipt.version)
+                ).all()
+            )
+
+        if current_deployment:
+            patch_status = current_deployment.status
+            patch_pct = current_deployment.rollout_percentage
+        else:
+            patch_status = (rollout.get("stage") or "unavailable") if has_deployable_patch else "unavailable"
+            patch_pct = rollout.get("percentage", 0) if has_deployable_patch else 0
 
         return {
             "patch": {
-                "version": manifest.get("version"),
-                "status": current_deployment.status if current_deployment else rollout.get("stage", "unavailable"),
-                "rollout_percentage": (
-                    current_deployment.rollout_percentage
-                    if current_deployment
-                    else rollout.get("percentage", 0)
-                ),
+                "version": manifest.get("version") if has_deployable_patch else None,
+                "status": patch_status,
+                "rollout_percentage": patch_pct,
+                "suggested_canary_percent": suggested_canary,
                 "recall": metrics.get("recall"),
                 "false_positive_rate": metrics.get("false_positive_rate"),
+                "confirmed_receipts": int(receipt_counts.get(manifest_version, 0)) if manifest_version else 0,
             },
             "aggregation": {
-                "last_run": (
-                    datetime.fromtimestamp(
-                        manifest_path.stat().st_mtime, tz=timezone.utc
-                    ).isoformat()
-                    if manifest_path.exists()
-                    else None
-                ),
-                "source": "filesystem",
-                "note": "Le job Cloud Run/Scheduler doit être déployé pour automatiser ce cycle.",
+                "last_run": latest_aggregation.finished_at.isoformat()
+                if latest_aggregation and latest_aggregation.finished_at
+                else (datetime.fromtimestamp(aggregation_manifest_path.stat().st_mtime, tz=timezone.utc).isoformat() if aggregation_manifest_path.exists() else None),
+                "last_status": latest_aggregation.status if latest_aggregation else None,
+                "source": "weekly_reports_and_threats",
+                "note": "Compte les signalements actifs reçus sur les 7 derniers jours et les menaces actives correspondantes. Produit des compteurs et recopie les seuils configurés; ne lit ni contenu ni empreinte, ne modifie pas le modèle canary ni les seuils actifs de /analysis.",
+                "manifest_path": str(aggregation_manifest_path),
+                "manifest": {
+                    "version": aggregation_manifest.get("version"),
+                    "period": aggregation_manifest.get("period", {}),
+                    "source": aggregation_manifest.get("source", {}),
+                    "policy": aggregation_manifest.get("policy", {}),
+                    "metrics": aggregation_manifest.get("metrics", {}),
+                },
             },
             "policy": {
                 "thresholds": {
@@ -274,7 +364,7 @@ threats_under_review_count=threats_under_review,
                     "critical_score": settings.threshold_critical_score,
                     "escalation_confidence": settings.threshold_escalation_confidence,
                 },
-                "note": "Les politiques tenant/région sont stockées et auditées; elles seront appliquées quand le contexte tenant sera transmis à /analysis.",
+                "note": "Les politiques entreprise/région s’appliquent à /analysis (et Link Gate) quand le client envoie tenant_key. Sinon, les seuils globaux ci-dessus restent en vigueur.",
             },
             "retention": {
                 "inactive_months": 6,
@@ -311,6 +401,7 @@ threats_under_review_count=threats_under_review,
                     "status": item.status,
                     "rollout_percentage": item.rollout_percentage,
                     "approved_at": item.approved_at.isoformat() if item.approved_at else None,
+                    "confirmed_receipts": int(receipt_counts.get(item.version, 0)),
                 }
                 for item in self.db.scalars(
                     select(PatchDeployment).order_by(PatchDeployment.created_at.desc()).limit(10)
@@ -322,6 +413,8 @@ threats_under_review_count=threats_under_review,
                     "status": item.status,
                     "message": item.message,
                     "created_at": item.created_at.isoformat(),
+                    "started_at": item.started_at.isoformat() if item.started_at else None,
+                    "finished_at": item.finished_at.isoformat() if item.finished_at else None,
                 }
                 for item in self.db.scalars(
                     select(AggregationRun).order_by(AggregationRun.created_at.desc()).limit(10)
@@ -344,11 +437,11 @@ threats_under_review_count=threats_under_review,
             ],
         }
 
-    def approve_patch(self, version: str, actor: User) -> dict:
+    def approve_patch(self, version: str, actor: User, rollout_percentage: int = 5) -> dict:
         self._validate_patch_version(version)
         deployment = self._get_or_create_deployment(version)
         deployment.status = "APPROVED"
-        deployment.rollout_percentage = 1
+        deployment.rollout_percentage = rollout_percentage
         deployment.approved_by = actor.id
         deployment.approved_at = datetime.now(timezone.utc)
         self.db.add(deployment)
@@ -366,10 +459,28 @@ threats_under_review_count=threats_under_review,
 
     def request_aggregation(self, actor: User) -> dict:
         run = AggregationRun(
-            status="REQUESTED",
+            status="RUNNING",
             requested_by=actor.id,
-            message="Demande enregistrée; exécution Cloud Run Job en attente.",
+            started_at=datetime.now(timezone.utc),
+            message="Agrégation des signalements et menaces des 7 derniers jours.",
         )
+        self.db.add(run)
+        self.db.commit()
+        self.db.refresh(run)
+        try:
+            aggregation_manifest_path = Path(get_settings().weekly_aggregation_manifest_path)
+            manifest = build_weekly_patch(self.db, output_dir=aggregation_manifest_path.parent)
+            run.status = "SUCCEEDED"
+            run.finished_at = datetime.now(timezone.utc)
+            run.message = (
+                f"Agrégation terminée : {manifest['source']['active_reports']} signalements, "
+                f"{manifest['source']['affected_signatures']} menaces. Manifeste : "
+                f"{aggregation_manifest_path}. Aucun changement du patch canary ou des seuils actifs."
+            )
+        except Exception as exc:
+            run.status = "FAILED"
+            run.finished_at = datetime.now(timezone.utc)
+            run.message = f"Échec de l’agrégation : {str(exc)[:500]}"
         self.db.add(run)
         self.db.commit()
         self.db.refresh(run)
@@ -512,7 +623,10 @@ threats_under_review_count=threats_under_review,
             status=status,
         )
         return AdminThreatListResponse(
-            items=[self._to_threat_response(t) for t in items],
+            items=[
+                AdminThreatItem(**self._to_threat_response(t).model_dump(), content_available=bool(t.content))
+                for t in items
+            ],
             total=total,
             page=page,
             page_size=page_size,
@@ -574,6 +688,7 @@ threats_under_review_count=threats_under_review,
             raw_hash=threat.raw_hash,
             normalized_hash=threat.normalized_hash,
             content=threat.content,
+            content_available=bool(threat.content),
             report_count=threat.report_count,
             community_score=threat.community_score,
             severity=threat.severity,
@@ -789,6 +904,10 @@ threats_under_review_count=threats_under_review,
                     severity=threat.severity if threat else ThreatSeverity.MEDIUM,
                     threat_preview=(threat.content if threat else "")[:160],
                     report_count=threat.report_count if threat else 0,
+                    content_available=bool(threat and threat.content),
+                    similarity_hash=threat.similarity_hash if threat else None,
+                    community_score=threat.community_score if threat else 0,
+                    false_positive=threat.false_positive if threat else False,
                 )
             )
         return AdminReportListResponse(
@@ -797,6 +916,27 @@ threats_under_review_count=threats_under_review,
             page=page,
             page_size=page_size,
             status_filter=status,
+        )
+
+    def get_report_detail(self, report_id: int) -> AdminReportItem:
+        report = self.reports.get_by_id(report_id)
+        if report is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Signalement introuvable")
+        threat, user = report.threat, report.user
+        return AdminReportItem(
+            id=report.id, threat_id=report.threat_id, user_id=report.user_id,
+            username=user.username if user else "?", source=report.source,
+            status=report.status,
+            created_at=report.created_at.isoformat() if report.created_at else "",
+            withdrawn_at=report.withdrawn_at.isoformat() if report.withdrawn_at else None,
+            severity=threat.severity if threat else ThreatSeverity.MEDIUM,
+            threat_preview=(threat.content if threat and threat.content else "")[:160],
+            report_count=threat.report_count if threat else 0,
+            content_available=bool(threat and threat.content),
+            content=threat.content if threat and threat.content else None,
+            similarity_hash=threat.similarity_hash if threat else None,
+            community_score=threat.community_score if threat else 0,
+            false_positive=threat.false_positive if threat else False,
         )
 
     def withdraw_report(self, report_id: int) -> ReportResponse:

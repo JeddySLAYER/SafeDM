@@ -196,7 +196,7 @@ export default function AppsScreen({ navigation, route }) {
 
       setItems(sorted);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Chargement impossible.");
+      setError(err instanceof ApiError ? err.message : "Impossible de charger les données.");
     } finally {
       setLoading(false);
     }
@@ -294,7 +294,10 @@ export default function AppsScreen({ navigation, route }) {
       }
 
       if (onboarding) {
-        navigation.replace("Permissions", { onboarding: true });
+        navigation.replace("BatteryOptimization", {
+          onboarding: true,
+          nlsSkipped: route?.params?.nlsSkipped === true,
+        });
       } else if (cloudOk) {
         navigation.goBack?.();
       }
@@ -356,8 +359,8 @@ export default function AppsScreen({ navigation, route }) {
         scroll
         contentStyle={{ paddingBottom: 96 + fabBottom }}
       >
-        {onboarding ? <SetupSteps step={0} /> : null}
-        <Text style={styles.title}>Applications surveillées</Text>
+        {onboarding ? <SetupSteps step={1} /> : null}
+        <Text style={styles.title}>Applications à protéger</Text>
         <Text style={styles.subtitle}>
           Choisissez n’importe quelle application installée. SafeDM analysera ses
           notifications (sans bloquer vos messages).
@@ -410,7 +413,7 @@ export default function AppsScreen({ navigation, route }) {
               <View style={styles.empty}>
                 <Text style={styles.emptyText}>
                   {query
-                    ? "Aucun résultat pour cette recherche."
+                    ? "Pas de résultat pour cette recherche."
                     : "Liste des applications indisponible. Utilisez l'ajout manuel ci-dessus."}
                 </Text>
               </View>

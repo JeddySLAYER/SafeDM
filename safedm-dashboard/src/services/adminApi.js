@@ -25,10 +25,10 @@ export function getOperationsOverview(options) {
   return apiRequest("/admin/operations/overview", options);
 }
 
-export function approvePatch(version) {
+export function approvePatch(version, rolloutPercentage = 5) {
   return apiRequest("/admin/operations/patches/approve", {
     method: "POST",
-    body: { version },
+    body: { version, rollout_percentage: Number(rolloutPercentage) },
   });
 }
 
@@ -92,6 +92,10 @@ export function getReports({ page = 1, pageSize = 20, status } = {}) {
 
 export function withdrawReport(id) {
   return apiRequest(`/admin/reports/${id}`, { method: "DELETE" });
+}
+
+export function getReport(id) {
+  return apiRequest(`/admin/reports/${id}`);
 }
 
 export function getUsers({ page = 1, pageSize = 20 } = {}) {
@@ -170,8 +174,36 @@ export function listMlDatasets(options) {
   return apiRequest("/admin/ml/datasets", options);
 }
 
+export function getMlDataset(id) {
+  return apiRequest(`/admin/ml/datasets/${id}`);
+}
+
+export function deleteMlDataset(id) {
+  return apiRequest(`/admin/ml/datasets/${id}`, { method: "DELETE" });
+}
+
 export function createMlDataset(payload) {
   return apiRequest("/admin/ml/datasets", { method: "POST", body: payload });
+}
+
+export function createMlDatasetFromReports(payload) {
+  return apiRequest("/admin/ml/datasets/from-reports", { method: "POST", body: payload });
+}
+
+export function listReportTrainingQueue() {
+  return apiRequest("/admin/ml/report-review-queue");
+}
+
+export function reviewReportForTraining(id, expected) {
+  return apiRequest(`/admin/ml/report-review-queue/${id}`, { method: "PUT", body: { expected } });
+}
+
+export function removeReportFromTrainingQueue(id) {
+  return apiRequest(`/admin/ml/report-review-queue/${id}`, { method: "DELETE" });
+}
+
+export function createMlDatasetFromReviewQueue(name) {
+  return apiRequest("/admin/ml/datasets/from-review-queue", { method: "POST", body: { name } });
 }
 
 export function seedBuiltinMlDataset() {
@@ -184,6 +216,10 @@ export function listMlRuns(options) {
 
 export function getMlRun(id) {
   return apiRequest(`/admin/ml/runs/${id}`);
+}
+
+export function deleteMlRun(id) {
+  return apiRequest(`/admin/ml/runs/${id}`, { method: "DELETE" });
 }
 
 export function startMlTrain(payload) {
@@ -200,4 +236,61 @@ export function updateLegalDocument(slug, payload) {
 
 export function promoteMlRun(id) {
   return apiRequest(`/admin/ml/runs/${id}/promote`, { method: "POST" });
+}
+
+export function tryMlMessage({ message, run_id = null }) {
+  return apiRequest("/admin/ml/try", {
+    method: "POST",
+    body: { message, run_id },
+  });
+}
+
+export function evaluateMlTflite(dataset_id, run_id = null, mobile_features = null, mobile_results = null, mobile_messages = null, modelFile = null) {
+  const evaluation = { dataset_id: Number(dataset_id), run_id: run_id ? Number(run_id) : null, mobile_features, mobile_results, mobile_messages };
+  if (modelFile) {
+    const body = new FormData();
+    body.append("model_file", modelFile);
+    body.append("payload", JSON.stringify(evaluation));
+    return apiRequest("/admin/ml/evaluate-tflite-upload", { method: "POST", body });
+  }
+
+  return apiRequest("/admin/ml/evaluate-tflite", {
+    method: "POST",
+    body: evaluation,
+  });
+}
+
+export function listMlArtifacts(options) {
+  return apiRequest("/admin/ml/artifacts", options);
+}
+
+export function listMlEvaluations(artifactId) {
+  const query = artifactId ? `?artifact_id=${Number(artifactId)}` : "";
+  return apiRequest(`/admin/ml/evaluations${query}`);
+}
+
+export function getMlMetrics(artifactId) {
+  return apiRequest(`/admin/ml/metrics?artifact_id=${Number(artifactId)}`);
+}
+
+export function getMlArtifact(id) {
+  return apiRequest(`/admin/ml/artifacts/${id}`);
+}
+
+export function evaluateMlArtifact(id) {
+  return apiRequest(`/admin/ml/artifacts/${id}/evaluate`, { method: "POST" });
+}
+
+export function reviewMlArtifact(id, status, note = null) {
+  return apiRequest(`/admin/ml/artifacts/${id}/review`, {
+    method: "PUT",
+    body: { status, note },
+  });
+}
+
+export function reviewMlRun(id, status, note = null) {
+  return apiRequest(`/admin/ml/runs/${id}/review`, {
+    method: "PUT",
+    body: { status, note },
+  });
 }

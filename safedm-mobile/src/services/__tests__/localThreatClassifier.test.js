@@ -29,6 +29,7 @@ describe("local TFLite classifier", () => {
 
     expect(result.decision).toBe("DANGEROUS");
     expect(result.riskScore).toBe(90);
+    expect(result.modelSource).toBe("tflite");
     expect(loadTensorflowModel).toHaveBeenCalledWith(expect.anything());
   });
 

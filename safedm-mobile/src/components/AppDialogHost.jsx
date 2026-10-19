@@ -25,7 +25,7 @@ export default function AppDialogHost() {
       onRequestClose={() => choose(false)}
     >
       <Pressable style={styles.backdrop} onPress={() => choose(false)}>
-        <Pressable style={styles.card} onPress={() => {}}>
+        <Pressable style={styles.card} onPress={() => {}} accessibilityRole="alertdialog">
           <Text style={styles.title}>{dialog?.title}</Text>
           {dialog?.message ? (
             <Text style={styles.message}>{dialog.message}</Text>
@@ -84,9 +84,11 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 18,
+    flexDirection: "row-reverse",
     gap: 8,
   },
   button: {
+    flex: 1,
     minHeight: 48,
     borderRadius: radii.pill,
     alignItems: "center",

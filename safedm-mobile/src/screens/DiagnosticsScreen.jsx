@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { APP_VERSION } from "../config";
+import { API_BASE_URL, APP_VERSION } from "../config";
 import Button from "../components/Button";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
@@ -31,6 +31,19 @@ export default function DiagnosticsScreen({ navigation }) {
   const [apiOk, setApiOk] = useState(null);
   const [linksOn, setLinksOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const checks = [nls, packages.length > 0, apiOk === true, linksOn];
+  const failedChecks = [
+    !nls && "Autoriser l’accès aux notifications",
+    !packages.length && "Choisir une application à surveiller",
+    apiOk === false && "Vérifier la connexion au serveur",
+    !linksOn && "Activer la protection des liens",
+  ].filter(Boolean);
+  const health =
+    apiOk == null
+      ? "Vérification en cours…"
+      : failedChecks.length === 0
+        ? "Protection opérationnelle"
+        : `${checks.filter(Boolean).length}/${checks.length} contrôles réussis`;
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -70,6 +83,24 @@ export default function DiagnosticsScreen({ navigation }) {
       <Text style={styles.intro}>
         Ce qui est actif sur cet appareil.
       </Text>
+      <View
+        accessible
+        accessibilityRole="summary"
+        accessibilityLabel={`État de la protection : ${health}`}
+        style={[styles.summaryCard, failedChecks.length ? styles.summaryWarning : styles.summaryGood]}
+      >
+        <Text style={styles.summaryTitle}>{health}</Text>
+        <Text style={styles.summaryBody}>
+          {failedChecks.length
+            ? "Quelques réglages limitent la protection. Voici quoi faire :"
+            : "Les fonctions essentielles de SafeDM sont activées."}
+        </Text>
+        {failedChecks.map((action) => (
+          <Text key={action} style={styles.action}>
+            • {action}
+          </Text>
+        ))}
+      </View>
       <View style={styles.card}>
         <Row label="Version" value={APP_VERSION} />
         <Row label="Accès notifications" value={nls ? "Actif" : "Inactif"} ok={nls} />
@@ -93,7 +124,36 @@ export default function DiagnosticsScreen({ navigation }) {
           ok={linksOn}
         />
       </View>
-      <Button label="Actualiser" onPress={refresh} loading={busy} style={{ marginTop: 16 }} />
+      {failedChecks.includes("Autoriser l’accès aux notifications") ? (
+        <Button
+          label="Ouvrir les permissions"
+          onPress={() => navigation.navigate("Permissions")}
+          style={{ marginTop: 16 }}
+        />
+      ) : null}
+      {failedChecks.includes("Choisir une application à surveiller") ? (
+        <Button
+          label="Configurer les applications"
+          onPress={() => navigation.navigate("Apps")}
+          variant="outline"
+          style={{ marginTop: 10 }}
+        />
+      ) : null}
+      {failedChecks.includes("Activer la protection des liens") ? (
+        <Button
+          label="Configurer les liens"
+          onPress={() => navigation.navigate("LinkProtection")}
+          variant="outline"
+          style={{ marginTop: 10 }}
+        />
+      ) : null}
+      <Button
+        label="Actualiser"
+        onPress={refresh}
+        loading={busy}
+        variant="ghost"
+        style={{ marginTop: 10 }}
+      />
     </Screen>
   );
 }
@@ -106,6 +166,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: spacing.md,
   },
+  summaryCard: {
+    borderRadius: 16,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+  },
+  summaryGood: {
+    backgroundColor: "#ECFDF3",
+    borderColor: "#ABEFC6",
+  },
+  summaryWarning: {
+    backgroundColor: "#FFFAEB",
+    borderColor: "#FEDF89",
+  },
+  summaryTitle: { ...typography.label, marginBottom: 4 },
+  summaryBody: { ...typography.caption, marginBottom: 6 },
+  action: { ...typography.caption, color: colors.textPrimary, marginTop: 2 },
   row: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,

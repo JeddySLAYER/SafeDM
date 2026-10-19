@@ -3,11 +3,13 @@ import { getLinkGateEvents } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
+  Freshness,
   LoadingOverlay,
   PageHeader,
   Skeleton,
   Spinner,
 } from "../components/ui";
+import { LINK_DECISION_LABELS } from "../copy/glossary";
 
 const DECISIONS = ["ALLOW", "WARN", "BLOCK"];
 
@@ -17,6 +19,7 @@ export default function LinkGatePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState("");
 
   const load = useCallback(
     async (page = 1, { soft = false } = {}) => {
@@ -31,6 +34,7 @@ export default function LinkGatePage() {
             decision: decision || undefined,
           }),
         );
+        setUpdatedAt(new Date().toISOString());
       } catch (err) {
         setError(err.message);
       } finally {
@@ -48,8 +52,14 @@ export default function LinkGatePage() {
   return (
     <div>
       <PageHeader
-        title="Link Gate"
-        subtitle="Journal des décisions ALLOW / WARN / BLOCK (URL + score, pas le contenu de page)."
+        title="Porte de liens"
+        subtitle="Journal des décisions de liens : Autorisé, Avertissement ou Bloqué (URL + score, pas le contenu de page)."
+        actions={
+          <>
+            <Freshness updatedAt={updatedAt} refreshing={refreshing} />
+            <button type="button" className="btn ghost" disabled={refreshing} onClick={() => load(data.page || 1, { soft: true })}>Actualiser</button>
+          </>
+        }
       />
       <div className="toolbar">
         <label>
@@ -58,7 +68,7 @@ export default function LinkGatePage() {
             <option value="">Toutes</option>
             {DECISIONS.map((d) => (
               <option key={d} value={d}>
-                {d}
+                {LINK_DECISION_LABELS[d] || d}
               </option>
             ))}
           </select>
@@ -100,7 +110,7 @@ export default function LinkGatePage() {
                     <tr key={e.id}>
                       <td>{e.id}</td>
                       <td>
-                        <span className="pill soft">{e.decision}</span>
+                        <span className="pill soft">{LINK_DECISION_LABELS[e.decision] || e.decision}</span>
                       </td>
                       <td>{e.risk_score}</td>
                       <td>{e.username || e.user_id || "—"}</td>

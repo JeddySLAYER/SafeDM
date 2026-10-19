@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.database import SessionLocal
+from app.core.config import get_settings
 from app.services.weekly_patch_service import build_weekly_patch
 
 
@@ -16,7 +17,10 @@ def main() -> int:
     with SessionLocal() as db:
         manifest = build_weekly_patch(
             db,
-            output_dir=os.getenv("PATCH_OUTPUT_DIR", "artifacts/weekly"),
+            output_dir=os.getenv(
+                "PATCH_OUTPUT_DIR",
+                str(Path(get_settings().weekly_aggregation_manifest_path).parent),
+            ),
         )
     print(
         "weekly_patch_generated "

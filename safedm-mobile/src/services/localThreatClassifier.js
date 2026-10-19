@@ -1,6 +1,6 @@
 import { LOCAL_MODEL_URI } from "../config";
 import { NativeModules } from "react-native";
-import { getStoredModelUri } from "./modelUpdate";
+import { decideWithPatch, getStoredModelUri, getStoredPatch } from "./modelUpdate";
 import {
   createModelInput,
   decideLocalThreat,
@@ -8,6 +8,23 @@ import {
 } from "./localThreatDecision";
 
 let modelPromise;
+let bundledModelPromise;
+
+export async function runBundledTfliteFeatures(features) {
+  const bundledModel = require("../../assets/models/safedm_v3.tflite");
+  if (!bundledModelPromise) {
+    const { loadTensorflowModel } = require("react-native-fast-tflite");
+    bundledModelPromise = loadTensorflowModel(bundledModel).catch((error) => {
+      bundledModelPromise = undefined;
+      throw error;
+    });
+  }
+  const model = await bundledModelPromise;
+  const outputs = await model.run([createModelInput(features)]);
+  const scores = new Float32Array(outputs?.[0] || []);
+  if (!scores.length) throw new Error("Le TFLite bundlé n’a produit aucune sortie");
+  return { ...decideLocalThreat(scores[0]), modelSource: "tflite", rawProbability: scores[0] };
+}
 
 async function loadModel() {
   const bundledModel = require("../../assets/models/safedm_v3.tflite");
@@ -36,6 +53,14 @@ async function loadModel() {
 }
 
 export async function classifyLocalFeatures(features) {
+  const patch = await getStoredPatch();
+  const patchDecision = patch ? decideWithPatch(patch, features) : null;
+  if (patchDecision !== null) {
+    return {
+      ...decideLocalThreat(patchDecision ? 0.95 : 0.05),
+      modelSource: "patch",
+    };
+  }
   const model = await loadModel();
   if (!model) {
     return { decision: LOCAL_DECISION.UNAVAILABLE, confidence: null, riskScore: null };
@@ -50,7 +75,7 @@ export async function classifyLocalFeatures(features) {
   if (scores.length < 1) {
     throw new Error("La sortie du modèle local est vide");
   }
-  return decideLocalThreat(scores[0]);
+  return { ...decideLocalThreat(scores[0]), modelSource: "tflite" };
 }
 
 export async function classifyLocalMessage(text, packageName = null) {

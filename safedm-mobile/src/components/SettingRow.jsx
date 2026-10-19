@@ -35,6 +35,9 @@ export default function SettingRow({
         <Switch
           value={switchValue}
           onValueChange={onSwitchChange}
+          accessibilityRole="switch"
+          accessibilityLabel={title}
+          accessibilityState={{ checked: switchValue }}
           trackColor={{ false: colors.border, true: colors.blue200 }}
           thumbColor={switchValue ? colors.bluePrimary : colors.white}
         />
@@ -47,7 +50,12 @@ export default function SettingRow({
 
   if (interactive) {
     return (
-      <Pressable style={styles.row} onPress={onPress}>
+      <Pressable
+        style={styles.row}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
+      >
         {content}
       </Pressable>
     );

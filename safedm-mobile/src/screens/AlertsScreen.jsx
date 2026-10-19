@@ -47,13 +47,16 @@ export default function AlertsScreen() {
     <Screen scroll>
       <Text style={styles.title}>Alertes</Text>
       <Text style={styles.subtitle}>
-        Historique local 7 jours. Textes sur l'appareil. Paramètres pour
-        masquer ou tout effacer.
+        Historique sur cet appareil (7 jours). Masquez le contenu ou
+        effacez l'historique selon vos préférences.
       </Text>
       <View style={styles.filters}>
         {FILTERS.map((f) => (
           <Pressable
             key={f.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtrer : ${f.label}`}
+            accessibilityState={{ selected: filter === f.id }}
             onPress={() => setFilter(f.id)}
             style={[styles.chip, filter === f.id && styles.chipOn]}
           >
@@ -65,9 +68,9 @@ export default function AlertsScreen() {
       </View>
       {visible.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Rien pour l’instant</Text>
+          <Text style={styles.emptyTitle}>Rien à afficher pour l’instant</Text>
           <Text style={styles.emptyText}>
-            Activez la surveillance ou analysez un message depuis l’accueil.
+            Activez la protection ou analysez un message depuis l’accueil.
           </Text>
         </View>
       ) : (

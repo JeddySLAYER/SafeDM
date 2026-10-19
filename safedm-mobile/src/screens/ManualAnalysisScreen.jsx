@@ -34,7 +34,7 @@ export default function ManualAnalysisScreen({ navigation, route }) {
       }
       setContent(text.trim().slice(0, MAX));
     } catch {
-      setError("Impossible de lire le presse-papiers.");
+      setError("Impossible d'accéder au presse-papiers.");
     }
   }
 
@@ -58,7 +58,7 @@ export default function ManualAnalysisScreen({ navigation, route }) {
         originalContent: text,
       });
     } catch {
-      setError("Analyse impossible pour le moment. Le message reste sur le téléphone.");
+      setError("Impossible d'analyser le message pour l'instant.");
     } finally {
       setLoading(false);
     }
@@ -95,18 +95,35 @@ export default function ManualAnalysisScreen({ navigation, route }) {
         placeholderTextColor={colors.textMuted}
         multiline
         textAlignVertical="top"
+        accessibilityLabel="Message à analyser"
+        accessibilityHint="Collez ou saisissez le message suspect, jusqu’à 1000 caractères."
         style={styles.textarea}
       />
 
       <View style={styles.actionsRow}>
-        <Pressable onPress={onPaste} style={styles.pasteRow}>
+        <Pressable
+          onPress={onPaste}
+          accessibilityRole="button"
+          accessibilityLabel="Coller depuis le presse-papiers"
+          style={styles.actionButton}
+        >
           <IconGlyph name="clipboard" color={colors.bluePrimary} size={15} />
           <Text style={styles.link}>Coller</Text>
         </Pressable>
-        <Pressable onPress={() => setContent(EXAMPLE)}>
+        <Pressable
+          onPress={() => setContent(EXAMPLE)}
+          accessibilityRole="button"
+          accessibilityLabel="Insérer un exemple de message"
+          style={styles.actionButton}
+        >
           <Text style={styles.link}>Exemple</Text>
         </Pressable>
-        <Pressable onPress={() => setContent("")}>
+        <Pressable
+          onPress={() => setContent("")}
+          accessibilityRole="button"
+          accessibilityLabel="Effacer le message"
+          style={styles.actionButton}
+        >
           <Text style={styles.clear}>Effacer</Text>
         </Pressable>
       </View>
@@ -176,7 +193,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 12,
   },
-  pasteRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
   link: {
     color: colors.bluePrimary,
     fontWeight: "600",

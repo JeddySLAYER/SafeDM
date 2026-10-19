@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Linking, Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Button from "../components/Button";
 import { IconBadge } from "../components/Icons";
 import Screen from "../components/Screen";
 import SetupSteps from "../components/SetupSteps";
+import { useAuth } from "../context/AuthContext";
+import { openIgnoreBatteryOptimizations } from "../services/notificationBridge";
 import { colors, spacing, typography } from "../theme/tokens";
 
 /**
@@ -12,26 +14,25 @@ import { colors, spacing, typography } from "../theme/tokens";
 export default function BatteryOptimizationScreen({ navigation, route }) {
   const onboarding = route?.params?.onboarding === true;
   const nlsSkipped = route?.params?.nlsSkipped === true;
+  const { completeSetup } = useAuth();
   const [hint, setHint] = useState("");
 
   async function openBatterySettings() {
     setHint("");
     try {
-      await Linking.openSettings();
+      await openIgnoreBatteryOptimizations();
       setHint(
-        "Paramètres → Applications → SafeDM → Batterie : choisissez « Sans restriction » / ignorer l’optimisation.",
+        "Acceptez la demande Android. Sinon : Paramètres → Applications → SafeDM → Batterie → Sans restriction.",
       );
     } catch {
-      setHint("Ouvrez manuellement Paramètres → Applications → SafeDM → Batterie.");
+      setHint("Ouvrez Paramètres → Applications → SafeDM → Batterie → Sans restriction.");
     }
   }
 
-  function finish() {
+  async function finish() {
     if (onboarding) {
-      navigation.replace("LinkProtection", {
-        onboarding: true,
-        nlsSkipped,
-      });
+      await completeSetup();
+      navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
       return;
     }
     navigation.goBack();
@@ -62,13 +63,10 @@ export default function BatteryOptimizationScreen({ navigation, route }) {
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       </View>
       <View style={styles.footer}>
-        <Button label="Ouvrir les réglages système" onPress={openBatterySettings} />
-        <Button
-          label={onboarding ? "Continuer" : "Retour"}
-          variant="outline"
-          onPress={finish}
-          style={{ marginTop: 12 }}
-        />
+        <Button label="Autoriser en arrière-plan" onPress={openBatterySettings} />
+        <Pressable onPress={finish} style={styles.later}>
+          <Text style={styles.laterText}>{onboarding ? "Plus tard" : "Retour"}</Text>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -109,4 +107,10 @@ const styles = StyleSheet.create({
     color: colors.blue600,
   },
   footer: { paddingBottom: spacing.sm },
+  later: { alignItems: "center", paddingVertical: 14 },
+  laterText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
 });

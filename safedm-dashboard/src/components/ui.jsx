@@ -1,5 +1,25 @@
-import { useEffect } from "react";
+import { useRef } from "react";
 import { X } from "lucide-react";
+import useDialogFocus from "../hooks/useDialogFocus";
+
+export function Field({ label, hint, children }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+      {hint ? <span className="field-hint">{hint}</span> : null}
+    </label>
+  );
+}
+
+export function CheckboxField({ label, ...props }) {
+  return (
+    <label className="checkbox">
+      <input type="checkbox" {...props} />
+      <span>{label}</span>
+    </label>
+  );
+}
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
@@ -14,23 +34,19 @@ export function PageHeader({ title, subtitle, actions }) {
 }
 
 export function DetailSheet({ open, title, eyebrow = "Fiche détaillée", loading = false, error = "", onClose, children }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    function handleKeyDown(event) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  const sheetRef = useRef(null);
+  useDialogFocus(open, sheetRef, onClose);
 
   if (!open) return null;
   return (
     <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}>
       <aside
+        ref={sheetRef}
         className="detail-sheet"
         role="dialog"
         aria-modal="true"
         aria-labelledby="detail-sheet-title"
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="detail-sheet-header">
@@ -53,19 +69,15 @@ export function DetailSheet({ open, title, eyebrow = "Fiche détaillée", loadin
 }
 
 export function ConfirmDialog({ open, title, message, confirmLabel = "Confirmer", danger = false, busy = false, onCancel, onConfirm }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    function handleKeyDown(event) {
-      if (event.key === "Escape" && !busy) onCancel();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, busy, onCancel]);
+  const dialogRef = useRef(null);
+  useDialogFocus(open, dialogRef, () => {
+    if (!busy) onCancel();
+  });
 
   if (!open) return null;
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={() => !busy && onCancel()}>
-      <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
         <p className="eyebrow">Confirmation</p>
         <h2 id="confirm-dialog-title">{title}</h2>
         <p className="confirm-dialog-message">{message}</p>
@@ -83,8 +95,9 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Confirmer"
 
 export function Alert({ tone = "error", children, onDismiss }) {
   if (!children) return null;
+  const assertive = tone === "error" || tone === "danger" || tone === "warn";
   return (
-    <div className={`alert alert-${tone}`} role="status">
+    <div className={`alert alert-${tone}`} role={assertive ? "alert" : "status"}>
       <span>{children}</span>
       {onDismiss ? (
         <button type="button" className="alert-dismiss" onClick={onDismiss} aria-label="Fermer">
@@ -199,5 +212,29 @@ export function LoadingOverlay({ show, label = "Actualisation…" }) {
     <div className="loading-overlay">
       <Spinner label={label} />
     </div>
+  );
+}
+
+/** Primary/ghost/danger button with spinner while an async action runs. */
+export function BusyButton({
+  busy = false,
+  busyLabel,
+  children,
+  className = "btn primary",
+  type = "button",
+  disabled = false,
+  ...props
+}) {
+  return (
+    <button
+      type={type}
+      className={`${className}${busy ? " is-busy" : ""}`}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      {...props}
+    >
+      {busy ? <span className="btn-spinner" aria-hidden /> : null}
+      {busy && busyLabel ? busyLabel : children}
+    </button>
   );
 }

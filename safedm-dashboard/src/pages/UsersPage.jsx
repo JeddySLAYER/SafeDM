@@ -4,6 +4,7 @@ import { getUser, getUsers } from "../services/adminApi";
 import {
   Alert,
   EmptyState,
+  Freshness,
   LoadingOverlay,
   PageHeader,
   Skeleton,
@@ -20,6 +21,7 @@ export default function UsersPage() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState("");
 
   async function load(page = 1, { soft = false } = {}) {
     setError("");
@@ -27,6 +29,7 @@ export default function UsersPage() {
     else setLoading(true);
     try {
       setData(await getUsers({ page, pageSize: 20 }));
+      setUpdatedAt(new Date().toISOString());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,6 +61,12 @@ export default function UsersPage() {
       <PageHeader
         title="Utilisateurs"
         subtitle="Comptes, rôle admin, appareils et monitoring — ouvrez une fiche pour gérer."
+        actions={
+          <>
+            <Freshness updatedAt={updatedAt} refreshing={refreshing} />
+            <button type="button" className="btn ghost" disabled={refreshing} onClick={() => load(data.page || 1, { soft: true })}>Actualiser</button>
+          </>
+        }
       />
       <Alert tone="error" onDismiss={() => setError("")}>
         {error}

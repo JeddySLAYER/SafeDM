@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import Button from "../components/Button";
 import { IconBadge } from "../components/Icons";
@@ -31,15 +31,10 @@ export default function PermissionsScreen({ navigation, route }) {
 
   function continueNext() {
     if (onboarding) {
-      if (!enabled) {
-        // Soft continue but mark incomplete via next screens + Home banner.
-        navigation.replace("BatteryOptimization", {
-          onboarding: true,
-          nlsSkipped: true,
-        });
-        return;
-      }
-      navigation.replace("BatteryOptimization", { onboarding: true });
+      navigation.replace("Apps", {
+        onboarding: true,
+        nlsSkipped: !enabled,
+      });
       return;
     }
     navigation.goBack();
@@ -47,7 +42,7 @@ export default function PermissionsScreen({ navigation, route }) {
 
   return (
     <Screen contentStyle={styles.content} style={styles.canvas}>
-      {onboarding ? <SetupSteps step={1} /> : null}
+      {onboarding ? <SetupSteps step={0} /> : null}
       <View style={styles.hero}>
         <View style={styles.circle}>
           <IconBadge name={enabled ? "shield" : "bell"} size={72} />
@@ -63,31 +58,18 @@ export default function PermissionsScreen({ navigation, route }) {
       </View>
 
       <View style={styles.footer}>
-        {enabled ? (
-          <Button
-            label={onboarding ? "Continuer" : "C'est bon"}
-            onPress={continueNext}
-          />
-        ) : (
-          <Button
-            label="Autoriser l'accès"
-            onPress={() => openNotificationListenerSettings()}
-          />
-        )}
         <Button
-          label={
-            enabled
-              ? "Modifier l'accès"
-              : onboarding
-                ? "Continuer sans (déconseillé)"
-                : "Retour"
-          }
-          variant="outline"
-          onPress={
-            enabled ? () => openNotificationListenerSettings() : continueNext
-          }
-          style={{ marginTop: 12 }}
+          label={enabled ? (onboarding ? "Continuer" : "C'est bon") : "Autoriser l'accès"}
+          onPress={enabled ? continueNext : () => openNotificationListenerSettings()}
         />
+        <Pressable
+          onPress={enabled ? () => openNotificationListenerSettings() : continueNext}
+          style={styles.later}
+        >
+          <Text style={styles.laterText}>
+            {enabled ? "Modifier l'accès" : onboarding ? "Plus tard" : "Retour"}
+          </Text>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -114,4 +96,10 @@ const styles = StyleSheet.create({
   },
   status: { ...typography.label, marginTop: spacing.lg },
   footer: { paddingBottom: spacing.sm },
+  later: { alignItems: "center", paddingVertical: 14 },
+  laterText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
 });

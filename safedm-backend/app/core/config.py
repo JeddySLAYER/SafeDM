@@ -49,9 +49,11 @@ class Settings(BaseSettings):
     virustotal_timeout_seconds: int = 30
     fingerprint_private_key_pem_b64: str = ""
     model_patch_manifest_path: str = "artifacts/weekly/latest.json"
+    weekly_aggregation_manifest_path: str = "artifacts/weekly/aggregation/latest.json"
     model_patch_url: str = ""
     model_patch_artifact_sha256: str = ""
     model_patch_signing_key_pem_b64: str = ""
+    ml_patch_signing_private_key_pem_b64: str = ""
 
     # Firebase Auth (optionnel). Vide = login username/password uniquement.
     firebase_project_id: str = ""

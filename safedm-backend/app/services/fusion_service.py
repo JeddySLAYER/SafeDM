@@ -21,8 +21,8 @@ _SEVERITY_RANK = {
 }
 
 
-def _thresholds() -> dict[str, float]:
-    """Seuils de decision, surchargeables par variables d'environnement.
+def default_thresholds() -> dict[str, float]:
+    """Seuils de decision globaux (env), surchargeables par politique tenant.
 
     Valeurs par defaut = table de decision de l'architecture V2, recalees par le
     benchmark du 2026-10-02 sur 28 SMS francais/togolais.
@@ -41,8 +41,21 @@ def _thresholds() -> dict[str, float]:
     }
 
 
-def _severity_from_score(score: int) -> ThreatSeverity:
-    t = _thresholds()
+def _thresholds(override: dict[str, float] | None = None) -> dict[str, float]:
+    base = default_thresholds()
+    if not override:
+        return base
+    merged = dict(base)
+    for key in ("uncertainty", "escalation", "safe", "suspicious", "critical", "uncertain_score_floor"):
+        if key in override and override[key] is not None:
+            merged[key] = override[key]
+    return merged
+
+
+def _severity_from_score(
+    score: int, t: dict[str, float] | None = None
+) -> ThreatSeverity:
+    t = _thresholds(t)
     if score >= t["critical"]:
         return ThreatSeverity.CRITICAL
     if score >= t["suspicious"]:
@@ -56,8 +69,10 @@ def _max_severity(a: ThreatSeverity, b: ThreatSeverity) -> ThreatSeverity:
     return a if _SEVERITY_RANK[a] >= _SEVERITY_RANK[b] else b
 
 
-def _status_from_score(score: int) -> AnalysisStatus:
-    t = _thresholds()
+def _status_from_score(
+    score: int, t: dict[str, float] | None = None
+) -> AnalysisStatus:
+    t = _thresholds(t)
     if score >= t["suspicious"]:
         return AnalysisStatus.DANGEROUS
     if score >= t["safe"]:
@@ -71,7 +86,9 @@ def fuse_analysis(
     url_results: list[UrlAnalysisResult],
     community: CommunityMatch,
     urls_detected: bool,
+    thresholds: dict[str, float] | None = None,
 ) -> dict:
+    t = _thresholds(thresholds)
     reasons: list[str] = []
     recommendations: list[str] = []
     score = 0
@@ -92,6 +109,13 @@ def fuse_analysis(
             "matched": community.matched,
             "report_count": community.report_count,
         },
+        "policy": {
+            "safe": int(t["safe"]),
+            "suspicious": int(t["suspicious"]),
+            "critical": int(t["critical"]),
+            "escalation": float(t["escalation"]),
+            "uncertainty": float(t["uncertainty"]),
+        },
     }
 
     semantic_ok = semantic.available
@@ -100,7 +124,7 @@ def fuse_analysis(
 
     if semantic_ok:
         score = semantic.risk_score or 0
-        severity = semantic.severity or _severity_from_score(score)
+        severity = semantic.severity or _severity_from_score(score, t)
         threat_type = semantic.threat_type or ThreatType.OTHER
         reasons.extend(semantic.reasons)
         recommendations.extend(semantic.recommendations)
@@ -110,9 +134,12 @@ def fuse_analysis(
     # Routage par confiance (V2). Jev expose une probabilite d'incertitude reelle :
     # `confidence` resume la dispersion de la distribution du verdict.
     # Un juge peu sur de lui ne doit jamais produire un SAFE affirmatif.
+    # La politique tenant peut surcharger le plancher d'incertitude via
+    # `escalation` (meme valeur produit que threshold_escalation_confidence).
     semantic_uncertain = False
+    uncertainty_floor = min(float(t["uncertainty"]), float(t["escalation"]))
     if semantic_ok and semantic.confidence is not None:
-        if semantic.confidence < _thresholds()["uncertainty"]:
+        if semantic.confidence < uncertainty_floor:
             semantic_uncertain = True
             reasons.append(
                 f"Jev peu confiant sur ce message (confiance {semantic.confidence:.2f}) "
@@ -153,7 +180,6 @@ def fuse_analysis(
         recommendations.append("Traiter ce message avec une grande prudence")
 
     # Dédupliquer en conservant l'ordre
-    t = _thresholds()
     floor = int(t["safe"])
     reasons = list(dict.fromkeys(reasons))
     recommendations = list(dict.fromkeys(recommendations))
@@ -165,7 +191,7 @@ def fuse_analysis(
         ]
 
     score = max(0, min(100, int(score)))
-    severity = _max_severity(severity, _severity_from_score(score))
+    severity = _max_severity(severity, _severity_from_score(score, t))
 
     # Indisponibilité : jamais SAFE par défaut
     if not semantic_ok and (not vt_needed or not vt_ok) and not community.matched:
@@ -177,7 +203,7 @@ def fuse_analysis(
     elif not semantic_ok or (vt_needed and not vt_ok):
         status = AnalysisStatus.PARTIAL
         # Si on a déjà un signal fort, conserver DANGEROUS/SUSPICIOUS
-        provisional = _status_from_score(score)
+        provisional = _status_from_score(score, t)
         if provisional in (AnalysisStatus.DANGEROUS, AnalysisStatus.SUSPICIOUS):
             status = provisional
         elif community.matched and score >= floor:
@@ -187,7 +213,7 @@ def fuse_analysis(
             score = max(score, int(t["uncertain_score_floor"]))
             severity = _max_severity(severity, ThreatSeverity.MEDIUM)
     else:
-        status = _status_from_score(score)
+        status = _status_from_score(score, t)
 
     # Un juge incertain ne peut pas rehabiliter un SAFE. On degrade en PARTIAL
     # et on releve le plancher, afin que le mobile redemande a l'utilisateur.

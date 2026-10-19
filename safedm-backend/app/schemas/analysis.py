@@ -21,6 +21,10 @@ class AnalysisRequest(BaseModel):
     # des messages sans y avoir pense, et qu'un oubli est visible dans le
     # payload plutot que silencieux.
     consent_external: bool = False
+    # Contexte entreprise : si une politique Opérations existe pour cette clé,
+    # ses seuils remplacent les seuils globaux de /analysis.
+    tenant_key: Optional[str] = Field(default=None, max_length=128)
+    region: Optional[str] = Field(default=None, max_length=64)
 
 
 class FeatureVectorAnalysisRequest(BaseModel):
@@ -28,6 +32,8 @@ class FeatureVectorAnalysisRequest(BaseModel):
     nonce: str = Field(min_length=16, max_length=64)
     ciphertext: str = Field(min_length=16, max_length=16384)
     consent_external: bool = True
+    tenant_key: Optional[str] = Field(default=None, max_length=128)
+    region: Optional[str] = Field(default=None, max_length=64)
 
 
 class UrlGateRequest(BaseModel):
@@ -37,6 +43,8 @@ class UrlGateRequest(BaseModel):
     # Meme regle que `AnalysisRequest` : refuse par defaut. L'ecran Link Gate
     # passe `true` quand l'utilisateur demande explicitement l'analyse.
     consent_external: bool = False
+    tenant_key: Optional[str] = Field(default=None, max_length=128)
+    region: Optional[str] = Field(default=None, max_length=64)
 
     @field_validator("url")
     @classmethod
