@@ -34,6 +34,7 @@ jest.mock("@react-navigation/native", () => ({
     navigate: jest.fn(),
     current: null,
   }),
+  useNavigation: () => ({ navigate: jest.fn(), goBack: jest.fn() }),
   useFocusEffect: (cb) => {
     const React = require("react");
     React.useEffect(() => {
@@ -110,6 +111,8 @@ jest.mock("../src/services/notificationBridge", () => ({
   openDefaultAppsSettings: jest.fn(),
   openUrlExternally: jest.fn(async () => true),
   subscribeToLinkIntents: jest.fn(() => ({ remove: jest.fn() })),
+  getLaunchShare: jest.fn(async () => null),
+  subscribeToShareIntents: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
 jest.mock("../src/services/firebaseAuth", () => ({

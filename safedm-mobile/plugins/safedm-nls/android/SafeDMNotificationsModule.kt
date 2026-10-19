@@ -225,6 +225,21 @@ class SafeDMNotificationsModule(
     }
   }
 
+  /**
+   * Texte complet partagé depuis une autre app (ACTION_SEND).
+   * Permet « Partager vers SafeDM » sans être une URL.
+   */
+  @ReactMethod
+  fun getLaunchShare(promise: Promise) {
+    try {
+      val activity = reactContext.currentActivity
+      val text = extractShareTextFromIntent(activity?.intent)
+      promise.resolve(text)
+    } catch (e: Exception) {
+      promise.reject("LAUNCH_SHARE_FAILED", e.message, e)
+    }
+  }
+
   /** True si SafeDM détient le rôle navigateur par défaut (Android 10+). */
   @ReactMethod
   fun isDefaultBrowser(promise: Promise) {
@@ -337,6 +352,7 @@ class SafeDMNotificationsModule(
     const val KEY_CONFIGURED = "monitoring_configured"
     const val EVENT = "SafeDMNotification"
     const val LINK_EVENT = "SafeDMLinkIntent"
+    const val SHARE_EVENT = "SafeDMShareIntent"
     const val EXTRA_BYPASS_GATE = "safedm_bypass_gate"
     private const val MAX_PENDING = 40
     private val URL_REGEX =
@@ -374,14 +390,32 @@ class SafeDMNotificationsModule(
     }
 
     fun onNewIntent(intent: Intent?) {
-      val url = extractUrlFromIntent(intent) ?: return
       val ctx = reactContext ?: return
-      if (!ctx.hasActiveReactInstance()) return
-      val map = Arguments.createMap()
-      map.putString("url", url)
-      ctx
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit(LINK_EVENT, map)
+      val url = extractUrlFromIntent(intent)
+      if (url != null && ctx.hasActiveReactInstance()) {
+        val map = Arguments.createMap()
+        map.putString("url", url)
+        ctx
+          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit(LINK_EVENT, map)
+      }
+      val share = extractShareTextFromIntent(intent)
+      if (share != null && ctx.hasActiveReactInstance()) {
+        val map = Arguments.createMap()
+        map.putString("text", share)
+        ctx
+          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit(SHARE_EVENT, map)
+      }
+    }
+
+    /** Texte brut partagé (ACTION_SEND), sans extraction d'URL. */
+    fun extractShareTextFromIntent(intent: Intent?): String? {
+      if (intent == null) return null
+      if (intent.action != Intent.ACTION_SEND) return null
+      val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+      val trimmed = text.trim()
+      return if (trimmed.isEmpty()) null else trimmed
     }
 
     fun hasNotificationAccess(context: Context): Boolean {

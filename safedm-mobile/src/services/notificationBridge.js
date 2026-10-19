@@ -158,6 +158,19 @@ export async function getLaunchUrl() {
   }
 }
 
+/** Texte partagé depuis une autre app (ACTION_SEND), ou null. */
+export async function getLaunchShare() {
+  if (Platform.OS !== "android" || !SafeDMNotifications?.getLaunchShare) {
+    return null;
+  }
+  try {
+    const text = await SafeDMNotifications.getLaunchShare();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function isDefaultBrowser() {
   if (Platform.OS !== "android" || !SafeDMNotifications?.isDefaultBrowser) {
     return false;
@@ -205,5 +218,15 @@ export function subscribeToLinkIntents(handler) {
   const emitter = new NativeEventEmitter(SafeDMNotifications);
   return emitter.addListener("SafeDMLinkIntent", (event) => {
     if (event?.url) handler(event.url);
+  });
+}
+
+export function subscribeToShareIntents(handler) {
+  if (Platform.OS !== "android" || !SafeDMNotifications) {
+    return fallbackEmitter.addListener();
+  }
+  const emitter = new NativeEventEmitter(SafeDMNotifications);
+  return emitter.addListener("SafeDMShareIntent", (event) => {
+    if (event?.text) handler(event.text);
   });
 }

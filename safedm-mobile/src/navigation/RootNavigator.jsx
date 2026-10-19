@@ -15,10 +15,16 @@ import SplashView from "../components/SplashView";
 import { isIgnorableLaunchUrl } from "../utils/launchUrl";
 import { confirmDialog } from "../services/appDialog";
 import { offerModelUpdate } from "../services/modelUpdate";
+import useIncomingShare from "../hooks/useIncomingShare";
 import AppStack from "./AppTabs";
 import AuthStack from "./AuthStack";
 
 export const navigationRef = createNavigationContainerRef();
+
+function ShareListener() {
+  useIncomingShare();
+  return null;
+}
 
 function extractHttpUrl(url) {
   if (!url) return null;
@@ -108,7 +114,7 @@ function ModelUpdateBridge() {
       ask: () =>
         confirmDialog({
           title: "Mise à jour du modèle",
-          message: "Un patch est prêt sur le serveur. Le téléphone peut le recevoir maintenant.",
+          message: "Une mise à jour est prête. Le téléphone peut l’installer maintenant.",
           confirmLabel: "Mettre à jour",
           cancelLabel: "Plus tard",
         }),
@@ -150,6 +156,7 @@ export default function RootNavigator() {
       <AppDialogHost />
       <PolicyConsentHost />
       <NavigationContainer ref={navigationRef}>
+        <ShareListener />
         <LinkIntentBridge />
         {isAuthenticated ? <AppStack /> : <AuthStack />}
       </NavigationContainer>

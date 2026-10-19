@@ -5,6 +5,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import NotificationListener from "./src/components/NotificationListener";
 import { AuthProvider } from "./src/context/AuthContext";
 import { LinkGateProvider } from "./src/context/LinkGateContext";
+import { UpdateStatusProvider } from "./src/context/UpdateStatusContext";
+import UpdateBanner from "./src/components/UpdateBanner";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme/tokens";
 
@@ -31,13 +33,16 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
-      <LinkGateProvider>
-        <AuthProvider>
-          <NotificationListener>
-            <RootNavigator />
-          </NotificationListener>
-        </AuthProvider>
-      </LinkGateProvider>
+      <UpdateStatusProvider>
+        <LinkGateProvider>
+          <AuthProvider>
+            <NotificationListener>
+              <UpdateBanner />
+              <RootNavigator />
+            </NotificationListener>
+          </AuthProvider>
+        </LinkGateProvider>
+      </UpdateStatusProvider>
     </SafeAreaProvider>
   );
 }
