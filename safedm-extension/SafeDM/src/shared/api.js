@@ -118,7 +118,7 @@ export async function login(username, password) {
   });
   const token = data?.access_token;
   if (!token) {
-    throw new ApiError("Réponse login invalide (pas de token).", 0, data);
+    throw new ApiError("Réponse de connexion invalide (jeton manquant).", 0, data);
   }
   await setSession({ accessToken: token, username });
   return data;
@@ -147,7 +147,7 @@ function gateFromMessageAnalysis(result, url) {
   const severity = (result?.severity || "").toUpperCase();
   const score = result?.risk_score ?? 0;
   let decision = "WARN";
-  let headline = "Lien suspect ou non vérifié — prudence";
+  let headline = "Lien suspect ou non vérifié. Ouvrez-le avec prudence.";
   let can_open = true;
   if (
     status === "DANGEROUS" ||
@@ -156,11 +156,11 @@ function gateFromMessageAnalysis(result, url) {
     score >= 65
   ) {
     decision = "BLOCK";
-    headline = "Lien dangereux — ouverture déconseillée";
+    headline = "Lien dangereux. Ne l’ouvrez pas.";
     can_open = false;
   } else if (status === "SAFE" && score < 35 && severity === "LOW") {
     decision = "ALLOW";
-    headline = "Aucun signal critique — ouverture autorisée";
+    headline = "Aucun signal critique. Vous pouvez ouvrir ce lien.";
     can_open = true;
   }
   return {

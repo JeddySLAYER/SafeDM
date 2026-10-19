@@ -33,7 +33,7 @@ Charger le dossier `build/` dans Chrome.
 
 ## API
 
-Par défaut : `https://safedm-backend.onrender.com/api/v1`
+Par défaut : `https://safedmnew-back.fastapicloud.dev/api/v1`
 
 Endpoints utilisés :
 

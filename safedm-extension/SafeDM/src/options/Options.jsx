@@ -97,7 +97,7 @@ export default function Options() {
           <p className="options-eyebrow">SafeDM</p>
           <h1>Paramètres de l’extension</h1>
           <p className="options-muted">
-            Configurez la connexion sans mélanger les réglages avec le formulaire de login.
+            Réglez ici la connexion à l’API d’analyse.
           </p>
         </div>
       </header>
@@ -105,11 +105,11 @@ export default function Options() {
       <section className="options-card">
         <h2>Serveur d’analyse</h2>
         <p className="options-muted">
-          Les analyses explicites du popup et du menu contextuel sont envoyées à cette API.
-          Le texte n’est pas enregistré par SafeDM.
+          Les analyses lancées depuis la fenêtre SafeDM ou le menu contextuel partent
+          vers cette API. SafeDM n’enregistre pas le texte.
         </p>
         <form onSubmit={save}>
-          <label className="options-label" htmlFor="api-base">Base API</label>
+          <label className="options-label" htmlFor="api-base">Adresse de l’API</label>
           <input
             id="api-base"
             className="options-input"
