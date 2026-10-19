@@ -42,7 +42,7 @@ async function ensureAuth() {
   const token = await getToken();
   if (!token) {
     throw new ApiError(
-      "Connectez-vous via le popup SafeDM pour analyser.",
+      "Connectez-vous depuis la fenêtre SafeDM pour analyser.",
       401,
       null,
     );
@@ -101,8 +101,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } catch (err) {
     await pushBannerToTab(tabId, {
       decision: "WARN",
-      headline: err?.message || "Échec de l’analyse",
-      summary: err?.status === 401 ? "Ouvrez le popup pour vous connecter." : null,
+      headline: err?.message || "L’analyse n’a pas abouti.",
+      summary: err?.status === 401 ? "Ouvrez la fenêtre SafeDM pour vous connecter." : null,
       can_open: true,
       error: true,
     });
@@ -135,7 +135,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       } catch (err) {
         sendResponse({
           ok: false,
-          error: err?.message || "Erreur d’analyse",
+          error: err?.message || "L’analyse n’a pas abouti.",
           status: err?.status,
         });
       }

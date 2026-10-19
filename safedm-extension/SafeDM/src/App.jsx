@@ -13,6 +13,13 @@ import {
 } from "./shared/storage.js";
 import { DEFAULT_API_BASE } from "./shared/config.js";
 
+const SEVERITY_LABELS = {
+  LOW: "faible",
+  MEDIUM: "moyenne",
+  HIGH: "élevée",
+  CRITICAL: "critique",
+};
+
 const DECISION_STYLES = {
   ALLOW: {
     bg: "bg-[var(--safedm-ok-bg)]",
@@ -47,7 +54,9 @@ function ResultCard({ result }) {
       {result.risk_score != null && (
         <p className="mt-1 text-xs text-[var(--safedm-muted)]">
           Score risque : {result.risk_score}
-          {result.severity ? ` · ${result.severity}` : ""}
+          {result.severity
+            ? ` · gravité ${SEVERITY_LABELS[result.severity.toUpperCase()] || result.severity}`
+            : ""}
         </p>
       )}
       {(result.url || result.domain) && (
@@ -110,7 +119,7 @@ function App() {
       setDisplayName(username.trim());
       setPassword("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Connexion impossible");
+      setError(err instanceof ApiError ? err.message : "Connexion impossible.");
       setAuthed(false);
     } finally {
       setLoading(false);
@@ -149,7 +158,7 @@ function App() {
 
       if (!response?.ok) {
         throw new ApiError(
-          response?.error || "Échec de l’analyse",
+          response?.error || "L’analyse n’a pas abouti.",
           response?.status || 0,
           null,
         );
@@ -171,7 +180,9 @@ function App() {
       } catch (inner) {
         setError(
           err?.message ||
-            (inner instanceof ApiError ? inner.message : "Analyse impossible"),
+            (inner instanceof ApiError
+              ? inner.message
+              : "L’analyse n’a pas abouti."),
         );
         if (err?.status === 401 || inner?.status === 401) {
           setAuthed(false);
@@ -356,8 +367,8 @@ function App() {
             <ResultCard result={result} />
 
             <p className="text-[11px] leading-snug text-[var(--safedm-muted)]">
-              Astuce : clic droit sur un lien ou une sélection → « Vérifier avec
-              SafeDM ».
+              Astuce : faites un clic droit sur un lien ou une sélection pour
+              « Vérifier avec SafeDM ».
             </p>
           </>
         )}
