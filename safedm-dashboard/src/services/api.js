@@ -48,9 +48,16 @@ const STATUS_MESSAGE = {
   404: "Élément introuvable — il a peut-être été supprimé.",
 };
 
-function apiErrorMessage(status, detail) {
+function apiErrorMessage(status, detail, path = "") {
   if (status === 0) return "Connexion au serveur impossible. Vérifiez votre réseau puis réessayez.";
   if (status >= 500) return "Le serveur a rencontré une erreur. Réessayez dans un instant.";
+  if (status === 401) {
+    // Sur un échec de connexion, privilégier le message du backend
+    if (path.includes("/auth/login")) {
+      return detail || "Identifiants incorrects.";
+    }
+    return STATUS_MESSAGE[status] || detail || "Session expirée. Reconnectez-vous.";
+  }
   return STATUS_MESSAGE[status] || detail;
 }
 
@@ -103,9 +110,9 @@ export async function apiRequest(
   }
 
   if (!res.ok) {
-    if (res.status === 401) clearSession();
+    if (res.status === 401 && !path.includes("/auth/login")) clearSession();
     const detail = formatDetail(data?.detail ?? data);
-    throw new ApiError(apiErrorMessage(res.status, detail), res.status, detail);
+    throw new ApiError(apiErrorMessage(res.status, detail, path), res.status, detail);
   }
   return data;
 }
