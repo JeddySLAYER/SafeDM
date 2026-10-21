@@ -6,12 +6,14 @@ import Button from "../components/Button";
 import Screen from "../components/Screen";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
+import usePostAuthNavigation from "../hooks/usePostAuthNavigation";
 import { firebaseConfigured } from "../services/firebaseAuth";
 import { colors } from "../theme/tokens";
 
 export default function LoginScreen({ navigation }) {
   const { login, loginFirebase } = useAuth();
   const firebaseOn = firebaseConfigured();
+  usePostAuthNavigation(navigation);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

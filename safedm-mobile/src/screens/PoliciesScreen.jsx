@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { ApiError } from "../api/client";
 import { acceptLegalDocuments, getLegalStatus, listLegalDocuments } from "../api/legal";
 import Button from "../components/Button";
 import Screen from "../components/Screen";
@@ -23,47 +24,61 @@ const FALLBACK = [
 ];
 
 export default function PoliciesScreen({ navigation }) {
-  const { completePolicies, needsSetup } = useAuth();
+  const { completePolicies, needsSetup, isAuthenticated } = useAuth();
   const [documents, setDocuments] = useState(FALLBACK);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [expiredSession, setExpiredSession] = useState(false);
+
+  const loadDocuments = useCallback(async () => {
+    try {
+      const status = await getLegalStatus();
+      const pending = new Set(status.pending_slugs || []);
+      const visible = (status.documents || []).filter((doc) => pending.has(doc.slug));
+      return visible.length ? visible : status.documents || FALLBACK;
+    } catch {
+      try {
+        const docs = await listLegalDocuments();
+        if (docs?.length) return docs;
+      } catch {
+        /* hors ligne : on garde le texte de secours */
+      }
+      return FALLBACK;
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       (async () => {
         setLoading(true);
-        try {
-          const status = await getLegalStatus();
-          const pending = new Set(status.pending_slugs || []);
-          const visible = (status.documents || []).filter((doc) => pending.has(doc.slug));
-          if (active) setDocuments(visible.length ? visible : status.documents || FALLBACK);
-        } catch {
-          try {
-            const docs = await listLegalDocuments();
-            if (active && docs?.length) setDocuments(docs);
-          } catch {
-            if (active) setDocuments(FALLBACK);
-          }
-        } finally {
-          if (active) setLoading(false);
+        const docs = await loadDocuments();
+        if (active) {
+          setDocuments(docs);
+          setLoading(false);
         }
       })();
       return () => {
         active = false;
       };
-    }, []),
+    }, [loadDocuments]),
   );
 
   async function onAccept() {
     setSaving(true);
     setError("");
+    setExpiredSession(false);
     try {
-      await acceptLegalDocuments(
-        documents.map((doc) => ({ slug: doc.slug, version: doc.version })),
-      );
-      await completePolicies();
+      // Sans compte, l'API /legal/accept renvoie 401 : l'acceptation est
+      // alors enregistree sur l'appareil, et rejouee au serveur des qu'un
+      // compte existe.
+      if (isAuthenticated) {
+        await acceptLegalDocuments(
+          documents.map((doc) => ({ slug: doc.slug, version: doc.version })),
+        );
+      }
+      await completePolicies(documents);
       navigation.reset({
         index: 0,
         routes: [
@@ -72,8 +87,29 @@ export default function PoliciesScreen({ navigation }) {
             : { name: "MainTabs" },
         ],
       });
-    } catch {
-      setError("Enregistrement impossible. Réessayez quand le téléphone a du réseau.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setExpiredSession(true);
+          setError(
+            "Votre session a expiré. Reconnectez-vous pour enregistrer votre accord.",
+          );
+          return;
+        }
+        if (err.status === 409) {
+          setError(
+            "La politique a été mise à jour. Relisez-la puis acceptez-la à nouveau.",
+          );
+          const docs = await loadDocuments();
+          setDocuments(docs);
+          return;
+        }
+        setError(`Enregistrement impossible : ${err.message}`);
+        return;
+      }
+      setError(
+        "Enregistrement impossible. Réessayez quand le téléphone a du réseau.",
+      );
     } finally {
       setSaving(false);
     }
@@ -98,6 +134,20 @@ export default function PoliciesScreen({ navigation }) {
         </ScrollView>
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {expiredSession ? (
+        <Button
+          label="Se connecter"
+          variant="outline"
+          onPress={() => navigation.navigate("Login")}
+          style={{ marginBottom: 8 }}
+        />
+      ) : null}
+      {!isAuthenticated && !expiredSession ? (
+        <Text style={styles.note}>
+          Sans compte, votre accord est enregistré sur ce téléphone uniquement. Il
+          sera transmis à SafeDM si vous créez un compte plus tard.
+        </Text>
+      ) : null}
       <Button
         label="J'accepte"
         onPress={onAccept}
@@ -123,4 +173,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: "700", color: colors.textPrimary, marginBottom: 6 },
   cardBody: { color: colors.textSecondary, lineHeight: 21, fontSize: 14 },
   error: { color: colors.danger, marginBottom: 8 },
+  note: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
 });

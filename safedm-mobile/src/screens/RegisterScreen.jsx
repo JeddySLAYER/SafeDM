@@ -7,6 +7,7 @@ import { IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
+import usePostAuthNavigation from "../hooks/usePostAuthNavigation";
 import { colors } from "../theme/tokens";
 
 function strengthOf(password) {
@@ -19,6 +20,7 @@ function strengthOf(password) {
 
 export default function RegisterScreen({ navigation }) {
   const { register } = useAuth();
+  usePostAuthNavigation(navigation);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");

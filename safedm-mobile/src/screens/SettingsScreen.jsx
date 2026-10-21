@@ -102,9 +102,13 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{user?.username ?? "Compte"}</Text>
+          <Text style={styles.name}>{user?.username ?? "Sans compte"}</Text>
           <Text style={styles.email}>
-            {user?.is_admin ? "Compte administrateur" : "Compte utilisateur"}
+            {user
+              ? user.is_admin
+                ? "Compte administrateur"
+                : "Compte utilisateur"
+              : "Analyse locale uniquement"}
           </Text>
         </View>
       </View>
@@ -215,13 +219,33 @@ export default function SettingsScreen({ navigation }) {
       />
       <SettingRow icon="globe" title="Langue" valueText="Français" />
 
-      <Button
-        label="Se déconnecter"
-        variant="dark"
-        onPress={logout}
-        icon={<IconGlyph name="logout" color={colors.white} size={16} />}
-        style={{ marginTop: 20 }}
-      />
+      {user ? (
+        <Button
+          label="Se déconnecter"
+          variant="dark"
+          onPress={logout}
+          icon={<IconGlyph name="logout" color={colors.white} size={16} />}
+          style={{ marginTop: 20 }}
+        />
+      ) : (
+        <View style={styles.accountBox}>
+          <Text style={styles.accountText}>
+            Vous utilisez SafeDM sans compte. Créez-en un pour retrouver vos
+            signalements et enregistrer vos accords côté serveur.
+          </Text>
+          <Button
+            label="Se connecter"
+            onPress={() => navigation.navigate("Login")}
+            style={{ marginTop: 12 }}
+          />
+          <Button
+            label="Créer un compte"
+            variant="outline"
+            onPress={() => navigation.navigate("Register")}
+            style={{ marginTop: 8 }}
+          />
+        </View>
+      )}
     </Screen>
   );
 }
@@ -267,5 +291,16 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 8,
     marginTop: -4,
+  },
+  accountBox: {
+    marginTop: 20,
+    padding: 14,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+  },
+  accountText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
   },
 });

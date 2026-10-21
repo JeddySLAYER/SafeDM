@@ -15,11 +15,13 @@ import GuideScreen from "../screens/GuideScreen";
 import HomeScreen from "../screens/HomeScreen";
 import LinkGateScreen from "../screens/LinkGateScreen";
 import LinkProtectionScreen from "../screens/LinkProtectionScreen";
+import LoginScreen from "../screens/LoginScreen";
 import ManualAnalysisScreen from "../screens/ManualAnalysisScreen";
 import ModelDiagnosticsScreen from "../screens/ModelDiagnosticsScreen";
 import AlertDetailScreen from "../screens/AlertDetailScreen";
 import PermissionsScreen from "../screens/PermissionsScreen";
 import PoliciesScreen from "../screens/PoliciesScreen";
+import RegisterScreen from "../screens/RegisterScreen";
 import ReportsScreen from "../screens/ReportsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import { colors } from "../theme/tokens";
@@ -126,6 +128,10 @@ export default function AppStack() {
       <Stack.Screen name="ManualAnalysis" component={ManualAnalysisScreen} />
       <Stack.Screen name="DirectReport" component={DirectReportScreen} />
       <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />
+      {/* Compte optionnel : l'application fonctionne sans, mais l'acceptation
+          des documents et le signalement exigent une session valide. */}
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="LinkGate" component={LinkGateScreen} />
       <Stack.Screen name="LinkProtection" component={LinkProtectionScreen} />
       <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />

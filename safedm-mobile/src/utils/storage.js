@@ -12,6 +12,9 @@ const KEYS = {
   // dans AnalysisRequest.
   cloudConsent: "safedm_cloud_consent",
   hideSensitivePreview: "safedm_hide_sensitive_preview",
+  // Versions des documents legaux acceptes, hors ligne : { slug: version }.
+  // L'API /legal/accept exige un compte, mais l'application fonctionne sans.
+  policiesAccepted: "safedm_policies_accepted_v2",
 };
 
 async function secureGet(key) {
@@ -58,6 +61,34 @@ export async function setHideSensitivePreview(enabled) {
   } else {
     await AsyncStorage.removeItem(KEYS.hideSensitivePreview);
   }
+}
+
+/**
+ * Documents legaux acceptes sur cet appareil : { slug: version }.
+ *
+ * L'API /legal/accept exige un jeton, mais l'application tourne sans compte.
+ * L'acceptation est donc d'abord locale ; elle est rejouee cote serveur
+ * des qu'un compte existe (voir AuthContext.applySession).
+ */
+export async function getAcceptedPolicies() {
+  const raw = await AsyncStorage.getItem(KEYS.policiesAccepted);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function setAcceptedPolicies(map) {
+  if (!map || !Object.keys(map).length) {
+    await AsyncStorage.removeItem(KEYS.policiesAccepted);
+    return;
+  }
+  await AsyncStorage.setItem(KEYS.policiesAccepted, JSON.stringify(map));
 }
 
 export async function getToken() {
