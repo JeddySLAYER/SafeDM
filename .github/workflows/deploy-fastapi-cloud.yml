@@ -46,7 +46,6 @@ jobs:
         env:
           FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
           FASTAPI_CLOUD_APP_ID: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           missing=0
           if [ -z "$FASTAPI_CLOUD_TOKEN" ]; then
@@ -57,11 +56,25 @@ jobs:
             echo "::error::Secret FASTAPI_CLOUD_APP_ID manquant — voir docs/DEPLOY_FASTAPI_CLOUD.md"
             missing=1
           fi
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Secret DATABASE_URL manquant — sans lui les migrations de production ne peuvent pas être appliquées."
-            missing=1
-          fi
           exit $missing
+
+      - name: Resolve DATABASE_URL
+        id: db
+        uses: ./.github/actions/fastapi-cloud-env
+        with:
+          app-id: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
+          name: DATABASE_URL
+
+      - name: Check database URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || steps.db.outputs.value }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL introuvable (ni secret GitHub, ni variable lisible sur l'app FastAPI Cloud)."
+            echo "::error::Sans elle, les migrations de production ne peuvent pas etre appliquees."
+            echo "::error::Copier l'URL Postgres de production (FastAPI Cloud → app → Environment Variables) puis : gh secret set DATABASE_URL"
+            exit 1
+          fi
 
       - uses: astral-sh/setup-uv@v4
         with:
@@ -74,7 +87,7 @@ jobs:
 
       - name: Apply database migrations
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || steps.db.outputs.value }}
           # Alembic ne lit pas Settings : on neutralise la validation du
           # secret JWT, sans rapport avec la migration.
           SECRET_KEY: ci-migration-secret-key-at-least-16
