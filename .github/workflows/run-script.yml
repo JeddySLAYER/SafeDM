@@ -62,16 +62,24 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Résoudre DATABASE_URL
+        id: db
+        uses: ./.github/actions/fastapi-cloud-env
+        with:
+          app-id: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
+          name: DATABASE_URL
+
       - name: Vérifier les secrets
         env:
           SCRIPT: ${{ inputs.script }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || steps.db.outputs.value }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           missing=0
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Secret DATABASE_URL manquant — copier l'URL Postgres de production (FastAPI Cloud → app → Environment Variables → DATABASE_URL)."
+            echo "::error::DATABASE_URL introuvable (ni secret GitHub, ni variable lisible sur l'app FastAPI Cloud)."
+            echo "::error::Copier l'URL Postgres de production (FastAPI Cloud → app → Environment Variables) puis : gh secret set DATABASE_URL"
             missing=1
           fi
           if [ "$SCRIPT" = "seed_admin" ] || [ "$SCRIPT" = "prod_bootstrap_admin" ]; then
@@ -91,7 +99,7 @@ jobs:
         env:
           SCRIPT: ${{ inputs.script }}
           ARGS: ${{ inputs.args }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || steps.db.outputs.value }}
           # Les scripts lisent les Settings : un secret JWT est exigé au
           # démarrage, sans rapport avec l'opération demandée.
           SECRET_KEY: ci-script-secret-key-at-least-16

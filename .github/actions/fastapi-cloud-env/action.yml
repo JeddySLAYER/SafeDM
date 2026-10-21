@@ -1,0 +1,60 @@
+name: FastAPI Cloud env var
+description: >-
+  Lit une variable d'environnement de l'app FastAPI Cloud via l'API et
+  l'expose en sortie. Permet de ne pas dupliquer DATABASE_URL entre le
+  dashboard FastAPI Cloud et les secrets GitHub.
+
+inputs:
+  app-id:
+    description: "UUID de l'app FastAPI Cloud"
+    required: true
+  name:
+    description: "Nom de la variable d'environnement"
+    required: true
+
+outputs:
+  value:
+    description: >-
+      Valeur de la variable. Vide si elle est absente ou si l'API la masque
+      (les variables marquées secrètes sont renvoyées sans valeur).
+    value: ${{ steps.read.outputs.value }}
+
+runs:
+  using: composite
+  steps:
+    - name: Lire la variable
+      id: read
+      shell: bash
+      env:
+        FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
+        APP_ID: ${{ inputs.app-id }}
+        VAR_NAME: ${{ inputs.name }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$FASTAPI_CLOUD_TOKEN" ]; then
+          echo "::error::Secret FASTAPI_CLOUD_TOKEN absent — résolution impossible."
+          echo "value=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        response="$(curl -sS -m 30 \
+          -H "Authorization: Bearer $FASTAPI_CLOUD_TOKEN" \
+          "https://api.fastapicloud.com/api/v1/apps/${APP_ID}/environment-variables/" || true)"
+
+        # On ne journalise jamais la réponse brute : elle contient les valeurs
+        # de toutes les variables de l'app. Seuls les noms sont affichés.
+        names="$(printf '%s' "$response" | jq -r '.data[]?.name' 2>/dev/null | tr '\n' ' ' || true)"
+        echo "::notice::Variables présentes sur l'app : ${names:-<aucune>}"
+
+        value="$(printf '%s' "$response" \
+          | jq -r --arg n "$VAR_NAME" '.data[]? | select(.name == $n) | .value // empty' \
+          2>/dev/null | head -n1)"
+
+        if [ -z "$value" ]; then
+          echo "::notice::Variable ${VAR_NAME} absente ou masquée par l'API FastAPI Cloud."
+        else
+          echo "::notice::Variable ${VAR_NAME} récupérée depuis FastAPI Cloud."
+        fi
+
+        echo "value=$value" >> "$GITHUB_OUTPUT"
