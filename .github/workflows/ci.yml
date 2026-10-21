@@ -70,6 +70,92 @@ jobs:
       - name: Test
         run: npm test -- --ci --watchAll=false
 
+  mobile-android:
+    name: Mobile Android (compile Kotlin)
+    # Un build EAS distant echoue seulement apres ~30 min, et uniquement sur
+    # la machine EAS. Ce job rejoue l'etape qui casse le plus souvent
+    # (`:app:compileReleaseKotlin`) : visibilite de paquet d'un membre Java
+    # (`org.json`), import manquant entre deux fichiers Kotlin natifs, API
+    # native depreciee. En cas d'echec, le message est ici, en 5 min.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-mobile
+    env:
+      # Reproduit le profil EAS "apk" : release sans expo-dev-client, API prod.
+      APP_ENV: production
+      EAS_BUILD_PROFILE: apk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect mobile changes
+        id: filter
+        # GitHub n'accepte pas de filtre `paths` au niveau du job : on compare
+        # donc le diff de l'evenement, et on n'enchaîne les etapes lourdes que
+        # si `safedm-mobile/` a bougé.
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            BASE="${{ github.event.before }}"
+          else
+            # Push sur une branche : on compare a la base de fusion, pas au
+            # commit precedent, sinon seule la derniereSerie de commits est
+            # vue.
+            BASE="$(git merge-base origin/main HEAD 2>/dev/null || true)"
+          fi
+          if [[ -z "$BASE" ]] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            BASE="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+          fi
+          if git diff --name-only "$BASE" "${{ github.sha }}" | grep -q '^safedm-mobile/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Aucun changement dans safedm-mobile/ : compilation Kotlin ignoree."
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.filter.outputs.changed == 'true'
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: safedm-mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        if: steps.filter.outputs.changed == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.filter.outputs.changed == 'true'
+      - name: Install Android SDK packages
+        if: steps.filter.outputs.changed == 'true'
+        # Le runner image fournit deja le SDK Android (et ses licences) :
+        # on n'installe que ce qui manque (compileSdk 35 + build-tools). Le NDK
+        # n'est pas requis, `:app:compileReleaseKotlin` ne compile pas le code
+        # natif. On n'utilise pas `android-actions/setup-android` : cette
+        # action appelle `sdkmanager tools`, paquet retire des cmdline-tools
+        # 16 (runner 2025) et fait echouer le job.
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(ls -d "${ANDROID_HOME}"/cmdline-tools/*/bin/sdkmanager | head -1)"
+          echo "sdkmanager: ${SDKMANAGER}"
+          yes | "${SDKMANAGER}" --licenses > /dev/null || true
+          "${SDKMANAGER}" "platforms;android-35" "build-tools;35.0.0"
+      - name: Install
+        if: steps.filter.outputs.changed == 'true'
+        # Scripts actives : le patch nitro (postinstall) corrige un appel
+        # Kotlin incompatible avec RN 0.76, exactement comme sur EAS.
+        run: npm ci
+      - name: Prebuild android
+        if: steps.filter.outputs.changed == 'true'
+        run: npx expo prebuild --platform android --no-install
+      - name: Compile Kotlin
+        if: steps.filter.outputs.changed == 'true'
+        run: |
+          cd android
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          ./gradlew :app:compileReleaseKotlin --console=plain
+
   dashboard:
     name: Dashboard build & lint
     runs-on: ubuntu-latest

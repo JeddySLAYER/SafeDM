@@ -9,6 +9,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
+    "android:compile": "bash scripts/android-compile.sh",
     "lint": "eslint .",
     "test": "jest",
     "postinstall": "node scripts/patch-nitro-rn76.js"
