@@ -64,6 +64,7 @@ jobs:
         with:
           app-id: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
           name: DATABASE_URL
+          token: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
 
       - name: Check database URL
         env:
