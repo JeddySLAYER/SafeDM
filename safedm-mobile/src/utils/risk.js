@@ -35,6 +35,20 @@ export function riskHeadline(level) {
   }
 }
 
+/** Verdict lisible en une phrase : la décision d'abord, le score ensuite. */
+export function riskDecision(level) {
+  switch (level) {
+    case "high":
+      return "Mieux vaut ne pas ouvrir ce message";
+    case "medium":
+      return "Quelques signaux demandent de la prudence";
+    case "low":
+      return "Rien de suspect détecté";
+    default:
+      return "L’analyse n’a pas pu conclure";
+  }
+}
+
 export function riskDescription(level) {
   switch (level) {
     case "high":

@@ -1,5 +1,16 @@
 const TOKEN_KEY = "safedm_admin_token";
 const USER_KEY = "safedm_admin_user";
+const LOGOUT_EVENT = "safedm:admin-logout";
+
+function emitLogout() {
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new CustomEvent(LOGOUT_EVENT));
+    } catch {
+      // ignore
+    }
+  }
+}
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -10,14 +21,17 @@ export function setSession(token, user) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-export function clearSession() {
+export function clearSession({ emit = true } = {}) {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   if (typeof sessionStorage !== "undefined") {
     sessionStorage.removeItem("safedm_admin_stats_cache");
     sessionStorage.removeItem("safedm_admin_operations_cache");
   }
+  if (emit) emitLogout();
 }
+
+export { LOGOUT_EVENT };
 
 export function getStoredUser() {
   try {
@@ -35,6 +49,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Adresse de l'API.
+ *
+ * En dev, l'URL relative `/api/v1` passe par le proxy Vite, qui relaie vers
+ * http://127.0.0.1:8000 (cf. vite.config.js).
+ *
+ * En production, une URL absente doit pointer vers l'API de production :
+ * sinon le dashboard appelle son propre domaine Cloudflare Pages et chaque
+ * requete part en 404 — un echec silencieux que rien ne revele au build.
+ */
+const PROD_API_BASE = "https://safedmnew-back.fastapicloud.dev/api/v1";
+
+function resolveApiBase() {
+  const configured = import.meta.env.VITE_API_BASE_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  return import.meta.env.DEV ? "/api/v1" : PROD_API_BASE;
+}
+
 function formatDetail(detail) {
   if (!detail) return "Erreur API";
   if (typeof detail === "string") return detail;
@@ -43,8 +75,7 @@ function formatDetail(detail) {
 }
 
 const STATUS_MESSAGE = {
-  401: "Session expirée. Reconnectez-vous.",
-  403: "Accès refusé pour cette action.",
+  401: "Session expirée. Reconnectez-vous.",  403: "Accès refusé pour cette action.",
   404: "Élément introuvable — il a peut-être été supprimé.",
 };
 
@@ -73,7 +104,7 @@ export async function apiRequest(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+  const base = resolveApiBase();
   const started = performance.now();
   let res;
   try {
@@ -110,7 +141,9 @@ export async function apiRequest(
   }
 
   if (!res.ok) {
-    if (res.status === 401 && !path.includes("/auth/login")) clearSession();
+    if (res.status === 401 && !path.includes("/auth/login")) {
+      clearSession();
+    }
     const detail = formatDetail(data?.detail ?? data);
     throw new ApiError(apiErrorMessage(res.status, detail, path), res.status, detail);
   }

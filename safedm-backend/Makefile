@@ -1,7 +1,11 @@
-.PHONY: help install dev-install test lint format train evaluate serve migrate docker-up docker-down feature-parity
+.PHONY: help install dev-install test lint format train evaluate serve migrate docker-up docker-down feature-parity scripts run-script
 
 UV ?= uv
 PYTHON ?= $(UV) run python
+
+# Scripts exécutables en ligne de commande (allowlist partagée avec
+# .github/workflows/run-script.yml).
+SCRIPT_ALLOWLIST := seed_admin promote_admin seed_applications seed_guide verify_schema purge_inactive_fingerprints
 
 help:
 	@echo "SafeDM backend — commandes utiles"
@@ -17,6 +21,9 @@ help:
 	@echo "  make migrate       - alembic upgrade head"
 	@echo "  make docker-up     - postgres + api"
 	@echo "  make docker-down   - stop compose"
+	@echo "  make scripts       - lister les scripts exécutables"
+	@echo "  make run-script SCRIPT=seed_admin ARGS=\"user mdp\""
+	@echo "                     - exécuter un script sur la base courante"
 
 install:
 	$(UV) sync
@@ -53,3 +60,23 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+# Liste les scripts exécutables (make run-script SCRIPT=...)
+scripts:
+	@for s in $(SCRIPT_ALLOWLIST); do \
+		echo "  $$s"; \
+	done
+
+# Exécute un script de l'allowlist sur la base courante (DATABASE_URL de
+# l'environnement). Pour la production : exporter DATABASE_URL puis
+# DATABASE_URL='postgresql+psycopg2://…?sslmode=require' make run-script …
+run-script:
+	@if [ -z "$(SCRIPT)" ]; then \
+		echo "usage: make run-script SCRIPT=<$(SCRIPT_ALLOWLIST)> [ARGS=\"...\"]"; \
+		exit 1; \
+	fi
+	@case " $(SCRIPT_ALLOWLIST) " in \
+		*" $(SCRIPT) "*) ;; \
+		*) echo "Script non autorisé : $(SCRIPT)"; exit 1 ;; \
+	esac
+	$(PYTHON) -m scripts.$(SCRIPT) $(ARGS)

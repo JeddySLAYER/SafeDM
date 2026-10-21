@@ -140,7 +140,7 @@ function App() {
     setResult(null);
     setLoading(true);
     try {
-      const response = await new Promise((resolve) => {
+      const response = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
           {
             action: "analyze",
@@ -148,13 +148,18 @@ function App() {
             showOnPage: true,
             tabId: tabInfo?.id,
           },
-          (res) => resolve(res),
+          (res) => {
+            // `lastError` n'est lisible que dans le callback : le lire
+            // apres un `await` renvoie toujours undefined.
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              reject(new Error(lastError.message));
+              return;
+            }
+            resolve(res);
+          },
         );
       });
-
-      if (chrome.runtime.lastError) {
-        throw new Error(chrome.runtime.lastError.message);
-      }
 
       if (!response?.ok) {
         throw new ApiError(

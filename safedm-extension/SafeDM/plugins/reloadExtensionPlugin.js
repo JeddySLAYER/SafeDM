@@ -144,6 +144,11 @@ export default function reloadExtensionPlugin(reload = true) {
         }
       } else if (f.endsWith(".js") || f.endsWith(".ts")) {
         // Still copy companions when not bundling into entry (dev HMR helpers unused after bundle)
+        // The HMR helper is dev-only: shipping it would put a ws:// URL in the
+        // production package for a file nothing loads.
+        if (!reload && f === "handleReload.js") {
+          continue;
+        }
         fs.copyFileSync(srcPath, destPath);
         totalSize += fs.statSync(destPath).size;
         copiedCount++;
@@ -182,6 +187,10 @@ export default function reloadExtensionPlugin(reload = true) {
       const destPath = path.join(destDir, f);
 
       if (f.endsWith(".js") || f.endsWith(".ts")) {
+        // Dev-only HMR helper: never shipped in the production package.
+        if (!reload && f === "handleReload.js") {
+          continue;
+        }
         try {
           let tempPath = srcPath;
 

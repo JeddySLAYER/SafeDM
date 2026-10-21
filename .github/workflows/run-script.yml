@@ -1,0 +1,152 @@
+# Exécute un script backend (allowlist) contre la base de PRODUCTION.
+#
+# Usage : Actions → "Run backend script (production)" → Run workflow
+#         → choisir le script → (arguments optionnels)
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   DATABASE_URL      — URL PostgreSQL de production (FastAPI Cloud → app →
+#                       Environment Variables → DATABASE_URL)
+#   ADMIN_USERNAME    — requis uniquement pour `seed_admin`
+#   ADMIN_PASSWORD    — requis uniquement pour `seed_admin`
+#
+# Équivalent local (sans secret GitHub, utile quand la prod Postgres est
+# joignable depuis la machine) :
+#   cd safedm-backend
+#   DATABASE_URL='postgresql+psycopg2://…?sslmode=require' \
+#     uv run python -m scripts.seed_admin <username> <password>
+
+name: Run backend script (production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Script backend à exécuter sur la base de production"
+        type: choice
+        required: true
+        options:
+          - prod_bootstrap_admin
+          - seed_admin
+          - promote_admin
+          - seed_applications
+          - seed_guide
+          - verify_schema
+          - purge_inactive_fingerprints
+      args:
+        description: >-
+          Arguments (ex. promote_admin → nom d'utilisateur). Laisser vide si
+          le script n'en prend pas. Caractères autorisés : lettres, chiffres,
+          . _ - : @ + et espaces.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Jamais deux scripts en parallèle sur la base de prod.
+concurrency:
+  group: run-script-production
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ inputs.script }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Vérifier les secrets
+        env:
+          SCRIPT: ${{ inputs.script }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          missing=0
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret DATABASE_URL manquant — copier l'URL Postgres de production (FastAPI Cloud → app → Environment Variables → DATABASE_URL)."
+            missing=1
+          fi
+          if [ "$SCRIPT" = "seed_admin" ] || [ "$SCRIPT" = "prod_bootstrap_admin" ]; then
+            if [ -z "$ADMIN_USERNAME" ] || [ -z "$ADMIN_PASSWORD" ]; then
+              echo "::error::Secrets ADMIN_USERNAME et ADMIN_PASSWORD requis pour $SCRIPT."
+              missing=1
+            fi
+          fi
+          exit $missing
+
+      - name: Python + dépendances
+        run: |
+          uv python install 3.12
+          uv sync --group dev
+
+      - name: Exécuter le script
+        env:
+          SCRIPT: ${{ inputs.script }}
+          ARGS: ${{ inputs.args }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Les scripts lisent les Settings : un secret JWT est exigé au
+          # démarrage, sans rapport avec l'opération demandée.
+          SECRET_KEY: ci-script-secret-key-at-least-16
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          APP_ENV: production
+        run: |
+          # Allowlist stricte : le module exécuté ne vient jamais de l'input
+          # brut, il est résolu depuis une table. Aucune commande arbitraire.
+          case "$SCRIPT" in
+            seed_admin) module="scripts.seed_admin" ;;
+            promote_admin) module="scripts.promote_admin" ;;
+            seed_applications) module="scripts.seed_applications" ;;
+            seed_guide) module="scripts.seed_guide" ;;
+            verify_schema) module="scripts.verify_schema" ;;
+            purge_inactive_fingerprints) module="scripts.purge_inactive_fingerprints" ;;
+            prod_bootstrap_admin)
+              # Cas particulier : crée l'admin en base de prod puis vérifie
+              # que l'API de prod accepte la connexion (le dashboard exige un
+              # compte admin, pas seulement un compte valide).
+              echo "::group::Bootstrap + vérification de l'admin en production"
+              chmod +x scripts/prod_bootstrap_admin.sh
+              ./scripts/prod_bootstrap_admin.sh
+              echo "::endgroup::"
+              exit 0
+              ;;
+            *)
+              echo "::error::Script non autorisé : $SCRIPT"
+              exit 1
+              ;;
+          esac
+
+          # Les arguments ne sont jamais interpolés dans la ligne de commande :
+          # ils passent par l'environnement et sont validés avant d'être
+          # transmis au process python.
+          if [ -n "$ARGS" ]; then
+            if ! printf '%s' "$ARGS" | grep -Eq '^[A-Za-z0-9_.:@+ -]+$'; then
+              echo "::error::Arguments refusés : caractères non autorisés."
+              exit 1
+            fi
+          fi
+
+          echo "::group::Exécution de $module"
+          # shellcheck disable=SC2086
+          uv run python -m "$module" $ARGS
+          echo "::endgroup::"
+
+      - name: Résumé
+        if: always()
+        env:
+          SCRIPT: ${{ inputs.script }}
+        run: |
+          {
+            echo "### Script : $SCRIPT"
+            echo ""
+            echo "- Base : production (\`DATABASE_URL\` du secret GitHub)"
+            echo "- Statut : ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -23,7 +23,6 @@ from app.utils.feature_extraction import (
     _PAYMENT_KEYWORDS,
     _SENSITIVE_KEYWORDS,
     _THREAT_KEYWORDS,
-    _URGENCY_KEYWORDS,
     UNKNOWN_KNOWN_BAD_URL,
     _contains_word,
     _URGENCY_KEYWORDS,

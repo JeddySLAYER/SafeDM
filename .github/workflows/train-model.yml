@@ -1,5 +1,14 @@
 # Manual / scheduled train without Cloud Scheduler or Play Store.
 # Alternative to admin sync train for longer jobs.
+#
+# Secrets required (repo Settings → Secrets → Actions):
+#   ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64 — cle privee ECDSA P-256 (PEM, base64)
+#   MODEL_PATCH_PUBLIC_KEY_HEX           — point public non compresse, hex
+#
+# The public key MUST be the one embedded in the mobile build
+# (MODEL_PATCH_PUBLIC_KEY_HEX in app.config.js). Without a persisted private
+# key the produced patch is signed with a random key: the phone would reject
+# every update.
 name: Train model
 
 on:
@@ -10,12 +19,15 @@ on:
         required: false
         default: "data/processed/labeled_messages.json"
       promote_artifact:
-        description: "Also write artifacts/weekly/latest.json"
+        description: "Also publish artifacts/weekly/latest.json"
         type: boolean
         default: false
   schedule:
     # Weekly Monday 06:00 UTC — optional; disable if unused
     - cron: "0 6 * * 1"
+
+permissions:
+  contents: write
 
 jobs:
   train:
@@ -25,9 +37,12 @@ jobs:
         working-directory: safedm-backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Historique complet : l'etape de publication pousse un commit.
+          fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
 
@@ -36,20 +51,66 @@ jobs:
           uv python install 3.12
           uv sync --group dev
 
-      - name: Train signed logistic patch
+      - name: Check signing key
+        env:
+          ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64: ${{ secrets.ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64 }}
+          MODEL_PATCH_PUBLIC_KEY_HEX: ${{ secrets.MODEL_PATCH_PUBLIC_KEY_HEX }}
         run: |
-          DATASET="${{ github.event.inputs.dataset_path || 'data/processed/labeled_messages.json' }}"
+          if [ -z "$ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64" ] || [ -z "$MODEL_PATCH_PUBLIC_KEY_HEX" ]; then
+            echo "::error::Secrets ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64 et MODEL_PATCH_PUBLIC_KEY_HEX manquants. Sans cle persistante, le patch signe serait rejete par le mobile."
+            exit 1
+          fi
+          echo "$ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64" | base64 -d > /tmp/ml_patch_key.pem
+          chmod 600 /tmp/ml_patch_key.pem
+          echo "Signing key loaded."
+
+      - name: Train signed logistic patch
+        env:
+          INPUT_DATASET: ${{ github.event.inputs.dataset_path }}
+          INPUT_PROMOTE: ${{ github.event.inputs.promote_artifact }}
+          MODEL_PATCH_PUBLIC_KEY_HEX: ${{ secrets.MODEL_PATCH_PUBLIC_KEY_HEX }}
+        run: |
+          DATASET="${INPUT_DATASET:-data/processed/labeled_messages.json}"
           if [ ! -f "$DATASET" ]; then
             DATASET="tests/fixtures/jev_benchmark_baseline.json"
           fi
           mkdir -p artifacts/weekly outputs/train
           OUT="outputs/train/patch_${{ github.run_id }}.json"
-          uv run python scripts/train_local_model.py --out "$OUT" --dataset "$DATASET" --no-register
+          uv run python scripts/train_local_model.py \
+            --out "$OUT" \
+            --dataset "$DATASET" \
+            --private-key /tmp/ml_patch_key.pem \
+            --no-register
           echo "ARTIFACT=$OUT" >> "$GITHUB_ENV"
           cp "$OUT" "artifacts/weekly/run_${{ github.run_id }}.json"
-          if [ "${{ github.event.inputs.promote_artifact || 'false' }}" = "true" ]; then
-            cp "$OUT" artifacts/weekly/latest.json
+          if [ "${INPUT_PROMOTE:-false}" = "true" ]; then
+            # The phone expects a *wrapper* manifest (version, sha256, public
+            # key, rollout) — not the raw patch. Publishing the raw file here
+            # would make every handset silently ignore the update.
+            uv run python scripts/publish_model_manifest.py \
+              --patch "$OUT" \
+              --public-key-hex "$MODEL_PATCH_PUBLIC_KEY_HEX" \
+              --out artifacts/weekly/latest.json
           fi
+
+      - name: Publish manifest to the repository
+        if: github.event.inputs.promote_artifact == 'true'
+        continue-on-error: true
+        env:
+          MODEL_PATCH_PUBLIC_KEY_HEX: ${{ secrets.MODEL_PATCH_PUBLIC_KEY_HEX }}
+        run: |
+          # Le backend sert artifacts/weekly/latest.json depuis son propre
+          # systeme de fichiers. Versionner le manifeste promu le fait
+          # voyager avec le prochain deploiement backend.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f artifacts/weekly/latest.json
+          if git diff --cached --quiet; then
+            echo "Manifeste identique, rien a commiter."
+            exit 0
+          fi
+          git commit -m "chore(ml): manifeste OTA weekly [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

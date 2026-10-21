@@ -21,13 +21,29 @@ export const colors = {
   textMuted: "#98A2B3",
   textPrimary: "#101828",
   danger: "#F04438",
+  dangerSoft: "#FEF3F2",
+  dangerText: "#B42318",
   success: "#12B76A",
+  successSoft: "#ECFDF3",
+  successText: "#027A48",
+  // Pastilles de niveau de risque. Le rouge est réservé aux décisions ;
+  // les pastilles restent neutres pour ne pas hurler dans les listes.
   risk: {
     low: { fg: "#FFFFFF", bg: "#12B76A", label: "Faible" },
     medium: { fg: "#FFFFFF", bg: "#2F8AF2", label: "Moyen" },
-    high: { fg: "#FFFFFF", bg: "#101828", label: "Élevé" },
+    high: { fg: "#FFFFFF", bg: "#344054", label: "Élevé" },
     unknown: { fg: "#667085", bg: "#F2F4F7", label: "Inconnu" },
   },
+};
+
+/** Pastilles de teinte par niveau. `fg` = couleur de l'icône sur `bg` :
+ *  les variantes « Text » (teintes profondes) gardent ≥4,5:1, là où les
+ *  teintes vives tomberaient sous le seuil sur un fond pastel. */
+export const levelTint = {
+  low: { bg: "#ECFDF3", fg: "#027A48", icon: "shield" },
+  medium: { bg: "#F0F7FF", fg: "#1D6FD1", icon: "warning" },
+  high: { bg: "#FEF3F2", fg: "#B42318", icon: "warning" },
+  unknown: { bg: "#EEF2F6", fg: "#667085", icon: "clock" },
 };
 
 export const radii = {

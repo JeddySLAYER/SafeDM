@@ -47,6 +47,8 @@ jobs:
           uv sync --group dev
           uv run alembic upgrade head
           uv run pytest -q
+      - name: Lint (ruff)
+        run: uv run ruff check app ml scripts tests
 
   mobile:
     name: Mobile lint & tests
@@ -64,8 +66,6 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
       - name: Lint
-        # Non-bloquant : ESLint legacy peut échouer sans casser les tests
-        continue-on-error: true
         run: npm run lint
       - name: Test
         run: npm test -- --ci --watchAll=false
@@ -89,3 +89,46 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+
+  extension:
+    name: Extension lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safedm-extension/SafeDM
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: safedm-extension/SafeDM/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Verify production bundle
+        run: |
+          # Le bundle publie ne doit contenir ni code HMR (ws://) ni URL de
+          # dev : le manifest ne pointe que sur background/ et content/.
+          if grep -rn "ws://\|localhost:8081" build/ ; then
+            echo "::error::Code de développement (ws://) présent dans le build de production."
+            exit 1
+          fi
+          for required in manifest.json index.html options.html background/background.js content/content.js; do
+            if [ ! -f "build/$required" ]; then
+              echo "::error::Fichier manquant dans le bundle : $required"
+              exit 1
+            fi
+          done
+          node -e "JSON.parse(require('fs').readFileSync('build/manifest.json','utf8')); console.log('manifest.json valide')"
+      - name: Package extension
+        run: |
+          cd build && zip -r ../safedm-extension-${{ github.sha }}.zip . -x '.*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: safedm-extension-${{ github.sha }}
+          path: safedm-extension/SafeDM/safedm-extension-${{ github.sha }}.zip
+          retention-days: 14

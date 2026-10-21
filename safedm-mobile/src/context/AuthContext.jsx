@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import * as authApi from "../api/auth";
+import { ApiError } from "../api/client";
 import { getLegalStatus } from "../api/legal";
 import { signInWithFirebase } from "../services/firebaseAuth";
 import * as usersApi from "../api/users";
@@ -64,11 +65,15 @@ export function AuthProvider({ children }) {
             setUser(me);
             await setStoredUser(me);
           }
-        } catch {
-          await clearSession();
-          if (!cancelled) {
-            setTokenState(null);
-            setUser(null);
+        } catch (err) {
+          // Un coup de réseau au démarrage ne doit pas déconnecter : seul un
+          // vrai refus du serveur (401) invalide le jeton stocké.
+          if (err instanceof ApiError && err.status === 401) {
+            await clearSession();
+            if (!cancelled) {
+              setTokenState(null);
+              setUser(null);
+            }
           }
         }
         if (!cancelled && sessionOk) {
@@ -168,6 +173,7 @@ export function AuthProvider({ children }) {
       token,
       user,
       isAuthenticated: Boolean(token),
+      isGuest: !token,
       onboardingDone,
       setupDone,
       needsSetup: Boolean(token) && !setupDone,
@@ -179,6 +185,7 @@ export function AuthProvider({ children }) {
       completeOnboarding,
       completeSetup,
       completePolicies,
+      allowGuest: true,
     }),
     [
       bootstrapping,

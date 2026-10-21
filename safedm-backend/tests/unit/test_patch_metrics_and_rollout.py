@@ -15,6 +15,9 @@ from app.services.admin_service import extract_patch_metrics
 NESTED_MANIFEST = {
     "version": "ml-1-abc123",
     "artifact_sha256": "a" * 64,
+    # Cle publique obligatoire : sans elle le mobile rejette le manifeste
+    # (cf. safedm-mobile/src/services/modelUpdate.js).
+    "public_key_hex": "04" + "ab" * 64,
     "patch": {
         "model_version": 1,
         "status": "research",
@@ -102,6 +105,36 @@ def test_latest_model_endpoint_rejects_policy_only_manifest(tmp_path, monkeypatc
         latest_model_manifest(User(id=1), MagicMock())
 
     assert exc.value.status_code == 404
+
+
+def test_latest_model_endpoint_rejects_manifest_without_public_key(tmp_path, monkeypatch):
+    """Un manifeste sans cle publique est inexploitable cote mobile.
+
+    Le telephone compare `manifest.public_key_hex` a la cle epinglee dans
+    l'application : sans elle, chaque handset ignore silencieusement la mise a
+    jour. Le serveur doit donc le signaler au lieu de servir un manifeste
+    que personne ne pourra verifier.
+    """
+    path = tmp_path / "latest.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": "ml-1-abc123",
+                "patch": {
+                    "model_version": 1,
+                    "quantization": {"weights": [1], "threshold_score": 1, "intercept": 0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(get_settings(), "model_patch_manifest_path", str(path))
+
+    with pytest.raises(HTTPException) as exc:
+        latest_model_manifest(User(id=1), MagicMock())
+
+    assert exc.value.status_code == 404
+    assert "cle publique" in str(exc.value.detail)
 
 
 def test_try_message_scores_manifest_patch(tmp_path, monkeypatch):

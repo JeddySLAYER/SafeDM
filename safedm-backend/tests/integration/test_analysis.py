@@ -1,7 +1,6 @@
 """Tests Sprint 3 — pipeline d'analyse (fusion, URLs, endpoint)."""
 
 import uuid
-from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest

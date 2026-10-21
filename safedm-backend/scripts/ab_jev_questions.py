@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -83,7 +82,6 @@ def run(label: str, questions: dict, rows_out: list) -> None:
     print(f"\n{'=' * 96}\n{label}\n{'=' * 96}")
     print(f"{'#':>3}  {'attendu':<18} {'obtenu':<18} {'score':>5} {'conf':>5}  msg")
     for i, (message, expected, difficulty) in enumerate(CORPUS, 1):
-        started = time.perf_counter()
         resp = client.system_one(
             state={"message": message, "urls": []},
             questions=questions,
@@ -95,7 +93,6 @@ def run(label: str, questions: dict, rows_out: list) -> None:
         malicious = sum(float(probs.get(n, 0.0)) for n in _MALICIOUS_VERDICTS)
         score = int(round(max(0.0, min(1.0, malicious)) * 100))
         conf = float(verdict.confidence)
-        ms = (time.perf_counter() - started) * 1000
 
         nouls = {
             k: float(getattr(resp.answers[k], "noul", 0.0))
@@ -125,7 +122,6 @@ def summarize(rows: list, label: str) -> None:
     tp = sum(1 for r in rows if r["got"] in MAL and r["expected"] in MAL)
     fn = sum(1 for r in rows if r["got"] not in MAL and r["expected"] in MAL)
     fp = sum(1 for r in rows if r["got"] in MAL and r["expected"] not in MAL)
-    tn = sum(1 for r in rows if r["got"] not in MAL and r["expected"] not in MAL)
     exact = sum(1 for r in rows if r["got"] == r["expected"])
 
     mal = [r["score"] for r in rows if r["expected"] in MAL]

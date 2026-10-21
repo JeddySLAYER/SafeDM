@@ -71,6 +71,28 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://safedmnew-back.fastapicloud.dev/api/v1' }}
         run: npm run build
 
+      - name: Smoke test CORS (backend de production)
+        env:
+          API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://safedmnew-back.fastapicloud.dev/api/v1' }}
+        run: |
+          # Le dashboard est publie sur une origine Cloudflare Pages : le
+          # backend doit l'autoriser explicitement dans CORS_ORIGINS. Sans
+          # cela, chaque appel API echoue en CORS depuis le navigateur — un
+          # echec invisible en CI qui ne se voit qu'a l'usage.
+          ORIGIN="https://safedm-dashboard.pages.dev"
+          PREFLIGHT=$(curl -s -D - -o /dev/null -X OPTIONS "${API_BASE_URL}/health" \
+            -H "Origin: ${ORIGIN}" \
+            -H "Access-Control-Request-Method: POST" \
+            -H "Access-Control-Request-Headers: content-type,authorization" || true)
+          STATUS=$(printf '%s' "${PREFLIGHT}" | head -1 | tr -d '\r')
+          ALLOW=$(printf '%s' "${PREFLIGHT}" | grep -i "^access-control-allow-origin:" | tr -d '\r' || true)
+          echo "preflight : ${STATUS}"
+          echo "allow-origin : ${ALLOW:-<absent>}"
+          if [ -z "${ALLOW}" ]; then
+            echo "::error::Le backend n'autorise pas l'origine ${ORIGIN}. Ajoute-la a CORS_ORIGINS cote backend (FastAPI Cloud) puis redeploie."
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

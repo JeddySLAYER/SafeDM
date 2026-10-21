@@ -17,7 +17,7 @@ import { confirmDialog } from "../services/appDialog";
 import { offerModelUpdate } from "../services/modelUpdate";
 import useIncomingShare from "../hooks/useIncomingShare";
 import AppStack from "./AppTabs";
-import AuthStack from "./AuthStack";
+// import AuthStack from "./AuthStack"; // Compte non requis pour le mode hors ligne
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -149,6 +149,8 @@ export default function RootNavigator() {
     return <SplashView />;
   }
 
+  // Compte non obligatoire : accueil et analyses locales restent accessibles.
+  // Auth reste proposé mais n'est plus bloquant pour les fonctions basiques.
   return (
     <View style={{ flex: 1 }}>
       <OfflineBanner />
@@ -158,7 +160,7 @@ export default function RootNavigator() {
       <NavigationContainer ref={navigationRef}>
         <ShareListener />
         <LinkIntentBridge />
-        {isAuthenticated ? <AppStack /> : <AuthStack />}
+        {isAuthenticated ? <AppStack /> : <AppStack />}
       </NavigationContainer>
     </View>
   );

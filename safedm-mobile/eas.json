@@ -12,7 +12,8 @@
       },
       "env": {
         "APP_ENV": "development",
-        "EAS_BUILD_PROFILE": "development"
+        "EAS_BUILD_PROFILE": "development",
+        "MODEL_PATCH_PUBLIC_KEY_HEX": "042fbe37b5c3a1a19f4c04b7b2709694677feefd97be41b76b5b83f582c00f4e45ca176ace4f9d4acb234a753692e2a04122d2181fd6f4aabc91d697569e051f68"
       }
     },
     "preview": {
@@ -23,7 +24,8 @@
       "env": {
         "APP_ENV": "production",
         "EAS_BUILD_PROFILE": "preview",
-        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1"
+        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1",
+        "MODEL_PATCH_PUBLIC_KEY_HEX": "042fbe37b5c3a1a19f4c04b7b2709694677feefd97be41b76b5b83f582c00f4e45ca176ace4f9d4acb234a753692e2a04122d2181fd6f4aabc91d697569e051f68"
       }
     },
     "apk": {
@@ -34,7 +36,8 @@
       "env": {
         "APP_ENV": "production",
         "EAS_BUILD_PROFILE": "apk",
-        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1"
+        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1",
+        "MODEL_PATCH_PUBLIC_KEY_HEX": "042fbe37b5c3a1a19f4c04b7b2709694677feefd97be41b76b5b83f582c00f4e45ca176ace4f9d4acb234a753692e2a04122d2181fd6f4aabc91d697569e051f68"
       }
     },
     "production": {
@@ -44,7 +47,8 @@
       "env": {
         "APP_ENV": "production",
         "EAS_BUILD_PROFILE": "production",
-        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1"
+        "API_BASE_URL": "https://safedmnew-back.fastapicloud.dev/api/v1",
+        "MODEL_PATCH_PUBLIC_KEY_HEX": "042fbe37b5c3a1a19f4c04b7b2709694677feefd97be41b76b5b83f582c00f4e45ca176ace4f9d4acb234a753692e2a04122d2181fd6f4aabc91d697569e051f68"
       }
     }
   },

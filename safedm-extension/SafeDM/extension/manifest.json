@@ -10,9 +10,12 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "https://safedmnew-back.fastapicloud.dev/*",
-    "http://127.0.0.1:8000/*",
-    "http://localhost:8000/*"
+    "https://safedmnew-back.fastapicloud.dev/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "action": {
     "default_popup": "index.html",

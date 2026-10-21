@@ -1,11 +1,31 @@
-import { useMemo, useState } from "react";
-import { getStoredUser, getToken } from "../services/api";
+import { useEffect, useMemo, useState } from "react";
+import { getStoredUser, getToken, LOGOUT_EVENT } from "../services/api";
 import * as adminApi from "../services/adminApi";
 import { AuthContext } from "./authContext";
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => getToken());
   const [user, setUser] = useState(() => getStoredUser());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onLogout = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener(LOGOUT_EVENT, onLogout);
+    const onStorage = (event) => {
+      if (event.key === "safedm_admin_token" && event.newValue === null) {
+        setToken(null);
+        setUser(null);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(LOGOUT_EVENT, onLogout);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const value = useMemo(
     () => ({

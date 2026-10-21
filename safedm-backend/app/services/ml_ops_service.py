@@ -32,6 +32,7 @@ if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
 from ml.data.loaders import BENIGN_LABELS, repo_root  # noqa: E402
+from ml.models.manifest import write_manifest  # noqa: E402
 from ml.models.training import train_and_export  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -595,18 +596,17 @@ class MlOpsService:
         """Stage patch on disk at canary 0% until Operations approves a percentage."""
         raw = json.loads(artifact.read_text(encoding="utf-8"))
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-        version = f"ml-{raw.get('model_version', 1)}-{digest[:12]}"
-        wrapper = {
-            "version": version,
-            "artifact_sha256": digest,
-            "public_key_hex": public_key_hex,
-            "patch": raw,
-            # 0% until admin Approuver in Opérations (phones use hash % 100 < pct).
-            "rollout": {"stage": "canary", "percentage": 0},
-        }
         target = Path(get_settings().model_patch_manifest_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(wrapper, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Format unique partage avec le script CI (scripts/publish_model_manifest.py).
+        wrapper = write_manifest(
+            raw,
+            artifact_sha256=digest,
+            public_key_hex=public_key_hex,
+            target=target,
+            # 0% until admin Approuver in Opérations (phones use hash % 100 < pct).
+            rollout={"stage": "canary", "percentage": 0},
+        )
+        version = wrapper["version"]
 
         deployment = self.db.scalar(
             select(PatchDeployment).where(PatchDeployment.version == version)

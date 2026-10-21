@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import CommunityReport, Threat, ThreatUrl, VirusTotalScan
-from app.models.enums import ReportStatus, ThreatSeverity, ThreatStatus, VirusTotalResult
+from app.models import CommunityReport, Threat, ThreatUrl
+from app.models.enums import ReportStatus, ThreatSeverity, ThreatStatus
 from app.schemas.analysis import CommunityMatch
 from app.utils.hashing import compute_normalized_hash, compute_raw_hash, compute_url_hash
 from app.utils.url_extraction import extract_domain, extract_urls

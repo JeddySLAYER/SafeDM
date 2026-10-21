@@ -25,7 +25,7 @@ from app.schemas.analysis import (
     FeatureVectorAnalysisRequest,
 )
 from app.services.fingerprint_envelope import decrypt_fingerprint_envelope, FingerprintEnvelopeError
-from app.schemas.analysis_enums import AnalysisSource, AnalysisStatus, ThreatType
+from app.schemas.analysis_enums import AnalysisStatus, ThreatType
 from app.services.fusion_service import default_thresholds, fuse_analysis
 from app.services.jev_service import JevService
 from app.services.semantic_types import SemanticResult

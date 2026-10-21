@@ -58,7 +58,7 @@ export default function ManualAnalysisScreen({ navigation, route }) {
         originalContent: text,
       });
     } catch {
-      setError("Impossible d'analyser le message pour l'instant.");
+      setError("L'analyse du message a échoué.");
     } finally {
       setLoading(false);
     }

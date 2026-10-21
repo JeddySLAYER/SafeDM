@@ -3,6 +3,7 @@
 # Secrets (Settings → Secrets and variables → Actions):
 #   FASTAPI_CLOUD_TOKEN   — deploy token (dashboard → Deploy Tokens)
 #   FASTAPI_CLOUD_APP_ID  — UUID de l'app (header dashboard)
+#   DATABASE_URL          — URL PostgreSQL de production (migrations)
 #
 # Première fois en local (une seule fois) :
 #   cd safedm-backend
@@ -45,6 +46,7 @@ jobs:
         env:
           FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
           FASTAPI_CLOUD_APP_ID: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           missing=0
           if [ -z "$FASTAPI_CLOUD_TOKEN" ]; then
@@ -55,11 +57,32 @@ jobs:
             echo "::error::Secret FASTAPI_CLOUD_APP_ID manquant — voir docs/DEPLOY_FASTAPI_CLOUD.md"
             missing=1
           fi
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret DATABASE_URL manquant — sans lui les migrations de production ne peuvent pas être appliquées."
+            missing=1
+          fi
           exit $missing
 
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+
+      - name: Python + deps
+        run: |
+          uv python install 3.12
+          uv sync --group dev
+
+      - name: Apply database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Alembic ne lit pas Settings : on neutralise la validation du
+          # secret JWT, sans rapport avec la migration.
+          SECRET_KEY: ci-migration-secret-key-at-least-16
+        run: |
+          # Le code déployé peut/supprimer des tables : sans cette étape, le
+          # schéma de production dérive à chaque déploiement.
+          uv run alembic upgrade head
+          uv run alembic current
 
       - name: Deploy to FastAPI Cloud
         env:

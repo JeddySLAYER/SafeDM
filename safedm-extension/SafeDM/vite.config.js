@@ -33,11 +33,13 @@ export default defineConfig(({ command }) => {
     build: {
       outDir: isDev ? "dev" : "build",
       rollupOptions: {
+        // Le service worker et le content script sont bundlés par esbuild
+        // (plugins/reloadExtensionPlugin.js) vers background/background.js et
+        // content/content.js. Les declarer ici produisait deux bundles
+        // orphelins dans assets/ — contenant le code HMR (ws://localhost).
         input: {
           main: "./index.html",
           options: "./options.html",
-          background: "src/background/background.js",
-          content: "src/content/content.js",
         },
       },
     },

@@ -1,6 +1,7 @@
-import json, sys
+import json
+import sys
 sys.path.insert(0, "/home/joan/Projects/SafeDM/safedm-backend")
-from app.ml.fasttext_runtime import FastTextSpec, probabilities, quantize
+from app.ml.fasttext_runtime import FastTextSpec, quantize
 
 m = __import__("fasttext").train_supervised(
     "/tmp/sms_train.txt", minn=2, maxn=5, epoch=25, dim=16, wordNgrams=2,
@@ -8,7 +9,7 @@ m = __import__("fasttext").train_supervised(
 a = m.f.getArgs()
 spec = FastTextSpec(tuple(m.get_labels()), tuple(m.get_words()), a.minn, a.maxn,
                     a.wordNgrams, a.bucket, a.dim)
-W, O = m.get_input_matrix(), m.get_output_matrix()
+weights_in, weights_out = m.get_input_matrix(), m.get_output_matrix()
 
 def label_of(qm, rr):
     sc = qm.score(rr)
@@ -23,7 +24,7 @@ for line in open("/tmp/sms_test.txt", encoding="utf-8"):
     if len(parts) == 2 and parts[0].startswith("__label__"):
         probe_rows.append((spec.line_rows(parts[1].strip()), parts[0].strip()))
 probe_used = sorted({r for rr, _ in probe_rows for r in rr})
-probe_qm = quantize(W, O, probe_used, bits=8)
+probe_qm = quantize(weights_in, weights_out, probe_used, bits=8)
 gaps = []
 for rr, g in probe_rows:
     sc = probe_qm.score(rr)
@@ -54,7 +55,7 @@ TEXTS = [
 ]
 rows_all = [spec.line_rows(t) for t in TEXTS]
 used = sorted({r for rr in rows_all for r in rr})
-qm = quantize(W, O, used, bits=8)
+qm = quantize(weights_in, weights_out, used, bits=8)
 
 payload = {
     "labels": list(spec.labels), "words": list(spec.words),

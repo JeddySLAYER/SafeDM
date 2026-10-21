@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import Settings  # noqa: E402
-from app.services.jev_service import _MALICIOUS_VERDICTS, JevService  # noqa: E402
+from app.services.jev_service import JevService  # noqa: E402
 
 # (message, verdict_attendu, difficulte)
 # difficulte : "clair" = signal explicite, "frontiere" = ambigu par design.

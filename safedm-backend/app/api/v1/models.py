@@ -74,10 +74,23 @@ def latest_model_manifest(
         )
         if not version:
             raise ValueError("invalid manifest")
+        # Le mobile refuse un manifeste sans cle publique : il ne peut pas
+        # verifier la signature. On le dit explicitement plutot que de servir
+        # un manifeste que tous les telephones ignoreront silencieusement.
+        public_key_hex = loaded.get("public_key_hex") or patch.get("public_key_hex")
+        if not public_key_hex:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Manifeste sans cle publique : republiez-le avec "
+                    "scripts/publish_model_manifest.py pour que le mobile puisse "
+                    "verifier la signature."
+                ),
+            )
         manifest = {
             "version": version,
             "artifact_sha256": loaded.get("artifact_sha256"),
-            "public_key_hex": loaded.get("public_key_hex"),
+            "public_key_hex": public_key_hex,
             "patch": patch if patch.get("quantization") else None,
             "rollout": loaded.get("rollout") or {"stage": "canary", "percentage": patch.get("canary_percent", 0)},
         }

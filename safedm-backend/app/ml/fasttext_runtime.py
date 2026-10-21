@@ -42,7 +42,7 @@ word-n-grams).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 FNV_OFFSET = 2166136261
 FNV_PRIME = 16777619
@@ -242,9 +242,9 @@ def probabilities(spec: FastTextSpec, text: str, w_in, w_out) -> list[float]:
             hidden[d] += float(row[d])
     n = float(len(rows))
     out = []
-    for l in range(nlabels):
+    for label_idx in range(nlabels):
         acc = 0.0
-        wrow = w_out[l]
+        wrow = w_out[label_idx]
         for d in range(dim):
             acc += float(wrow[d]) * (hidden[d] / n)
         out.append(_sigmoid(acc))
@@ -269,8 +269,8 @@ def quantize(w_in, w_out, rows: list[int], bits: int = 8) -> "QuantizedModel":
     in_scale = max(peak / qmax, 1e-12) if peak > 0 else 1.0
 
     out_peak = 0.0
-    for l in range(w_out.shape[0]):
-        for v in w_out[l]:
+    for label_idx in range(w_out.shape[0]):
+        for v in w_out[label_idx]:
             out_peak = max(out_peak, abs(float(v)))
     out_scale = max(out_peak / 32767.0, 1e-12) if out_peak > 0 else 1.0
 
@@ -281,8 +281,8 @@ def quantize(w_in, w_out, rows: list[int], bits: int = 8) -> "QuantizedModel":
             max(-qmax - 1, min(qmax, int(round(float(v) / in_scale)))) for v in row
         ]
     out_rows = [
-        [max(-32768, min(32767, int(round(float(v) / out_scale)))) for v in w_out[l]]
-        for l in range(w_out.shape[0])
+        [max(-32768, min(32767, int(round(float(v) / out_scale)))) for v in w_out[label_idx]]
+        for label_idx in range(w_out.shape[0])
     ]
     return QuantizedModel(in_rows, in_scale, out_rows, out_scale)
 
@@ -320,8 +320,8 @@ class QuantizedModel:
                 acc[d] += row[d]
         n = max(len(rows), 1)
         out = []
-        for l in range(len(self.out_rows)):
-            qrow = self.out_rows[l]
+        for label_idx in range(len(self.out_rows)):
+            qrow = self.out_rows[label_idx]
             total = 0
             for d in range(dim):
                 total += acc[d] * qrow[d]

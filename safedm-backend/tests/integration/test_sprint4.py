@@ -88,7 +88,11 @@ def test_report_create_stores_content_and_lists_community(user_auth):
     assert body["report"]["status"] == "ACTIVE"
     threat_id = body["threat_id"]
 
-    community = client.get("/api/v1/threats/community", headers=user_auth["headers"])
+    community = client.get(
+        "/api/v1/threats/community",
+        headers=user_auth["headers"],
+        params={"page_size": 100},
+    )
     assert community.status_code == 200
     items = community.json()["items"]
     assert any(item["id"] == threat_id for item in items)
@@ -245,7 +249,11 @@ def test_second_user_increments_report_count(user_auth, second_user_auth):
     assert second.status_code == 201
     assert second.json()["created_threat"] is False
 
-    community = client.get("/api/v1/threats/community", headers=user_auth["headers"])
+    community = client.get(
+        "/api/v1/threats/community",
+        headers=user_auth["headers"],
+        params={"page_size": 100},
+    )
     threat = next(i for i in community.json()["items"] if i["id"] == first.json()["threat_id"])
     assert threat["report_count"] == 2
 
@@ -319,7 +327,11 @@ def test_admin_stats_and_threat_moderation(user_auth, admin_auth):
     assert dismissed.status_code == 200
     assert dismissed.json()["status"] == "DISMISSED"
 
-    community = client.get("/api/v1/threats/community", headers=user_auth["headers"])
+    community = client.get(
+        "/api/v1/threats/community",
+        headers=user_auth["headers"],
+        params={"page_size": 100},
+    )
     assert all(item["id"] != threat_id for item in community.json()["items"])
 
     reports = client.get("/api/v1/admin/reports?status=ACTIVE", headers=admin_auth["headers"])

@@ -148,7 +148,7 @@ export default function HomeScreen({ navigation }) {
       });
     } catch {
       setCaptureError(
-        "Impossible d'analyser le message pour l'instant.",
+        "L'analyse du message a échoué.",
       );
     } finally {
       setAnalyzing(false);

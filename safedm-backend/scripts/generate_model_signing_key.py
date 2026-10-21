@@ -5,7 +5,7 @@ in the mobile build configuration.
 """
 
 import base64
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 
