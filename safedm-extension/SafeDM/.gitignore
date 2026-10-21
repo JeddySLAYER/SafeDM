@@ -13,6 +13,12 @@ dist-ssr
 *.local
 **/__temp_*
 
+# Build outputs are generated, never committed.
+# A stale committed bundle silently diverges from src/ — the CI workflow
+# packages the extension from a fresh build instead.
+build/
+dev/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

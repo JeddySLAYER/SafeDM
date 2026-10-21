@@ -118,6 +118,22 @@ export async function getStoredPatch() {
   }
 }
 
+/**
+ * Supprime le patch applique localement.
+ *
+ * Appele quand le serveur ne sert plus de manifeste (rollback, manifeste
+ * absent) : sans cela l'appareil continuerait de decider avec un patch que
+ * l'administrateur a explicitement annule.
+ */
+export async function clearStoredPatch() {
+  const store = storage();
+  if (!store) return false;
+  const current = await store.getItem(ACTIVE_PATCH_KEY);
+  if (!current) return false;
+  await store.multiRemove([ACTIVE_PATCH_KEY, ACTIVE_MANIFEST_KEY]);
+  return true;
+}
+
 export function decideWithPatch(patch, features) {
   const weights = patch?.quantization?.weights;
   const threshold = patch?.quantization?.threshold_score;
@@ -133,7 +149,18 @@ export async function offerModelUpdate({ ask, onStart } = {}) {
   const { apiRequest } = require("../api/client");
   const { getOrCreateDeviceId } = require("../utils/storage");
   const deviceId = await getOrCreateDeviceId();
-  const manifest = await apiRequest("models/latest");
+  let manifest;
+  try {
+    manifest = await apiRequest("models/latest");
+  } catch (error) {
+    // 404 = manifeste absent ou rollback : le patch local ne doit plus etre
+    // utilise, sinon l'appareil continue de decider avec un modele annule.
+    if (error?.status === 404) {
+      const purged = await clearStoredPatch();
+      return { updated: false, reason: "rolled_back", purged };
+    }
+    throw error;
+  }
   if (!(await verifyPatchManifest(manifest))) {
     return { updated: false, reason: "invalid_signature" };
   }
@@ -177,9 +204,20 @@ export async function updateModelFromManifest() {
   const { apiRequest } = require("../api/client");
   const { getOrCreateDeviceId } = require("../utils/storage");
   const deviceId = await getOrCreateDeviceId();
-  const manifest = await apiRequest(
-    `models/latest?app_version=${encodeURIComponent(APP_VERSION)}`,
-  );
+  let manifest;
+  try {
+    manifest = await apiRequest(
+      `models/latest?app_version=${encodeURIComponent(APP_VERSION)}`,
+    );
+  } catch (error) {
+    // 404 = manifeste absent ou rollback : le patch local ne doit plus etre
+    // utilise, sinon l'appareil continue de decider avec un modele annule.
+    if (error?.status === 404) {
+      const purged = await clearStoredPatch();
+      return { updated: false, reason: "rolled_back", purged };
+    }
+    throw error;
+  }
   if (manifest.patch?.quantization?.weights) {
     if (!(await verifyPatchManifest(manifest))) {
       throw new Error("Patch manifest signature invalid");

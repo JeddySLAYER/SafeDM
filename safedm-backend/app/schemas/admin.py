@@ -10,7 +10,7 @@ from app.models.enums import (
     VirusTotalResult,
     VirusTotalScanStatus,
 )
-from app.schemas.monitoring import ApplicationResponse, MonitoringPreferenceResponse
+from app.schemas.monitoring import MonitoringPreferenceResponse
 from app.schemas.report import ThreatResponse, ThreatUrlResponse
 
 

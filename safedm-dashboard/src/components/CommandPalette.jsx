@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { ArrowRight, CornerDownLeft, Terminal, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { requestAggregation } from "../services/adminApi";
-import { useToast } from "../context/ToastContext";
+import { useToast } from "../context/useToast";
 
 const COMMANDS = [
   { title: "Ouvrir les statistiques", description: "Vue d’ensemble", aliases: ["stats", "statistiques", "accueil"], path: "/" },

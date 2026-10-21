@@ -30,7 +30,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = (
         "http://localhost:5173,http://127.0.0.1:5173,"
-        "http://localhost:3000,http://127.0.0.1:3000"
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "https://safedm-dashboard.pages.dev,https://*.pages.dev"
     )
 
     # TypeSafe — Jev (System One). Remplace Gemini en V2.

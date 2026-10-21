@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_API_BASE } from "../shared/config.js";
+import { ensureOriginAllowed } from "../shared/permissions.js";
 import {
   clearSession,
   getApiBase,
@@ -45,6 +46,17 @@ export default function Options() {
     }
     setSaving(true);
     try {
+      if (value !== DEFAULT_API_BASE) {
+        // Chrome bloque les requetes vers un hote non declare : il faut la
+        // permission avant d'enregistrer, sinon l'analyse echoue sans motif.
+        const granted = await ensureOriginAllowed(value);
+        if (!granted) {
+          setError(
+            "Chrome n’a pas autorisé cette adresse. Autorisez l’accès à l’hôte dans la demande de permission, puis réessayez.",
+          );
+          return;
+        }
+      }
       await setApiBase(value === DEFAULT_API_BASE ? "" : value);
       setMessage("Paramètres enregistrés.");
     } catch {
@@ -79,6 +91,11 @@ export default function Options() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     try {
+      const granted = await ensureOriginAllowed(value);
+      if (!granted) {
+        setConnection("Chrome n’a pas autorisé cet hôte : le test est impossible.");
+        return;
+      }
       const response = await fetch(`${value}/health`, { signal: controller.signal });
       if (!response.ok) throw new Error("health check failed");
       setConnection("API joignable.");

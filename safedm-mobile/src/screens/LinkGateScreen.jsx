@@ -11,8 +11,11 @@ import { analyzeUrl } from "../api/analysis";
 import { createReport } from "../api/reports";
 import Button from "../components/Button";
 import { IconGlyph } from "../components/Icons";
+import LinkActions from "../components/LinkActions";
+import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import { confirmDialog } from "../services/appDialog";
 import { openUrlExternally } from "../services/notificationBridge";
 import { statusToLevel, vtLabel } from "../utils/risk";
 import { colors, radii } from "../theme/tokens";
@@ -68,6 +71,15 @@ export default function LinkGateScreen({ navigation, route }) {
   async function openAnyway() {
     const target = result?.url || url;
     if (!target) return;
+    const ok = await confirmDialog({
+      title: "Ouvrir quand même ?",
+      message:
+        "Ce lien présente un risque. Ouvrir dans le navigateur peut exposer vos informations.",
+      confirmLabel: "Ouvrir quand même",
+      cancelLabel: "Annuler",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await openUrlExternally(target);
     } catch {
@@ -78,6 +90,13 @@ export default function LinkGateScreen({ navigation, route }) {
   async function onReport() {
     const target = result?.url || url;
     if (!target) return;
+    const ok = await confirmDialog({
+      title: "Signaler ce lien ?",
+      message: "Le lien sera signalé à la communauté pour aider à le bloquer.",
+      confirmLabel: "Signaler",
+      cancelLabel: "Annuler",
+    });
+    if (!ok) return;
     setReporting(true);
     setReportMsg("");
     setError("");
@@ -107,7 +126,7 @@ export default function LinkGateScreen({ navigation, route }) {
       <Screen contentStyle={styles.center}>
         <ScreenHeader title="Vérification du lien" onBack={() => navigation.goBack()} />
         <ActivityIndicator color={colors.bluePrimary} size="large" />
-        <Text style={styles.loadingText}>Analyse VirusTotal & SafeDM…</Text>
+        <Text style={styles.loadingText}>Vérification en cours…</Text>
         <Text style={styles.urlPreview} numberOfLines={2}>
           {url}
         </Text>
@@ -133,20 +152,32 @@ export default function LinkGateScreen({ navigation, route }) {
 
   if (decision === "BLOCK") {
     return (
-      <Screen scroll contentStyle={styles.blockScreen}>
-        <View style={styles.blockHero}>
+      <Screen scroll>
+        <ScreenHeader title="Lien vérifié" onBack={() => navigation.goBack()} />
+
+        <View
+          accessible
+          accessibilityLabel={`Lien potentiellement dangereux. ${result.headline || "Ce lien présente un risque."}`}
+          style={styles.blockHero}
+        >
           <View style={styles.blockIcon}>
-            <IconGlyph name="warning" color={colors.white} size={36} />
+            <IconGlyph name="warning" color={colors.dangerText} size={30} />
           </View>
-          <Text style={styles.blockTitle}>ALERTE : LIEN DANGEREUX</Text>
-          <Text style={styles.blockSub}>{result.headline}</Text>
+          <Text style={styles.blockTitle}>Lien potentiellement dangereux</Text>
+          <Text style={styles.blockSub}>
+            {result.headline || "Ce lien présente un risque."}
+          </Text>
           <Text style={styles.blockUrl} numberOfLines={3}>
             {result.url}
           </Text>
+          <LinkActions url={result.url || url} style={{ alignSelf: "center" }} />
         </View>
 
         <View style={styles.blockCard}>
-          <Text style={styles.blockScore}>Score {result.risk_score}/100</Text>
+          <View style={styles.blockScoreRow}>
+            <RiskBadge level={level} />
+            <Text style={styles.blockScore}>{result.risk_score}/100</Text>
+          </View>
           {(result.reasons || []).slice(0, 4).map((r, i) => (
             <Text key={`${r}-${i}`} style={styles.blockReason}>
               • {r}
@@ -158,17 +189,38 @@ export default function LinkGateScreen({ navigation, route }) {
         </View>
 
         <Text style={styles.blockAdvice}>
-          N’ouvrez pas ce lien. Ne saisissez aucun mot de passe ni code. SafeDM
-          a bloqué la redirection pour votre sécurité.
+          Mieux vaut ne pas ouvrir ce lien. Si vous ne l’attendiez pas, ignorez-le.
         </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {reportMsg ? <Text style={styles.ok}>{reportMsg}</Text> : null}
 
+        {!ackOpen ? (
+          <Pressable
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="J’ai compris le risque. Ouvrir quand même."
+            onPress={() => setAckOpen(true)}
+            style={styles.dangerLink}
+          >
+            <Text style={styles.dangerLinkText}>
+              J’ai compris le risque. Ouvrir quand même.
+            </Text>
+          </Pressable>
+        ) : (
+          <Button
+            label="Ouvrir malgré le risque"
+            variant="ghost"
+            onPress={openAnyway}
+            style={{ marginTop: 4 }}
+          />
+        )}
+
         <Button
           label="Ne pas ouvrir"
-          variant="dark"
+          variant="primary"
           onPress={() => navigation.goBack()}
+          style={{ marginTop: 16 }}
         />
         <Button
           label="Signaler ce lien"
@@ -177,21 +229,6 @@ export default function LinkGateScreen({ navigation, route }) {
           loading={reporting}
           style={{ marginTop: 12 }}
         />
-
-        {!ackOpen ? (
-          <Pressable onPress={() => setAckOpen(true)} style={styles.dangerLink}>
-            <Text style={styles.dangerLinkText}>
-              J'ai compris le risque. Ouvrir quand même.
-            </Text>
-          </Pressable>
-        ) : (
-          <Button
-            label="Ouvrir malgré l’alerte"
-            variant="ghost"
-            onPress={openAnyway}
-            style={{ marginTop: 8 }}
-          />
-        )}
       </Screen>
     );
   }
@@ -201,12 +238,13 @@ export default function LinkGateScreen({ navigation, route }) {
       <Screen scroll>
         <ScreenHeader title="Lien à vérifier" onBack={() => navigation.goBack()} />
         <View style={styles.warnBanner}>
-          <IconGlyph name="warning" color={colors.bluePrimary} size={22} />
+          <IconGlyph name="warning" color={colors.blue600} size={22} />
           <Text style={styles.warnTitle}>{result.headline}</Text>
         </View>
         <Text style={styles.urlLine} numberOfLines={3}>
           {result.url}
         </Text>
+        <LinkActions url={result.url || url} />
         <Text style={styles.meta}>
           Score {result.risk_score}/100 · niveau {level}
         </Text>
@@ -245,12 +283,13 @@ export default function LinkGateScreen({ navigation, route }) {
     <Screen scroll>
       <ScreenHeader title="Lien vérifié" onBack={() => navigation.goBack()} />
       <View style={styles.okBanner}>
-        <IconGlyph name="shield" color={colors.bluePrimary} size={22} />
+        <IconGlyph name="shield" color={colors.blue600} size={22} />
         <Text style={styles.okTitle}>{result.headline}</Text>
       </View>
       <Text style={styles.urlLine} numberOfLines={3}>
         {result.url}
       </Text>
+      <LinkActions url={result.url || url} />
       <Text style={styles.advice}>
         Aucun signal critique détecté. Le lien a été ouvert dans votre
         navigateur. Restez vigilant sur les pages de connexion.
@@ -280,58 +319,74 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 24,
   },
-  blockScreen: { backgroundColor: "#0B0B0B" },
   blockHero: {
-    backgroundColor: colors.black,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radii.lg,
     padding: 24,
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   blockIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#F04438",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.dangerSoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   blockTitle: {
-    color: colors.white,
-    fontSize: 22,
-    fontWeight: "800",
+    color: colors.textPrimary,
+    fontSize: 20,
+    lineHeight: 27,
+    fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
   },
   blockSub: {
-    color: "#D0D5DD",
+    color: colors.textSecondary,
     textAlign: "center",
     fontSize: 14,
+    lineHeight: 20,
     marginBottom: 12,
   },
   blockUrl: {
-    color: "#F97066",
+    color: colors.textPrimary,
     fontSize: 13,
+    fontWeight: "600",
     textAlign: "center",
   },
   blockCard: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radii.md,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  blockScore: { color: colors.white, fontWeight: "700", marginBottom: 10 },
-  blockReason: { color: "#E4E7EC", marginBottom: 6, lineHeight: 20 },
-  blockVt: { color: "#F97066", marginTop: 8, fontWeight: "700" },
+  blockScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  blockScore: { color: colors.textSecondary, fontWeight: "700", fontSize: 13 },
+  blockReason: { color: colors.textPrimary, marginBottom: 6, lineHeight: 20 },
+  blockVt: { color: colors.dangerText, marginTop: 8, fontWeight: "700" },
   blockAdvice: {
-    color: "#D0D5DD",
+    color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 20,
     fontSize: 14,
   },
-  dangerLink: { marginTop: 18, alignItems: "center" },
-  dangerLinkText: { color: "#98A2B3", fontSize: 12, textDecorationLine: "underline" },
+  dangerLink: { marginTop: 14, marginBottom: 4, alignItems: "center" },
+  dangerLinkText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textDecorationLine: "underline",
+  },
   warnBanner: {
     flexDirection: "row",
     gap: 10,
@@ -346,16 +401,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
-    backgroundColor: "#ECFDF3",
+    backgroundColor: colors.successSoft,
     borderRadius: radii.md,
     padding: 14,
     marginBottom: 14,
   },
   okTitle: { flex: 1, fontWeight: "700", color: colors.textPrimary },
-  urlLine: { color: colors.bluePrimary, marginBottom: 8, fontSize: 14 },
+  urlLine: { color: colors.blue800, marginBottom: 8, fontSize: 14 },
   meta: { color: colors.textSecondary, marginBottom: 8, fontSize: 13 },
   reason: { color: colors.textPrimary, marginBottom: 4, lineHeight: 20 },
   advice: { color: colors.textSecondary, lineHeight: 21, marginTop: 8 },
-  error: { color: "#F04438", marginTop: 12 },
-  ok: { color: "#12B76A", marginTop: 12, fontWeight: "600" },
+  error: { color: colors.dangerText, marginTop: 12 },
+  ok: { color: colors.successText, marginTop: 12, fontWeight: "600" },
 });

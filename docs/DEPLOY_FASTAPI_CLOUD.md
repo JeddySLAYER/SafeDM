@@ -8,6 +8,10 @@ URL de prod actuelle (mobile) : `https://safedmnew-back.fastapicloud.dev/api/v1`
 |--------|---------------|------------------|
 | `FASTAPI_CLOUD_TOKEN` | Dashboard app → **Deploy Tokens** → Create | Deploy backend |
 | `FASTAPI_CLOUD_APP_ID` | UUID à côté du nom de l’app (bouton copy) | Deploy backend |
+| `DATABASE_URL` | Dashboard app → **Environment Variables** → `DATABASE_URL` | Migrations **et** scripts en prod |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | à choisir | Créer le compte admin en prod |
+| `ML_PATCH_SIGNING_PRIVATE_KEY_PEM_B64` | `safedm-backend/.env` (clé privée OTA) | Signature des patchs OTA |
+| `MODEL_PATCH_PUBLIC_KEY_HEX` | clé publique dérivée de la précédente | Vérification OTA côté mobile |
 | `EXPO_TOKEN` | https://expo.dev/settings/access-tokens | Build APK mobile |
 
 Repo → **Settings → Secrets and variables → Actions → New repository secret**.
@@ -87,7 +91,72 @@ curl -sS https://safedmnew-back.fastapicloud.dev/api/v1/health/ready
 Mobile : `API_BASE_URL` dans `.env` / profils EAS (`preview`/`apk`/`production`)
 pointe déjà vers cette URL `/api/v1`.
 
-## 4. Logs
+## 4. Compte administrateur (dashboard)
+
+Le dashboard n'accepte que les comptes **admin** : `AuthContext` calcule
+`isAuthenticated = token && user.is_admin`. Un compte non-admin est
+connecté côté API puis renvoyé vers `/login` par `Protected` — ce qui ressemble
+à un refus d'identifiants.
+
+La base de production est **distincte** de la base locale
+(`localhost:55432/safedm`) : les identifiants qui marchent en local n'existent
+pas en prod. Il faut créer le compte dans la base de prod :
+
+```bash
+cd safedm-backend
+DATABASE_URL='postgresql+psycopg2://…?sslmode=require' \
+  uv run python -m scripts.seed_admin <username> <password>
+# ou, si le compte existe déjà et n'est pas admin :
+DATABASE_URL='postgresql+psycopg2://…?sslmode=require' \
+  uv run python -m scripts.promote_admin <username>
+```
+
+La même opération est disponible en CI : section 5.
+
+## 5. Exécuter un script en production
+
+### Par la CI (recommandé)
+
+Workflow : `.github/workflows/run-script.yml`
+Actions → **Run backend script (production)** → Run workflow.
+
+| Input | Rôle |
+|---|---|
+| `script` | `prod_bootstrap_admin`, `seed_admin`, `promote_admin`, `seed_applications`, `seed_guide`, `verify_schema`, `purge_inactive_fingerprints` |
+| `args` | arguments optionnels (ex. `promote_admin` → nom d'utilisateur) |
+
+`prod_bootstrap_admin` est le point d'entrée recommandé la première fois :
+il crée le compte admin dans la base de prod **et** vérifie que l'API de prod
+accepte la connexion (`GET /admin/stats` en 200). Si le job passe, le
+dashboard en ligne accepte ces identifiants.
+
+Le script est résolu depuis une **allowlist** : aucun module arbitraire ne peut
+être exécuté, et les arguments sont validés avant d'être transmis.
+
+Prérequis : le secret `DATABASE_URL` doit contenir l'URL Postgres de prod, et
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` pour `prod_bootstrap_admin` et `seed_admin`.
+
+### En local
+
+```bash
+cd safedm-backend
+export DATABASE_URL='postgresql+psycopg2://…?sslmode=require'
+export ADMIN_USERNAME='admin'
+export ADMIN_PASSWORD='…'
+./scripts/prod_bootstrap_admin.sh   # crée + vérifie
+```
+
+Ou, via le Makefile (mêmes scripts, même allowlist que la CI) :
+
+```bash
+make scripts                                  # lister les scripts
+make run-script SCRIPT=verify_schema
+make run-script SCRIPT=seed_admin ARGS="admin <mot-de-passe>"
+```
+
+`make run-script` refuse tout nom hors allowlist.
+
+## 6. Logs
 
 ```bash
 cd safedm-backend

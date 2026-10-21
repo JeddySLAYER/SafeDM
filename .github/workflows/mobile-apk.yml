@@ -51,6 +51,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Historique complet : l'etape "Persist version bump" pousse un
+          # commit, ce qui echoue sur un clone superficiel.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -60,25 +64,52 @@ jobs:
 
       - name: Resolve version
         id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]]; then
             V="${GITHUB_REF#refs/tags/mobile-v}"
-          elif [[ -n "${{ inputs.version }}" ]]; then
-            V="${{ inputs.version }}"
+          elif [[ -n "${INPUT_VERSION}" ]]; then
+            V="${INPUT_VERSION}"
           else
             V="$(node -p "require('./package.json').version")"
           fi
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Resolved APP_VERSION=$V"
+          if ! [[ "${V}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version invalide : '${V}'. Format attendu : X.Y.Z"
+            exit 1
+          fi
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+          echo "Resolved APP_VERSION=${V}"
           if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
-            TAG="mobile-v${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_NAME}" == "main" && -n "${INPUT_VERSION}" ]]; then
+            TAG="mobile-v${V}"
           else
-            TAG="mobile-v${V}-b${{ github.run_number }}"
+            TAG="mobile-v${V}-b${GITHUB_RUN_NUMBER}"
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Resolved release tag=$TAG"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag=${TAG}"
+
+      - name: Sync version into package.json
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # Un build EAS distant ne recoit pas les variables du runner : la
+          # version doit vivre dans package.json pour etre embarquee.
+          # Le versionCode est derive de la version (1.2.3 -> 10203) : il est
+          # donc strictement croissant, sans avoir a suivre un compteur.
+          node -e '
+            const fs = require("fs");
+            const version = process.env.APP_VERSION;
+            const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+            if (!match) { console.error("version invalide: " + version); process.exit(1); }
+            const code = Number(match[1]) * 10000 + Number(match[2]) * 100 + Number(match[3]);
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            pkg.version = version;
+            pkg.buildNumber = code;
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+            console.log(`package.json -> version=${version} buildNumber=${code}`);
+          '
 
       - name: Check EXPO_TOKEN
         env:
@@ -88,6 +119,28 @@ jobs:
             echo "::error::Secret EXPO_TOKEN manquant. Crée un token sur https://expo.dev/settings/access-tokens puis ajoute-le dans Settings → Secrets → Actions. Voir docs/MOBILE_CI.md"
             exit 1
           fi
+
+      - name: Persist version bump
+        continue-on-error: true
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # Le build EAS distant peut partir de l'etat commite du depot :
+          # on enregistre donc la version resolue dans package.json.
+          # "[skip ci]" empeche ce commit de relancer ce workflow.
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "Build depuis un tag : pas de push (le tag est immuable)."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          if git diff --cached --quiet; then
+            echo "Version deja a jour, rien a commiter."
+            exit 0
+          fi
+          git commit -m "chore(mobile): version ${APP_VERSION} [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Install deps
         run: npm ci --ignore-scripts
@@ -103,8 +156,6 @@ jobs:
         id: eas
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
-          ANDROID_VERSION_CODE: ${{ github.run_number }}
-          APP_ENV: production
           EAS_BUILD_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'apk' }}
         run: |
           PROFILE="${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'apk' }}"

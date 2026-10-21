@@ -280,7 +280,6 @@ def test_texte_vide_abstient(spec, trained):
 
 def test_decisions_egales_a_model_test(trained, spec, tmp_path):
     """Le contrat qui compte : nos decisions valent celles de `Model.test`."""
-    import os
 
     test_path = tmp_path / "test.txt"
     corpus = [(f"__label__{label} {text}", label) for label, text in CORPUS]
@@ -368,7 +367,6 @@ def test_score_is_a_mean_so_threshold_is_length_independent():
     longueur du message. Sur une somme brute, un seuil unique ne voudrait rien
     dire pour « ok » et pour un SMS de 500 caracteres.
     """
-    dim = 2
     rows = {0: [100, 0], 1: [200, 0]}
     qm = QuantizedModel(in_rows=rows, in_scale=1.0, out_rows=[[1, 0]], out_scale=1.0)
 
@@ -390,7 +388,6 @@ def test_probs_dequantize_instead_of_saturating():
     de 1e10, donc une confiance a 1.0000 pour n'importe quel message — donc une
     confiance incapable de distinguer un vrai spam d'un ham.
     """
-    dim = 2
     qm = QuantizedModel(
         in_rows={0: [127, 0]},
         in_scale=1e-3,          # echelles petites : c'est le cas qui satire
@@ -414,7 +411,6 @@ def test_probs_are_independent_sigmoids_not_a_softmax():
     softmax aurait impose somme(p) == 1 et aurait interdit le cas « phishing +
     identifiants », qui est precisement ce qu'on veut detecter.
     """
-    dim = 2
     qm = QuantizedModel(
         in_rows={0: [10, 10]},
         in_scale=1.0,

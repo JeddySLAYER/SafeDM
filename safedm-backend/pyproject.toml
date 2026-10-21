@@ -40,8 +40,17 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
+# Regle minimale et bloquante : erreurs de code (F) + erreurs pycodestyle
+# critiques. Les regles de style (UP, I, RUF...) sont appliquees au fil de
+# l'eau pour ne pas melanger un nettoyage de style a un correctif fonctionnel.
+select = ["E4", "E7", "E9", "F"]
 ignore = [
   "E501",   # line length — gradual
   "RUF046", # int(round(...)) intentional for quantisation
   "B008",   # FastAPI Depends() in defaults is idiomatic
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Les scripts doivent inserer la racine du depot dans sys.path AVANT leurs
+# imports applicatifs : c'est le motifvolumique, pas une erreur.
+"scripts/*.py" = ["E402"]

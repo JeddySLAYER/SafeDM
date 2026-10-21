@@ -43,5 +43,12 @@ mlruns/
 artifacts/weekly/
 artifacts/train_runs/
 
+# The promoted OTA manifest IS tracked: the backend serves it from disk and
+# FastAPI Cloud archives the repository state. Without it, /models/latest
+# answers 404 in production.
+!artifacts/weekly/
+artifacts/weekly/*
+!artifacts/weekly/latest.json
+
 # FastAPI Cloud local link (contains app id; token stays in secrets)
 .fastapicloud/

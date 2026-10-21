@@ -60,7 +60,8 @@ def _training_overlap(cases: list[dict[str, Any]]) -> dict[str, Any]:
         training_cases = json.loads(benchmark.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"checked": False, "exact_overlap": 0, "training_reference_count": None, "warning": None}
-    normalize = lambda value: " ".join(str(value or "").casefold().split())
+    def normalize(value: object) -> str:
+        return " ".join(str(value or "").casefold().split())
     training_messages = {
         normalize(case.get("message") or case.get("text"))
         for case in training_cases

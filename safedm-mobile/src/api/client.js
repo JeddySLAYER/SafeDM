@@ -88,7 +88,11 @@ export async function apiRequest(path, options = {}) {
     const raw = formatDetail(data?.detail ?? data);
     const safe =
       response.status === 401
-        ? "Session expirée. Reconnectez-vous."
+        ? path.includes("/auth/")
+          ? raw && !/https?:\/\//i.test(raw) && raw.length < 140
+            ? raw
+            : "Identifiants incorrects."
+          : "Votre session a expiré. Reconnectez-vous."
         : raw && !/https?:\/\//i.test(raw) && raw.length < 140
           ? raw
           : "La vérification distante n'a pas abouti.";

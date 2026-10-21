@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownToLine,
   Check,
@@ -16,7 +16,7 @@ import {
   SkeletonTable,
   Spinner,
 } from "../components/ui";
-import { useToast } from "../context/ToastContext";
+import { useToast } from "../context/useToast";
 import { useOperationsOverview } from "../hooks/useOperationsOverview";
 import {
   approvePatch,
@@ -77,6 +77,25 @@ export default function OperationsPage() {
     critical_score: 85,
     escalation_confidence: 0.65,
   });
+
+  // Les seuils globaux reels sont servis par l'API (data.policy.thresholds).
+  // Sans cette synchro, le formulaire partirait de valeurs codees en dur
+  // qui divergent de la configuration du serveur. On depend des valeurs
+  // primitives : un simple rafraichissement ne reecrit donc pas la saisie
+  // en cours de l'administrateur.
+  const globalSafe = data?.policy?.thresholds?.safe_score;
+  const globalSuspicious = data?.policy?.thresholds?.suspicious_score;
+  const globalCritical = data?.policy?.thresholds?.critical_score;
+  const globalEscalation = data?.policy?.thresholds?.escalation_confidence;
+  useEffect(() => {
+    setPolicy((current) => ({
+      ...current,
+      safe_score: globalSafe ?? current.safe_score,
+      suspicious_score: globalSuspicious ?? current.suspicious_score,
+      critical_score: globalCritical ?? current.critical_score,
+      escalation_confidence: globalEscalation ?? current.escalation_confidence,
+    }));
+  }, [globalSafe, globalSuspicious, globalCritical, globalEscalation]);
 
   async function runAction(action, successMessage) {
     setActionBusy(true);
@@ -399,8 +418,8 @@ function formatDate(value) {
 const HISTORY_PAGE_SIZE = 8;
 
 function HistoryDetails({ data }) {
-  const deployments = data.deployments || [];
-  const audit = data.audit || [];
+  const deployments = useMemo(() => data.deployments || [], [data.deployments]);
+  const audit = useMemo(() => data.audit || [], [data.audit]);
   const [deployPage, setDeployPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
 
@@ -478,7 +497,43 @@ function HistoryDetails({ data }) {
       ) : (
         <EmptyState title="Aucun accès journalisé" />
       )}
+      <RetentionDetails retention={data.retention} />
     </div>
+  );
+}
+
+/**
+ * La purge des menaces inactives est un job planifié : le tableau de bord
+ * affiche ce que le serveur sait (candidats, dernier audit) pour que
+ * l'administrateur ne croie pas que la suppression est automatique.
+ */
+function RetentionDetails({ retention }) {
+  if (!retention) return null;
+  return (
+    <>
+      <h3>Conservation</h3>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Inactivité</th>
+              <th>Candidats à la purge</th>
+              <th>Dernier audit</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{retention.inactive_months} mois</td>
+              <td>{retention.candidate_count ?? 0}</td>
+              <td>{retention.last_audit || "—"}</td>
+              <td>{retention.status || "—"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {retention.note ? <p className="options-muted">{retention.note}</p> : null}
+    </>
   );
 }
 

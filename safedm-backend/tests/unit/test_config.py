@@ -16,7 +16,7 @@ import pytest
 
 from app.core.config import Settings, get_settings
 from app.schemas.analysis_enums import AnalysisStatus
-from app.services.fusion_service import _severity_from_score, _status_from_score, _thresholds
+from app.services.fusion_service import _status_from_score, _thresholds
 
 
 # --------------------------------------------------------------- SECRET_KEY

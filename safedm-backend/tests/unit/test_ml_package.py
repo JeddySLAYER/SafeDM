@@ -1,6 +1,5 @@
 """Smoke tests for the offline ``ml`` package layout."""
 
-from pathlib import Path
 
 from ml.data.loaders import default_benchmark_path, load_labeled_messages, repo_root
 from ml.evaluation.evaluate_cli import feature_parity_smoke

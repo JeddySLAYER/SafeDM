@@ -1,4 +1,5 @@
 import { DEFAULT_API_BASE } from "./config.js";
+import { isOriginAllowed } from "./permissions.js";
 import { clearSession, getApiBase, getToken, setSession } from "./storage.js";
 
 export class ApiError extends Error {
@@ -64,6 +65,19 @@ export async function apiRequest(path, options = {}) {
   }
 
   const base = await resolveBaseUrl();
+
+  // Sans autorisation d'hote, Chrome bloque silencieusement le `fetch` :
+  // l'erreur remonte alors comme un simple "réseau indisponible", ce qui
+  // envoie l'utilisateur verifier sa connexion alors que le probleme est
+  // dans les permissions de l'extension.
+  if (!(await isOriginAllowed(base))) {
+    throw new ApiError(
+      "Chrome n’a pas autorisé l’accès à cet hôte. Ouvrez les paramètres de SafeDM pour l’accorder.",
+      0,
+      base,
+    );
+  }
+
   let response;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);

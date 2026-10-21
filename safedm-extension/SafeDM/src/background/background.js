@@ -36,8 +36,6 @@ chrome.runtime.onStartup?.addListener?.(() => {
   createMenus();
 });
 
-createMenus();
-
 async function ensureAuth() {
   const token = await getToken();
   if (!token) {
