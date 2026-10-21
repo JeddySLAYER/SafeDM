@@ -11,6 +11,11 @@ inputs:
   name:
     description: "Nom de la variable d'environnement"
     required: true
+  token:
+    description: >-
+      Deploy token FastAPI Cloud. Les actions composites n'ont pas accès au
+      contexte `secrets` : le secret est passé en entrée par le workflow.
+    required: true
 
 outputs:
   value:
@@ -26,7 +31,7 @@ runs:
       id: read
       shell: bash
       env:
-        FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
+        FASTAPI_CLOUD_TOKEN: ${{ inputs.token }}
         APP_ID: ${{ inputs.app-id }}
         VAR_NAME: ${{ inputs.name }}
       run: |
