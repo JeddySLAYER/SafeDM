@@ -1,7 +1,7 @@
 {
   "name": "safedm-mobile",
   "version": "1.1.2",
-  "buildNumber": 1,
+  "buildNumber": 10102,
   "private": true,
   "main": "index.js",
   "scripts": {
