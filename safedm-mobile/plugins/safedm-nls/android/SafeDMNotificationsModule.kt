@@ -8,6 +8,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.text.TextUtils
 import com.facebook.react.bridge.Arguments
@@ -54,6 +57,36 @@ class SafeDMNotificationsModule(
     }
   }
 
+  /**
+   * Meme extraction que [extractFeatures], mais avec un horodatage explicite.
+   *
+   * Le diagnostic doit etre REPRODUCTIBLE : `hour_off_hours` et `is_weekend`
+   * dependent de l'heure, et `extractFeatures` utilise l'heure systeme. Avec un
+   * `postTimeMs` fixe, deux executions — ou deux appareils — donnent le meme
+   * vecteur, et le rapport peut etre compare a une extraction Python menee avec
+   * le meme horodatage.
+   */
+  @ReactMethod
+  fun extractFeaturesForDiagnostics(
+    text: String,
+    postTimeMs: Double,
+    packageName: String?,
+    promise: Promise,
+  ) {
+    try {
+      val features = FeatureExtraction.extract(
+        text = text,
+        postTimeMs = postTimeMs.toLong(),
+        packageName = packageName,
+      )
+      val out = Arguments.createArray()
+      features.forEach(out::pushInt)
+      promise.resolve(out)
+    } catch (error: Exception) {
+      promise.reject("FEATURE_EXTRACTION_FAILED", error.message, error)
+    }
+  }
+
   @ReactMethod
   fun isNotificationAccessEnabled(promise: Promise) {
     promise.resolve(hasNotificationAccess(reactContext))
@@ -64,6 +97,89 @@ class SafeDMNotificationsModule(
     val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     reactContext.startActivity(intent)
+  }
+
+  /**
+   * Etat reel des autorisations systeme, en un seul appel.
+   *
+   * L'ecran de permissions ne doit jamais deviner : il affiche ce que le
+   * systeme dit reellement. `batteryExempt` evite notamment de laisser croire
+   * a l'utilisateur que SafeDM tourne en arriere-plan alors que le systeme
+   * l'a mis en veille.
+   */
+  @ReactMethod
+  fun getPermissionState(promise: Promise) {
+    try {
+      val map = Arguments.createMap()
+      map.putBoolean("notificationAccess", hasNotificationAccess(reactContext))
+      map.putBoolean("batteryExempt", isIgnoringBatteryOptimizations(reactContext))
+      val sideloaded = isSideloaded(reactContext)
+      map.putBoolean("sideloaded", sideloaded)
+      // Android 13+ bloque l'acces aux notifications pour une application
+      // installee hors boutique, tant que l'utilisateur n'a pas deverrouille
+      // les "parametres restreints" dans la fiche de l'application.
+      map.putBoolean(
+        "restrictedSettingsRequired",
+        sideloaded && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+      )
+      map.putInt("sdkInt", Build.VERSION.SDK_INT)
+      map.putString("manufacturer", Build.MANUFACTURER ?: "")
+      promise.resolve(map)
+    } catch (e: Exception) {
+      promise.reject("PERMISSION_STATE_FAILED", e.message, e)
+    }
+  }
+
+  /**
+   * Ouvre la fiche de l'application (Parametres > Applications > SafeDM).
+   *
+   * C'est la ou se trouve le menu "..." qui expose "Autoriser les
+   * parametres restreints" sur Android 13+.
+   */
+  @ReactMethod
+  fun openAppDetailsSettings() {
+    try {
+      val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.fromParts("package", reactContext.packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactContext.startActivity(intent)
+    } catch (_: Exception) {
+      val fallback = Intent(Settings.ACTION_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactContext.startActivity(fallback)
+    }
+  }
+
+  /**
+   * Demande l'exemption d'optimisation de batterie.
+   *
+   * Renvoie `false` quand le dialogue systeme n'est pas disponible : l'appelant
+   * bascule alors sur la fiche de l'application, seule voie fiable sur les
+   * constructeurs qui n'affichent pas la liste des optimisations.
+   */
+  @ReactMethod
+  fun requestBatteryExemption(promise: Promise) {
+    try {
+      val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        .setData(Uri.fromParts("package", reactContext.packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (_: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  /** Liste systeme des applications soumises a l'optimisation de batterie. */
+  @ReactMethod
+  fun openBatteryOptimizationList() {
+    try {
+      val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactContext.startActivity(intent)
+    } catch (_: Exception) {
+      openAppDetailsSettings()
+    }
   }
 
   @ReactMethod
@@ -354,6 +470,7 @@ class SafeDMNotificationsModule(
     const val LINK_EVENT = "SafeDMLinkIntent"
     const val SHARE_EVENT = "SafeDMShareIntent"
     const val EXTRA_BYPASS_GATE = "safedm_bypass_gate"
+    private const val PLAY_STORE_PACKAGE = "com.android.vending"
     private const val MAX_PENDING = 40
     private val URL_REGEX =
       Regex("""(?i)((?:https?://|www\.)[^\s<>"'\]]+)""")
@@ -433,6 +550,45 @@ class SafeDMNotificationsModule(
         }
       }
       return false
+    }
+
+    /**
+     * L'application est-elle sur la liste blanche de l'optimisation de batterie ?
+     *
+     * C'est la seule source de verite : sans elle, l'ecran affiche "autorise"
+     * alors que le systeme continue de geler le service de notification.
+     */
+    fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+      return try {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        pm?.isIgnoringBatteryOptimizations(context.packageName) ?: false
+      } catch (_: Exception) {
+        false
+      }
+    }
+
+    /**
+     * L'application a-t-elle ete installee hors du Play Store ?
+     *
+     * C'est la condition d'Android 13+ pour appliquer les "parametres
+     * restreints" : sans boutique, l'acces aux notifications est bloque tant que
+     * l'utilisateur n'a pas deverrouille l'option dans la fiche de l'app.
+     */
+    fun isSideloaded(context: Context): Boolean {
+      return try {
+        val pm = context.packageManager
+        val source = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          pm.getInstallSourceInfo(context.packageName).installingPackageName
+        } else {
+          @Suppress("DEPRECATION")
+          pm.getInstallerPackageName(context.packageName)
+        }
+        source != PLAY_STORE_PACKAGE
+      } catch (_: Exception) {
+        // Source inconnue (installation manuelle, adb) : on la traite comme
+        // hors boutique, c'est le cas le plus prudent.
+        true
+      }
     }
 
     fun monitoredPackages(context: Context): Set<String> {

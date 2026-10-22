@@ -9,15 +9,18 @@ import {
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { ApiError } from "../api/client";
 import { listMyReports, withdrawReport } from "../api/reports";
+import AuthPrompt from "../components/AuthPrompt";
 import Button from "../components/Button";
 import { IconGlyph } from "../components/Icons";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
+import useAuthGate from "../hooks/useAuthGate";
 import { severityToLevel } from "../utils/risk";
 import { colors, radii } from "../theme/tokens";
 
 export default function ReportsScreen() {
   const navigation = useNavigation();
+  const { requiresAuth, prefer, capture } = useAuthGate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,6 +33,9 @@ export default function ReportsScreen() {
       const data = await listMyReports(true);
       setItems(data.items || []);
     } catch (err) {
+      // Pas de session : on invite a se connecter plutot que d'afficher une
+      // erreur sans issue.
+      if (capture(err)) return;
       setError(
         err instanceof ApiError
           ? err.message
@@ -38,7 +44,7 @@ export default function ReportsScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [capture]);
 
   useFocusEffect(
     useCallback(() => {
@@ -67,6 +73,7 @@ export default function ReportsScreen() {
       await withdrawReport(id);
       await load();
     } catch (err) {
+      if (capture(err)) return;
       setError(err instanceof ApiError ? err.message : "Retrait impossible.");
     } finally {
       setBusyId(null);
@@ -80,51 +87,67 @@ export default function ReportsScreen() {
         Messages que vous avez explicitement signalés à la communauté.
       </Text>
 
-      <Button
-        label="Signaler un message"
-        onPress={() => navigation.navigate("DirectReport")}
-        icon={<IconGlyph name="flag" color={colors.white} size={16} />}
-        style={{ marginBottom: 20 }}
-      />
-
-      {loading ? (
-        <ActivityIndicator color={colors.bluePrimary} style={{ marginTop: 8 }} />
-      ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {!loading && items.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>
-            Aucun signalement actif. Analysez un message puis utilisez « Signaler
-            ce message ».
-          </Text>
-        </View>
-      ) : null}
-
-      {items.map((report) => (
-        <View key={report.id} style={styles.card}>
-          <View style={styles.top}>
-            <Text style={styles.meta}>
-              {new Date(report.created_at).toLocaleString("fr-FR")}
-            </Text>
-            <RiskBadge level={severityToLevel(report.severity)} />
-          </View>
-          <Text style={styles.preview} numberOfLines={3}>
-            {report.threat_preview}
-          </Text>
-          <Text style={styles.count}>
-            {report.report_count} signalement
-            {report.report_count > 1 ? "s" : ""} communauté
-          </Text>
+      {requiresAuth ? (
+        <AuthPrompt
+          navigation={navigation}
+          icon="flag"
+          prefer={prefer}
+          title="Vos signalements"
+          body="Un signalement est transmis à la communauté SafeDM : il demande un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          note="Sans compte, vous pouvez continuer à analyser vos messages sur ce téléphone."
+        />
+      ) : (
+        <>
           <Button
-            label="Retirer"
-            variant="outline"
-            loading={busyId === report.id}
-            onPress={() => confirmWithdraw(report)}
-            style={{ marginTop: 12 }}
+            label="Signaler un message"
+            onPress={() => navigation.navigate("DirectReport")}
+            icon={<IconGlyph name="flag" color={colors.white} size={16} />}
+            style={{ marginBottom: 20 }}
           />
-        </View>
-      ))}
+
+          {loading ? (
+            <ActivityIndicator
+              color={colors.bluePrimary}
+              style={{ marginTop: 8 }}
+            />
+          ) : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          {!loading && items.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                Aucun signalement actif. Analysez un message puis utilisez
+                « Signaler ce message ».
+              </Text>
+            </View>
+          ) : null}
+
+          {items.map((report) => (
+            <View key={report.id} style={styles.card}>
+              <View style={styles.top}>
+                <Text style={styles.meta}>
+                  {new Date(report.created_at).toLocaleString("fr-FR")}
+                </Text>
+                <RiskBadge level={severityToLevel(report.severity)} />
+              </View>
+              <Text style={styles.preview} numberOfLines={3}>
+                {report.threat_preview}
+              </Text>
+              <Text style={styles.count}>
+                {report.report_count} signalement
+                {report.report_count > 1 ? "s" : ""} communauté
+              </Text>
+              <Button
+                label="Retirer"
+                variant="outline"
+                loading={busyId === report.id}
+                onPress={() => confirmWithdraw(report)}
+                style={{ marginTop: 12 }}
+              />
+            </View>
+          ))}
+        </>
+      )}
     </Screen>
   );
 }

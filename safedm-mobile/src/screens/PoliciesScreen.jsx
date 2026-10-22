@@ -135,12 +135,24 @@ export default function PoliciesScreen({ navigation }) {
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {expiredSession ? (
-        <Button
-          label="Se connecter"
-          variant="outline"
-          onPress={() => navigation.navigate("Login")}
-          style={{ marginBottom: 8 }}
-        />
+        <View style={styles.authBox}>
+          <Text style={styles.authText}>
+            Votre session a expiré. Reconnectez-vous pour enregistrer votre accord
+            côté SafeDM.
+          </Text>
+          <Button
+            label="Se connecter"
+            variant="outline"
+            onPress={() => navigation.navigate("Login")}
+            style={{ marginTop: 10 }}
+          />
+          <Button
+            label="Créer un compte"
+            variant="ghost"
+            onPress={() => navigation.navigate("Register")}
+            style={{ marginTop: 6 }}
+          />
+        </View>
       ) : null}
       {!isAuthenticated && !expiredSession ? (
         <Text style={styles.note}>
@@ -173,6 +185,19 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: "700", color: colors.textPrimary, marginBottom: 6 },
   cardBody: { color: colors.textSecondary, lineHeight: 21, fontSize: 14 },
   error: { color: colors.danger, marginBottom: 8 },
+  authBox: {
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 10,
+  },
+  authText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   note: {
     color: colors.textSecondary,
     fontSize: 13,

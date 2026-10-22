@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { API_BASE_URL, APP_VERSION } from "../config";
 import Button from "../components/Button";
@@ -7,8 +7,8 @@ import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
 import {
   getEnabledPackageNames,
+  getPermissionState,
   isDefaultBrowser,
-  isNotificationAccessEnabled,
 } from "../services/notificationBridge";
 import { getCloudConsent } from "../utils/storage";
 import { colors, spacing, typography } from "../theme/tokens";
@@ -26,11 +26,15 @@ function Row({ label, value, ok }) {
 
 export default function DiagnosticsScreen({ navigation }) {
   const [nls, setNls] = useState(false);
+  const [batteryExempt, setBatteryExempt] = useState(false);
   const [packages, setPackages] = useState([]);
   const [consent, setConsent] = useState(false);
   const [apiOk, setApiOk] = useState(null);
   const [linksOn, setLinksOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  // L'arriere-plan n'existe que sur Android : l'exemption de batterie n'a pas
+  // d'equivalent ailleurs, on ne compte donc pas un controle fantome.
+  const android = Platform.OS === "android";
   const checks = [nls, packages.length > 0, apiOk === true, linksOn];
   const failedChecks = [
     !nls && "Autoriser l’accès aux notifications",
@@ -38,6 +42,12 @@ export default function DiagnosticsScreen({ navigation }) {
     apiOk === false && "Vérifier la connexion au serveur",
     !linksOn && "Activer la protection des liens",
   ].filter(Boolean);
+  if (android) {
+    checks.push(batteryExempt);
+    if (!batteryExempt) {
+      failedChecks.push("Autoriser SafeDM à tourner en arrière-plan");
+    }
+  }
   const health =
     apiOk == null
       ? "Vérification en cours…"
@@ -48,13 +58,14 @@ export default function DiagnosticsScreen({ navigation }) {
   const refresh = useCallback(async () => {
     setBusy(true);
     try {
-      const [access, pkgs, cloud, links] = await Promise.all([
-        isNotificationAccessEnabled(),
+      const [perm, pkgs, cloud, links] = await Promise.all([
+        getPermissionState(),
         getEnabledPackageNames(),
         getCloudConsent(),
         isDefaultBrowser(),
       ]);
-      setNls(access);
+      setNls(perm.notificationAccess);
+      setBatteryExempt(perm.batteryExempt);
       setPackages(pkgs || []);
       setConsent(cloud);
       setLinksOn(Boolean(links));
@@ -109,6 +120,15 @@ export default function DiagnosticsScreen({ navigation }) {
           value={packages.length ? String(packages.length) : "Aucune"}
           ok={packages.length > 0}
         />
+        {android ? (
+          <Row
+            label="Arrière-plan"
+            value={
+              batteryExempt ? "Autorisé par Android" : "Optimisé par le système"
+            }
+            ok={batteryExempt}
+          />
+        ) : null}
         <Row
           label="Analyse"
           value={consent ? "Aussi à distance" : "Sur le téléphone"}
@@ -143,6 +163,14 @@ export default function DiagnosticsScreen({ navigation }) {
         <Button
           label="Configurer les liens"
           onPress={() => navigation.navigate("LinkProtection")}
+          variant="outline"
+          style={{ marginTop: 10 }}
+        />
+      ) : null}
+      {failedChecks.includes("Autoriser SafeDM à tourner en arrière-plan") ? (
+        <Button
+          label="Configurer l'arrière-plan"
+          onPress={() => navigation.navigate("BatteryOptimization")}
           variant="outline"
           style={{ marginTop: 10 }}
         />

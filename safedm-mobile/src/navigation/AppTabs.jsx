@@ -11,6 +11,9 @@ import CommunityScreen from "../screens/CommunityScreen";
 import DiagnosticsScreen from "../screens/DiagnosticsScreen";
 import DirectReportScreen from "../screens/DirectReportScreen";
 import GuideArticleScreen from "../screens/GuideArticleScreen";
+import GuideChecklistScreen from "../screens/GuideChecklistScreen";
+import GuideQuizScreen from "../screens/GuideQuizScreen";
+import GuideScenarioScreen from "../screens/GuideScenarioScreen";
 import GuideScreen from "../screens/GuideScreen";
 import HomeScreen from "../screens/HomeScreen";
 import LinkGateScreen from "../screens/LinkGateScreen";
@@ -79,6 +82,19 @@ function Tabs() {
           ),
         }}
       />
+      {/* Le guide est une destination de premier plan : c'est la premiere
+          reflexe qu'on cherche quand un message suspect arrive. Le laisser
+          dans les Parametres le rendait invisible. */}
+      <Tab.Screen
+        name="Guide"
+        component={GuideScreen}
+        options={{
+          title: "Guide",
+          tabBarIcon: ({ color }) => (
+            <IconGlyph name="guide" color={color} size={22} />
+          ),
+        }}
+      />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
@@ -138,6 +154,9 @@ export default function AppStack() {
       <Stack.Screen name="Community" component={CommunityScreen} />
       <Stack.Screen name="Guide" component={GuideScreen} />
       <Stack.Screen name="GuideArticle" component={GuideArticleScreen} />
+      <Stack.Screen name="GuideScenario" component={GuideScenarioScreen} />
+      <Stack.Screen name="GuideChecklist" component={GuideChecklistScreen} />
+      <Stack.Screen name="GuideQuiz" component={GuideQuizScreen} />
     </Stack.Navigator>
   );
 }

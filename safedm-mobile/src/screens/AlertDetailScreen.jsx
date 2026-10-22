@@ -5,10 +5,12 @@ import { ApiError } from "../api/client";
 import { analyzeMessage } from "../api/analysis";
 import { createFingerprintReport, createReport } from "../api/reports";
 import AppLogo from "../components/AppLogo";
+import AuthPrompt from "../components/AuthPrompt";
 import Button from "../components/Button";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import useAuthGate from "../hooks/useAuthGate";
 import { fallbackIconForSource } from "../services/appIcons";
 import { getAlertById, updateAlert } from "../services/alertsStore";
 import { ensureContentUploadConsent } from "../utils/cloudConsent";
@@ -22,6 +24,7 @@ import { colors, radii } from "../theme/tokens";
 
 export default function AlertDetailScreen({ navigation, route }) {
   const alertId = route.params?.alertId;
+  const { requiresAuth, prefer, capture } = useAuthGate();
   const [alert, setAlert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -80,6 +83,7 @@ export default function AlertDetailScreen({ navigation, route }) {
         originalContent: content,
       });
     } catch (err) {
+      if (capture(err)) return;
       setError(err instanceof ApiError ? err.message : "Analyse impossible.");
     } finally {
       setBusy(false);
@@ -110,6 +114,7 @@ export default function AlertDetailScreen({ navigation, route }) {
       }
       setMessage("Signalement envoyé.");
     } catch (err) {
+      if (capture(err)) return;
       setError(err instanceof ApiError ? err.message : "Signalement impossible.");
     } finally {
       setBusy(false);
@@ -193,19 +198,32 @@ export default function AlertDetailScreen({ navigation, route }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {message ? <Text style={styles.ok}>{message}</Text> : null}
 
-      <Button
-        label="Analyser / afficher le résultat"
-        onPress={reanalyze}
-        loading={busy}
-        style={{ marginTop: 20 }}
-      />
-      <Button
-        label="Signaler ce message"
-        variant="outline"
-        onPress={report}
-        disabled={busy}
-        style={{ marginTop: 12 }}
-      />
+      {requiresAuth ? (
+        <AuthPrompt
+          navigation={navigation}
+          icon="flag"
+          prefer={prefer}
+          title="Contribuer à la communauté"
+          body="Réanalyser dans le cloud et signaler ce message demandent un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          note="L'alerte ci-dessus reste consultable sans compte."
+        />
+      ) : (
+        <>
+          <Button
+            label="Analyser / afficher le résultat"
+            onPress={reanalyze}
+            loading={busy}
+            style={{ marginTop: 20 }}
+          />
+          <Button
+            label="Signaler ce message"
+            variant="outline"
+            onPress={report}
+            disabled={busy}
+            style={{ marginTop: 12 }}
+          />
+        </>
+      )}
     </Screen>
   );
 }

@@ -31,6 +31,7 @@ import {
   syncMonitoredPackages,
 } from "../services/notificationBridge";
 import { getHideSensitivePreview } from "../utils/storage";
+import { getDailyTip } from "../content/guideContent";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 1000;
@@ -56,6 +57,7 @@ export default function HomeScreen({ navigation }) {
   const [captureError, setCaptureError] = useState("");
   const [hidePreview, setHidePreview] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  const [tip] = useState(() => getDailyTip());
 
   const refreshAlerts = useCallback(async () => {
     const items = await listAlerts();
@@ -66,26 +68,32 @@ export default function HomeScreen({ navigation }) {
     useCallback(() => {
       let active = true;
       (async () => {
-        try {
-          const prefs = await usersApi.getMonitoring();
-          const packages = (prefs || [])
-            .filter((p) => p.enabled && p.application?.package_name)
-            .map((p) => p.application.package_name);
-          await syncMonitoredPackages(packages);
-        } catch {
-          /* offline / non authentifié */
-        }
-        const [packages, enabled] = await Promise.all([
+        // L'etat local d'abord : l'accueil s'affiche sans attendre le reseau.
+        // Le serveur ne sert qu'a resynchroniser la liste des applications
+        // surveillees, et son absence ne doit pas retarder le premier ecran.
+        const [packages, enabled, hide] = await Promise.all([
           getEnabledPackageNames(),
           isNotificationAccessEnabled(),
+          getHideSensitivePreview(),
         ]);
-        const hide = await getHideSensitivePreview();
         if (!active) return;
         setEnabledApps(packages);
         setAccessOn(enabled);
         setAccessChecked(true);
         setHidePreview(hide);
         await refreshAlerts();
+
+        try {
+          const prefs = await usersApi.getMonitoring();
+          const remote = (prefs || [])
+            .filter((p) => p.enabled && p.application?.package_name)
+            .map((p) => p.application.package_name);
+          await syncMonitoredPackages(remote);
+          if (!active) return;
+          setEnabledApps(await getEnabledPackageNames());
+        } catch {
+          /* hors ligne / non authentifié : l'état local fait foi */
+        }
       })();
       return () => {
         active = false;
@@ -136,6 +144,13 @@ export default function HomeScreen({ navigation }) {
     setAnalyzing(true);
     try {
       const outcome = await analyzePastedText(text);
+      if (outcome.requiresAuth) {
+        // La verification distante exige un compte. On passe par l'ecran
+        // d'analyse, qui affiche l'invitation a se connecter ou a creer un
+        // compte — sans perdre le message colle.
+        navigation.navigate("ManualAnalysis", { initialContent: text });
+        return;
+      }
       if (outcome.error) {
         setCaptureError(outcome.error);
         return;
@@ -323,6 +338,25 @@ export default function HomeScreen({ navigation }) {
         </Pressable>
       </View>
 
+      <Text style={styles.sectionTitle}>Accès rapide</Text>
+      <View style={styles.quickRow}>
+        <QuickCard
+          icon="flag"
+          label="Signaler"
+          onPress={() => navigation.navigate("DirectReport")}
+        />
+        <QuickCard
+          icon="community"
+          label="Communauté"
+          onPress={() => navigation.navigate("Community")}
+        />
+        <QuickCard
+          icon="shield"
+          label="Diagnostic"
+          onPress={() => navigation.navigate("Diagnostics")}
+        />
+      </View>
+
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitleInline}>Alertes récentes</Text>
         <Text style={styles.link} onPress={() => navigation.navigate("Alerts")}>
@@ -370,24 +404,25 @@ export default function HomeScreen({ navigation }) {
         ))
       )}
 
-      <Text style={styles.sectionTitle}>Accès rapide</Text>
-      <View style={styles.quickRow}>
-        <QuickCard
-          icon="community"
-          label="Communauté"
-          onPress={() => navigation.navigate("Community")}
-        />
-        <QuickCard
-          icon="guide"
-          label="Guide"
-          onPress={() => navigation.navigate("Guide")}
-        />
-        <QuickCard
-          icon="flag"
-          label="Signaler"
-          onPress={() => navigation.navigate("DirectReport")}
-        />
-      </View>
+      {/* Astuce du jour : le guide est une destination de premier plan, mais
+          l'accueil doit aussi rappeler le reflexe utile au bon moment. Elle
+          ferme l'ecran : les listes (acces rapide, alertes) restent
+          groupees, et la carte n'ecrase jamais une alerte recente. */}
+      <Pressable
+        style={styles.tipCard}
+        onPress={() =>
+          navigation.navigate("GuideScenario", { scenarioId: tip.id })
+        }
+        accessibilityRole="button"
+        accessibilityLabel={`Astuce du jour : ${tip.title}. ${tip.tagline}`}
+      >
+        <View style={styles.tipHead}>
+          <Text style={styles.tipEyebrow}>Astuce du jour</Text>
+          <IconGlyph name="chevron" color={colors.textMuted} size={20} />
+        </View>
+        <Text style={styles.tipTitle}>{tip.title}</Text>
+        <Text style={styles.tipBody}>{tip.tagline}</Text>
+      </Pressable>
     </Screen>
   );
 }
@@ -565,6 +600,36 @@ const styles = StyleSheet.create({
   alertPreview: { color: colors.textSecondary, fontSize: 13 },
   alertWhen: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
   quickRow: { flexDirection: "row", gap: 10 },
+  tipCard: {
+    backgroundColor: colors.blueSoft,
+    borderRadius: radii.lg,
+    padding: 16,
+    marginTop: 20,
+  },
+  tipHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  tipEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.blue600,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  tipBody: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
   quickCard: {
     flex: 1,
     borderWidth: 1,

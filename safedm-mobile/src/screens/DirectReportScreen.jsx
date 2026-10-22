@@ -9,15 +9,18 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { ApiError } from "../api/client";
 import { createReport } from "../api/reports";
+import AuthPrompt from "../components/AuthPrompt";
 import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import useAuthGate from "../hooks/useAuthGate";
 import { colors, radii } from "../theme/tokens";
 
 const MAX = 2000;
 
 export default function DirectReportScreen({ navigation }) {
+  const { requiresAuth, prefer, capture } = useAuthGate();
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -55,6 +58,7 @@ export default function DirectReportScreen({ navigation }) {
       setDone(true);
       setContent("");
     } catch (err) {
+      if (capture(err)) return;
       setError(
         err instanceof ApiError ? err.message : "Signalement impossible.",
       );
@@ -81,47 +85,60 @@ export default function DirectReportScreen({ navigation }) {
         </View>
       </View>
 
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>Contenu à signaler</Text>
-        <Text style={styles.counter}>
-          {content.length} / {MAX}
-        </Text>
-      </View>
+      {requiresAuth ? (
+        <AuthPrompt
+          navigation={navigation}
+          icon="flag"
+          prefer={prefer}
+          title="Un compte pour signaler"
+          body="Le signalement est transmis à la communauté SafeDM : cette action demande un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          note="Sans compte, l'analyse de vos messages reste disponible sur ce téléphone."
+        />
+      ) : (
+        <>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Contenu à signaler</Text>
+            <Text style={styles.counter}>
+              {content.length} / {MAX}
+            </Text>
+          </View>
 
-      <TextInput
-        value={content}
-        onChangeText={(v) => setContent(v.slice(0, MAX))}
-        placeholder="Collez le message ou le lien malveillant…"
-        placeholderTextColor={colors.textMuted}
-        multiline
-        textAlignVertical="top"
-        style={styles.textarea}
-      />
+          <TextInput
+            value={content}
+            onChangeText={(v) => setContent(v.slice(0, MAX))}
+            placeholder="Collez le message ou le lien malveillant…"
+            placeholderTextColor={colors.textMuted}
+            multiline
+            textAlignVertical="top"
+            style={styles.textarea}
+          />
 
-      <View style={styles.actionsRow}>
-        <Pressable onPress={onPaste} style={styles.pasteRow}>
-          <IconGlyph name="clipboard" color={colors.bluePrimary} size={15} />
-          <Text style={styles.link}>Coller</Text>
-        </Pressable>
-        <Pressable onPress={() => setContent("")}>
-          <Text style={styles.clear}>Effacer</Text>
-        </Pressable>
-      </View>
+          <View style={styles.actionsRow}>
+            <Pressable onPress={onPaste} style={styles.pasteRow}>
+              <IconGlyph name="clipboard" color={colors.bluePrimary} size={15} />
+              <Text style={styles.link}>Coller</Text>
+            </Pressable>
+            <Pressable onPress={() => setContent("")}>
+              <Text style={styles.clear}>Effacer</Text>
+            </Pressable>
+          </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {done ? (
-        <Text style={styles.ok}>
-          Message signalé. Merci, la communauté en bénéficie.
-        </Text>
-      ) : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {done ? (
+            <Text style={styles.ok}>
+              Message signalé. Merci, la communauté en bénéficie.
+            </Text>
+          ) : null}
 
-      <Button
-        label="Confirmer le signalement"
-        onPress={onSubmit}
-        loading={loading}
-        icon={<IconGlyph name="flag" color={colors.white} size={16} />}
-        style={{ marginTop: 16 }}
-      />
+          <Button
+            label="Confirmer le signalement"
+            onPress={onSubmit}
+            loading={loading}
+            icon={<IconGlyph name="flag" color={colors.white} size={16} />}
+            style={{ marginTop: 16 }}
+          />
+        </>
+      )}
 
       <Button
         label="Voir mes signalements"

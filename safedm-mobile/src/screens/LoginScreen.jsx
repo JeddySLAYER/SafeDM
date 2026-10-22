@@ -93,7 +93,10 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.line} />
       </View>
 
-      <Pressable onPress={() => navigation.navigate("Register")}>
+      {/* `replace` et non `navigate` : la pile garde la meme profondeur, donc
+          apres connexion l'utilisateur revient a l'ecran qui l'avait invite
+          (signalements, guide…) au lieu de retomber sur cette page. */}
+      <Pressable onPress={() => navigation.replace("Register")}>
         <Text style={styles.footer}>
           Pas encore de compte ?{" "}
           <Text style={styles.link}>Créer un compte</Text>

@@ -2,12 +2,14 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError } from "../api/client";
 import { createReport } from "../api/reports";
+import AuthPrompt from "../components/AuthPrompt";
 import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import LinkActions from "../components/LinkActions";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import useAuthGate from "../hooks/useAuthGate";
 import { confirmDialog } from "../services/appDialog";
 import {
   riskDecision,
@@ -20,6 +22,7 @@ import { colors, levelTint, radii } from "../theme/tokens";
 export default function AnalysisResultScreen({ navigation, route }) {
   const result = route.params?.result;
   const originalContent = route.params?.originalContent || "";
+  const { requiresAuth, prefer, capture } = useAuthGate();
   const [reporting, setReporting] = useState(false);
   const [reportMsg, setReportMsg] = useState("");
   const [error, setError] = useState("");
@@ -59,9 +62,11 @@ export default function AnalysisResultScreen({ navigation, route }) {
       ? "Modèle local embarqué"
       : modelSource === "patch"
         ? "Mise à jour du modèle local"
-        : /jev|virustotal|server/i.test(String(modelSource))
-          ? "Vérification distante"
-          : "Modèle local";
+        : modelSource === "local"
+          ? "Modèle local embarqué"
+          : providerKeys.length > 0
+            ? "Vérification distante"
+            : "Modèle local";
 
   async function onReport() {
     const ok = await confirmDialog({
@@ -83,6 +88,7 @@ export default function AnalysisResultScreen({ navigation, route }) {
       });
       setReportMsg("Message signalé à la communauté.");
     } catch (err) {
+      if (capture(err)) return;
       setError(err instanceof ApiError ? err.message : "Signalement impossible.");
     } finally {
       setReporting(false);
@@ -213,15 +219,26 @@ export default function AnalysisResultScreen({ navigation, route }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {reportMsg ? <Text style={styles.ok}>{reportMsg}</Text> : null}
 
-      <Button
-        label="Signaler ce message"
-        variant="outline"
-        onPress={onReport}
-        loading={reporting}
-        icon={<IconGlyph name="flag" color={colors.blue800} size={16} />}
-        accessibilityLabel="Signaler ce message à la communauté. Le texte sera envoyé au serveur."
-        style={{ marginTop: 24 }}
-      />
+      {requiresAuth ? (
+        <AuthPrompt
+          navigation={navigation}
+          icon="flag"
+          prefer={prefer}
+          title="Signaler ce message"
+          body="Le signalement est transmis à la communauté SafeDM : il demande un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          note="Le résultat de l'analyse ci-dessus reste visible sans compte."
+        />
+      ) : (
+        <Button
+          label="Signaler ce message"
+          variant="outline"
+          onPress={onReport}
+          loading={reporting}
+          icon={<IconGlyph name="flag" color={colors.blue800} size={16} />}
+          accessibilityLabel="Signaler ce message à la communauté. Le texte sera envoyé au serveur."
+          style={{ marginTop: 24 }}
+        />
+      )}
     </Screen>
   );
 }

@@ -9,6 +9,22 @@ import ScreenHeader from "../components/ScreenHeader";
 import { runBundledTfliteFeatures } from "../services/localThreatClassifier";
 import { colors, radii, spacing, typography } from "../theme/tokens";
 
+/**
+ * Horodatage de reference FIXE pour le diagnostic.
+ *
+ * `hour_off_hours` (41) et `is_weekend` (42) dependent de l'heure de
+ * reception. Sans reference fixe, deux executions — ou deux appareils — ne
+ * donnent pas le meme vecteur, et la comparaison avec le serveur n'a aucun
+ * sens. Cette valeur est reprise telle quelle dans le rapport : le backend
+ * peut reproduire exactement le meme vecteur avec
+ * `extract_features(message, post_time_ms=<meme valeur>)`.
+ *
+ * Jeudi 15 janvier 2026, 12:00 UTC : en pleinheur de semaine, sans ambiguite
+ * de fuseau (l'extraction Kotlin et Python travaillent toutes les deux en UTC).
+ */
+const DIAGNOSTIC_POST_TIME_MS = Date.UTC(2026, 0, 15, 12, 0, 0);
+const DIAGNOSTIC_PACKAGE_NAME = null;
+
 export default function ModelDiagnosticsScreen({ navigation }) {
   const [datasets, setDatasets] = useState([]);
   const [datasetId, setDatasetId] = useState(null);
@@ -43,7 +59,7 @@ export default function ModelDiagnosticsScreen({ navigation }) {
     try {
       const native = NativeModules.SafeDMNotifications;
       if (!native?.extractFeaturesForDiagnostics) {
-        throw new Error("Le module natif de diagnostic n’est pas installé. Recompilez le build Android de développement.");
+        throw new Error("Le module natif de diagnostic n’est pas installé. Reconstruisez le build Android (le module a été ajouté après la version installée).");
       }
       const { items = [] } = await apiRequest(`admin/ml/datasets/${datasetId}/cases`);
       if (!items.length || items.length > 500) {
@@ -53,7 +69,16 @@ export default function ModelDiagnosticsScreen({ navigation }) {
       const mobileResults = [];
       for (const item of items) {
         const message = String(item.message || item.text || "").trim();
-        const features = await native.extractFeaturesForDiagnostics(message);
+        // L'appel natif est asynchrone : sans `await`, `features` serait la
+        // promesse elle-même et `Array.from(features)` produirait [].
+        const features = await native.extractFeaturesForDiagnostics(
+          message,
+          DIAGNOSTIC_POST_TIME_MS,
+          DIAGNOSTIC_PACKAGE_NAME,
+        );
+        if (!Array.isArray(features) || features.length !== 50) {
+          throw new Error("L’extraction native n’a pas renvoyé les 50 signaux attendus.");
+        }
         const output = await runBundledTfliteFeatures(features);
         mobileFeatures.push(Array.from(features));
         mobileResults.push({ probability: output.rawProbability, decision: output.decision });
@@ -61,6 +86,8 @@ export default function ModelDiagnosticsScreen({ navigation }) {
       const report = {
         format: "safedm-mobile-model-diagnostic-v1",
         dataset_id: datasetId,
+        post_time_ms: DIAGNOSTIC_POST_TIME_MS,
+        package_name: DIAGNOSTIC_PACKAGE_NAME,
         mobile_messages: items.map((item) => String(item.message || item.text || "").trim()),
         mobile_features: mobileFeatures,
         mobile_results: mobileResults,

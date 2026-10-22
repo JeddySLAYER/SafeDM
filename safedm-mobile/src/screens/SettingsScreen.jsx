@@ -17,6 +17,14 @@ import {
 } from "../utils/storage";
 import { listLegalDocuments } from "../api/legal";
 import { alertDialog, confirmDialog } from "../services/appDialog";
+import {
+  areNotificationsEnabled,
+  getNotificationPreferences,
+  NOTIFICATION_TYPE_DETAILS,
+  openNotificationSettings,
+  requestNotificationPermission,
+  setNotificationEnabled,
+} from "../services/notifications";
 import { showPolicyConsent } from "../services/policyConsent";
 import { APP_VERSION } from "../config";
 import { colors, radii } from "../theme/tokens";
@@ -32,6 +40,8 @@ export default function SettingsScreen({ navigation }) {
   const [cloudConsent, setConsent] = useState(false);
   const [consentLoaded, setConsentLoaded] = useState(false);
   const [hidePreview, setHidePreview] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState({});
+  const [systemNotifs, setSystemNotifs] = useState(false);
 
   useEffect(() => {
     Promise.all([getCloudConsent(), getHideSensitivePreview()]).then(
@@ -41,6 +51,20 @@ export default function SettingsScreen({ navigation }) {
         setConsentLoaded(true);
       },
     );
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getNotificationPreferences(), areNotificationsEnabled()]).then(
+      ([prefs, enabled]) => {
+        if (!active) return;
+        setNotifPrefs(prefs);
+        setSystemNotifs(enabled);
+      },
+    );
+    return () => {
+      active = false;
+    };
   }, []);
 
   const toggleCloudConsent = useCallback(async (next) => {
@@ -76,6 +100,40 @@ export default function SettingsScreen({ navigation }) {
     setHidePreview(next);
     setHideSensitivePreview(next);
   }, []);
+
+  /**
+   * Active ou desactive un type de notification.
+   *
+   * Activer demande d'abord l'autorisation systeme : sans elle, l'interrupteur
+   * serait un mensonge. Si l'utilisateur refuse, on dit pourquoi et on ouvre
+   * les reglages systeme plutot que d'insister.
+   */
+  const toggleNotification = useCallback(
+    async (type, next) => {
+      if (!next) {
+        setNotifPrefs((current) => ({ ...current, [type]: false }));
+        await setNotificationEnabled(type, false);
+        return;
+      }
+      if (!(await areNotificationsEnabled())) {
+        const granted = await requestNotificationPermission();
+        if (!granted) {
+          await alertDialog({
+            title: "Notifications autorisées ?",
+            message:
+              "Sans l'autorisation du système, aucune notification ne peut être affichée. Vous pouvez l'accorder dans les réglages Android.",
+          });
+          await openNotificationSettings();
+          setSystemNotifs(await areNotificationsEnabled());
+          return;
+        }
+        setSystemNotifs(true);
+      }
+      setNotifPrefs((current) => ({ ...current, [type]: true }));
+      await setNotificationEnabled(type, true);
+    },
+    [],
+  );
 
   const onClearAlerts = useCallback(async () => {
     const ok = await confirmDialog({
@@ -146,6 +204,32 @@ export default function SettingsScreen({ navigation }) {
         pouvez les effacer à tout moment.
       </Text>
 
+      <Text style={styles.section}>Notifications</Text>
+      {!systemNotifs ? (
+        <SettingRow
+          icon="bell"
+          title="Notifications bloquées par Android"
+          subtitle="SafeDM ne peut rien afficher tant que l'autorisation n'est pas accordée"
+          onPress={openNotificationSettings}
+          showChevron
+        />
+      ) : null}
+      {Object.entries(NOTIFICATION_TYPE_DETAILS).map(([type, spec]) => (
+        <SettingRow
+          key={type}
+          icon={spec.channel === "info" ? "shield" : "bell"}
+          title={spec.label}
+          subtitle={spec.description}
+          switchValue={Boolean(notifPrefs[type])}
+          onSwitchChange={(next) => toggleNotification(type, next)}
+        />
+      ))}
+      <Text style={styles.privacyNote}>
+        Le contenu d’un message n’apparaît jamais dans une notification, sauf
+        si vous avez laissé l’aperçu visible. Les canaux se règlent aussi dans
+        les réglages Android.
+      </Text>
+
       <Text style={styles.section}>Protection</Text>
       <SettingRow
         icon="whatsapp"
@@ -168,12 +252,8 @@ export default function SettingsScreen({ navigation }) {
       />
 
       <Text style={styles.section}>Aide</Text>
-      <SettingRow
-        icon="guide"
-        title="Guide de bonnes pratiques"
-        onPress={() => navigation.navigate("Guide")}
-        showChevron
-      />
+      {/* Le guide est un onglet de premier plan : le remettre ici l'aurait
+          rendu invisible et sans raison. */}
       <SettingRow
         icon="community"
         title="Menaces communautaires"

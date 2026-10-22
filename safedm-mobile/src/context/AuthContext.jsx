@@ -10,6 +10,7 @@ import * as authApi from "../api/auth";
 import { ApiError } from "../api/client";
 import { acceptLegalDocuments, getLegalStatus, listLegalDocuments } from "../api/legal";
 import { signInWithFirebase } from "../services/firebaseAuth";
+import { subscribeSessionExpired } from "../services/sessionEvents";
 import * as usersApi from "../api/users";
 import {
   clearSession,
@@ -75,25 +76,54 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let cancelled = false;
 
+    /**
+     * Demarrage : uniquement des lectures locales.
+     *
+     * L'application doit s'afficher sans attendre le reseau. Toute validation
+     * distante est repoussee en tache de fond (voir `validateSession`), sinon
+     * un serveur lent suffisait a faire attendre l'utilisateur sur le splash.
+     */
     async function bootstrap() {
       try {
-        const [storedToken, storedUser, done, setup] = await Promise.all([
-          getToken(),
-          getStoredUser(),
-          isOnboardingDone(),
-          isSetupDone(),
-        ]);
+        const [storedToken, storedUser, done, setup, accepted] =
+          await Promise.all([
+            getToken(),
+            getStoredUser(),
+            isOnboardingDone(),
+            isSetupDone(),
+            getAcceptedPolicies(),
+          ]);
         if (cancelled) {
           return;
         }
         setOnboardingDoneState(done);
         setSetupDoneState(setup);
+        setTokenState(storedToken);
+        setUser(storedUser);
+        // L'acceptation locale suffit pour demarrer. La comparaison avec la
+        // version publiee se fait en arriere-plan (voir `validateSession`).
+        setPoliciesOk(Object.keys(accepted || {}).length > 0);
+        setBootstrapping(false);
+
+        validateSession(storedToken);
+      } finally {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+      }
+    }
+
+    /**
+     * Verification serveur, en arriere-plan.
+     *
+     * - Sans session : on compare l'acceptation locale a la version publiee.
+     * - Avec session : on verifie que le jeton est encore valide, puis que
+     *   les documents ont bien ete acceptes cote serveur.
+     */
+    async function validateSession(storedToken) {
+      if (cancelled) return;
+      try {
         if (!storedToken) {
-          setTokenState(null);
-          setUser(null);
-          // Sans compte, l'acceptation des documents reste locale. On la
-          // compare au texte public : une politique mise a jour doit etre
-          // relue, meme en mode invite.
           const local = await getAcceptedPolicies();
           if (!Object.keys(local).length) {
             setPoliciesOk(false);
@@ -101,6 +131,7 @@ export function AuthProvider({ children }) {
           }
           try {
             const docs = await listLegalDocuments();
+            if (cancelled) return;
             const outdated = (docs || []).some(
               (doc) => local[doc.slug] !== doc.version,
             );
@@ -111,8 +142,7 @@ export function AuthProvider({ children }) {
           }
           return;
         }
-        setTokenState(storedToken);
-        setUser(storedUser);
+
         let sessionOk = false;
         try {
           const me = await usersApi.getMe();
@@ -130,20 +160,20 @@ export function AuthProvider({ children }) {
               setTokenState(null);
               setUser(null);
             }
+            return;
           }
         }
         if (!cancelled && sessionOk) {
           try {
             const legal = await getLegalStatus();
+            if (cancelled) return;
             setPoliciesOk(await syncServerAcceptance(legal));
           } catch {
-            setPoliciesOk(false);
+            if (!cancelled) setPoliciesOk(false);
           }
         }
-      } finally {
-        if (!cancelled) {
-          setBootstrapping(false);
-        }
+      } catch {
+        /* la session locale reste valable */
       }
     }
 
@@ -152,6 +182,22 @@ export function AuthProvider({ children }) {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Session invalidee par le serveur (401).
+   *
+   * L'interface repasse en mode invite : les ecrans qui exigent un compte
+   * (signalements, suivi des accords) proposent de se connecter au lieu
+   * d'afficher une impasse.
+   */
+  useEffect(
+    () =>
+      subscribeSessionExpired(() => {
+        setTokenState(null);
+        setUser(null);
+      }),
+    [],
+  );
 
   const applySession = useCallback(
     async (auth) => {

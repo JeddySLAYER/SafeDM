@@ -116,7 +116,12 @@ module.exports = {
         resizeMode: "contain",
         backgroundColor: "#FFFFFF",
       },
-      permissions: ["INTERNET", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"],
+      permissions: [
+        "INTERNET",
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        // Android 13+ : autorisation explicite pour afficher les alertes.
+        "POST_NOTIFICATIONS",
+      ],
       intentFilters: [
         {
           action: "VIEW",

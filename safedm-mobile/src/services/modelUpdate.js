@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system";
 import { APP_VERSION, MODEL_MANIFEST_PUBLIC_KEY, MODEL_PATCH_PUBLIC_KEY_HEX } from "../config";
+import { base64ToBytes } from "../utils/base64";
 
 const ACTIVE_MODEL_KEY = "safedm_active_model_uri";
 const ACTIVE_MANIFEST_KEY = "safedm_active_model_manifest";
@@ -84,10 +85,9 @@ async function verifyManifest(manifest) {
   if (!MODEL_MANIFEST_PUBLIC_KEY || !manifest.signature) return false;
   const unsigned = { ...manifest };
   delete unsigned.signature;
-  const { Buffer } = require("react-native-quick-crypto");
   const key = await crypto.subtle.importKey(
     "spki",
-    Uint8Array.from(Buffer.from(MODEL_MANIFEST_PUBLIC_KEY, "base64")),
+    base64ToBytes(MODEL_MANIFEST_PUBLIC_KEY),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["verify"],
@@ -95,7 +95,7 @@ async function verifyManifest(manifest) {
   return crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
     key,
-    Uint8Array.from(Buffer.from(manifest.signature, "base64")),
+    base64ToBytes(manifest.signature),
     new TextEncoder().encode(canonical(unsigned)),
   );
 }

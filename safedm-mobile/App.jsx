@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { StatusBar } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,26 +10,17 @@ import UpdateBanner from "./src/components/UpdateBanner";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme/tokens";
 
+/**
+ * Le splash natif reste affiche jusqu'a ce que la navigation soit prete.
+ *
+ * Le masquer ici ouvrait une fenetre blanche entre le splash et le premier
+ * ecran : l'utilisateur voyait un ecran vide pendant le chargement.
+ */
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden or unavailable in Jest / bare tests.
 });
 
 export default function App() {
-  useEffect(() => {
-    let cancelled = false;
-
-    async function bootstrap() {
-      if (!cancelled) {
-        SplashScreen.hideAsync().catch(() => {});
-      }
-    }
-
-    bootstrap();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />

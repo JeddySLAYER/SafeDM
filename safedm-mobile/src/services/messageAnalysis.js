@@ -3,12 +3,29 @@ import { analyzeFeatureVector, analyzeMessage } from "../api/analysis";
 import { listLegalDocuments } from "../api/legal";
 import { showDialog } from "./appDialog";
 import { showPolicyConsent } from "./policyConsent";
+import { getToken } from "../utils/storage";
 import {
   classifyLocalFeatures,
   extractLocalFeatures,
 } from "./localThreatClassifier";
 
 const FEATURE_COUNT = 50;
+
+/**
+ * L'appareil possede-t-il une session ?
+ *
+ * La verification distante — envoi du texte ou des caracteristiques — exige
+ * un compte. Mieux vaut le savoir avant l'appel : un 401 remonte ici ne doit
+ * jamais se traduire par un « session expiree » sans issue, mais par une
+ * invitation a se connecter ou a creer un compte.
+ */
+export async function hasSession() {
+  try {
+    return Boolean(await getToken());
+  } catch {
+    return false;
+  }
+}
 
 export function normalizeFeatures(raw) {
   if (raw == null) return null;
@@ -26,8 +43,10 @@ export function normalizeFeatures(raw) {
 
 export function friendlyAnalysisError(err) {
   if (err instanceof ApiError) {
-    if (err.status === 401) return "Session expirée. Reconnectez-vous.";
-    if (err.status === 0) {
+    // Le 401 est traite en amont : l'ecran affiche une invitation a se
+    // connecter. Rappeler « session expiree » ici serait une impasse — et
+    // serait faux pour un visiteur qui n'a jamais eu de compte.
+    if (err.status === 401 || err.status === 0) {
       return "Vérification distante indisponible.";
     }
     return "La vérification distante n'a pas abouti.";
@@ -62,20 +81,45 @@ function resultFromLocal(local) {
   };
 }
 
-async function askRemoteFeatures(features) {
-  const choice = await showDialog({
-    title: "Vérification supplémentaire",
-    message:
-      "Le contrôle sur le téléphone n'est pas certain. Autoriser une vérification sans envoyer le texte du message ?",
-    actions: [
-      { label: "Garder le résultat local", value: "local" },
-      { label: "Vérifier", value: "remote", variant: "primary" },
-    ],
-  });
-  if (choice !== "remote") return null;
+/**
+ * Verification distante des caracteristiques (sans le texte du message).
+ *
+ * Renvoie `{ result }`, `{ requiresAuth: true }` ou `null` (l'utilisateur a
+ * garde le resultat local).
+ */
+async function askRemoteFeatures(features, session) {
+  const choice = session
+    ? await showDialog({
+        title: "Vérification supplémentaire",
+        message:
+          "Le contrôle sur le téléphone n'est pas certain. Autoriser une vérification sans envoyer le texte du message ?",
+        actions: [
+          { label: "Garder le résultat local", value: "local" },
+          { label: "Vérifier", value: "remote", variant: "primary" },
+        ],
+      })
+    : await showDialog({
+        title: "Résultat incertain",
+        message:
+          "Le contrôle sur le téléphone n'est pas certain. La vérification sans envoi du texte demande un compte SafeDM.",
+        actions: [
+          { label: "Garder le résultat local", value: "local" },
+          { label: "Créer un compte", value: "account", variant: "primary" },
+        ],
+      });
+
+  if (choice === "account") {
+    return { requiresAuth: true };
+  }
+  if (choice !== "remote") {
+    return null;
+  }
   try {
-    return await analyzeFeatureVector(features);
-  } catch {
+    return { result: await analyzeFeatureVector(features) };
+  } catch (err) {
+    if (err instanceof ApiError && (err.requiresAuth || err.status === 401)) {
+      return { requiresAuth: true, cause: err };
+    }
     return null;
   }
 }
@@ -106,7 +150,13 @@ async function askRemoteText(text) {
 
 /**
  * Analyse un message collé. Le modèle local est essayé en premier.
- * Renvoie { result } ou { error }.
+ *
+ * Renvoie :
+ * - `{ result }` : l'analyse a abouti ;
+ * - `{ error }` : l'analyse a echoue (message affichable tel quel) ;
+ * - `{ requiresAuth: true }` : la verification distante exige un compte.
+ *   L'ecran remplace alors son bouton par une invitation a se connecter ou a
+ *   creer un compte — jamais par un cul-de-sac.
  */
 export async function analyzePastedText(text) {
   let features = null;
@@ -123,10 +173,21 @@ export async function analyzePastedText(text) {
 
   if (local && local.decision !== "UNAVAILABLE") {
     if (local.decision === "UNCERTAIN" && features) {
-      const remote = await askRemoteFeatures(features);
-      if (remote) return { result: remote };
+      const remote = await askRemoteFeatures(features, await hasSession());
+      if (remote?.requiresAuth) {
+        return { requiresAuth: true, cause: remote.cause };
+      }
+      if (remote?.result) {
+        return { result: remote.result };
+      }
     }
     return { result: resultFromLocal(local) };
+  }
+
+  // Aucun resultat local : la verification distante est la seule voie, et elle
+  // demande un compte. On le dit avant l'appel plutot que d'echouer sur un 401.
+  if (!(await hasSession())) {
+    return { requiresAuth: true };
   }
 
   try {
@@ -139,6 +200,9 @@ export async function analyzePastedText(text) {
     }
     return { result: remote };
   } catch (err) {
+    if (err instanceof ApiError && (err.requiresAuth || err.status === 401)) {
+      return { requiresAuth: true, cause: err };
+    }
     return { error: friendlyAnalysisError(err) };
   }
 }

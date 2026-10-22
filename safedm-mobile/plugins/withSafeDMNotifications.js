@@ -12,6 +12,42 @@ const PACKAGE_IMPORT = "import com.safedmmobile.notifications.SafeDMNotification
 const PACKAGE_ADD = "packages.add(SafeDMNotificationsPackage())";
 const MAIN_ACTIVITY_IMPORT =
   "import com.safedmmobile.notifications.SafeDMNotificationsModule\nimport android.content.Intent";
+const NOTIFIER_IMPORT =
+  "import com.safedmmobile.notifications.SafeDMNotifierModule";
+
+/**
+ * Libelles des canaux de notification.
+ *
+ * Un canal par niveau d'urgence, pour que l'utilisateur puisse les regler
+ * separement dans les reglages systeme : couper les alertes de securite ne
+ * doit pas faire disparaitre les informations de maintenance.
+ */
+const CHANNEL_STRINGS = [
+  {
+    name: "safedm_channel_alerts",
+    value: "Alertes de sécurité",
+  },
+  {
+    name: "safedm_channel_alerts_description",
+    value: "Menaces et signaux suspects détectés sur cet appareil.",
+  },
+  {
+    name: "safedm_channel_info",
+    value: "Informations SafeDM",
+  },
+  {
+    name: "safedm_channel_info_description",
+    value: "Modèle local, permissions et état de la protection.",
+  },
+  {
+    name: "safedm_channel_quiet",
+    value: "Résumé quotidien",
+  },
+  {
+    name: "safedm_channel_quiet_description",
+    value: "Un récapitulatif par jour, sans alerte immédiate.",
+  },
+];
 
 /** Harnesses + unused classifiers — never ship in the app source set. */
 const SKIP_KOTLIN = new Set([
@@ -102,6 +138,43 @@ function copyKotlinSources(projectRoot, platformProjectRoot) {
     path.join(xmlDestDir, "network_security_config.xml"),
     xmlConfig,
   );
+}
+
+function patchStringsXml(platformProjectRoot) {
+  const stringsPath = path.join(
+    platformProjectRoot,
+    "app",
+    "src",
+    "main",
+    "res",
+    "values",
+    "strings.xml",
+  );
+  if (!fs.existsSync(stringsPath)) return;
+  let contents = fs.readFileSync(stringsPath, "utf8");
+  for (const item of CHANNEL_STRINGS) {
+    if (contents.includes(`name="${item.name}"`)) continue;
+    const value = item.value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    contents = contents.replace(
+      "</resources>",
+      `  <string name="${item.name}">${value}</string>\n</resources>`,
+    );
+  }
+  fs.writeFileSync(stringsPath, contents);
+}
+
+function ensurePermission(androidManifest, name) {
+  const manifest = androidManifest.manifest;
+  if (!manifest["uses-permission"]) manifest["uses-permission"] = [];
+  const already = manifest["uses-permission"].some(
+    (p) => p.$?.["android:name"] === name,
+  );
+  if (!already) {
+    manifest["uses-permission"].push({ $: { "android:name": name } });
+  }
 }
 
 function addNotificationListenerService(androidManifest) {
@@ -218,18 +291,29 @@ function patchMainApplication(contents) {
 
 function patchMainActivity(contents) {
   let next = contents;
-  if (!next.includes("SafeDMNotificationsModule")) {
+  if (!next.includes("import com.safedmmobile.notifications.SafeDMNotificationsModule")) {
     if (next.includes("import android.os.Bundle")) {
       next = next.replace(
         "import android.os.Bundle",
-        `import android.os.Bundle\nimport android.content.Intent\nimport com.safedmmobile.notifications.SafeDMNotificationsModule`,
+        `import android.os.Bundle
+import android.content.Intent
+import com.safedmmobile.notifications.SafeDMNotificationsModule`,
       );
     } else {
       next = next.replace(
         "package com.safedmmobile",
-        `package com.safedmmobile\n\n${MAIN_ACTIVITY_IMPORT}`,
+        `package com.safedmmobile
+
+${MAIN_ACTIVITY_IMPORT}`,
       );
     }
+  }
+  if (!next.includes(NOTIFIER_IMPORT)) {
+    next = next.replace(
+      "import com.safedmmobile.notifications.SafeDMNotificationsModule",
+      `import com.safedmmobile.notifications.SafeDMNotificationsModule
+${NOTIFIER_IMPORT}`,
+    );
   }
   if (!next.includes("override fun onNewIntent")) {
     next = next.replace(
@@ -240,7 +324,18 @@ function patchMainActivity(contents) {
     super.onNewIntent(intent)
     setIntent(intent)
     SafeDMNotificationsModule.onNewIntent(intent)
+    SafeDMNotifierModule.onNewIntent(intent)
   }`,
+    );
+  }
+  if (!next.includes("captureLaunchIntent")) {
+    // L'application a pu etre ouverte en touchant une notification : le bundle
+    // JS n'est pas encore pret, on garde le payload pour lui.
+    next = next.replace(
+      /super\.onCreate\([^)]*\)/,
+      (match) =>
+        `${match}
+    SafeDMNotifierModule.captureLaunchIntent(intent)`,
     );
   }
   return next;
@@ -251,11 +346,24 @@ function withSafeDMNotifications(config) {
     "android",
     async (cfg) => {
       copyKotlinSources(cfg.modRequest.projectRoot, cfg.modRequest.platformProjectRoot);
+      patchStringsXml(cfg.modRequest.platformProjectRoot);
       return cfg;
     },
   ]);
 
   config = withAndroidManifest(config, (cfg) => {
+    // Android 13 (API 33) exige une autorisation explicite pour afficher une
+    // notification. Sans elle, l'analyse locale continue de fonctionner mais
+    // l'utilisateur n'est prevenu de rien.
+    ensurePermission(cfg.modResults, "android.permission.POST_NOTIFICATIONS");
+    // Sans cette permission, le dialogue systeme "Ne pas optimiser la
+    // batterie" ne s'ouvre jamais et le bouton "Autoriser en arriere-plan"
+    // ne fait rien. Declare aussi dans app.config.js, mais un `prebuild`
+    // peut regenerer le manifeste : on le reapplique ici pour etre sur.
+    ensurePermission(
+      cfg.modResults,
+      "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+    );
     cfg.modResults = addNotificationListenerService(cfg.modResults);
     return cfg;
   });

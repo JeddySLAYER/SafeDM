@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -7,10 +7,12 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import AuthPrompt from "../components/AuthPrompt";
 import Button from "../components/Button";
 import { IconBadge, IconGlyph } from "../components/Icons";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import useAuthGate from "../hooks/useAuthGate";
 import { addAlertFromManualAnalysis } from "../services/alertsStore";
 import { analyzePastedText } from "../services/messageAnalysis";
 import { colors, radii } from "../theme/tokens";
@@ -20,9 +22,20 @@ const EXAMPLE =
   "URGENT : votre compte bancaire sera bloqué. Validez immédiatement via https://bank-secure-login.example/confirm";
 
 export default function ManualAnalysisScreen({ navigation, route }) {
+  const { isAuthenticated, prefer, capture } = useAuthGate();
   const [content, setContent] = useState(route?.params?.initialContent || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // La verification distante exige un compte. On ne remplace le bouton
+  // « Analyser » par l'invitation que lorsqu'elle est vraiment necessaire :
+  // l'analyse sur le telephone, elle, fonctionne sans compte.
+  const [authRequired, setAuthRequired] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setAuthRequired(false);
+    }
+  }, [isAuthenticated]);
 
   async function onPaste() {
     setError("");
@@ -48,6 +61,13 @@ export default function ManualAnalysisScreen({ navigation, route }) {
     setLoading(true);
     try {
       const outcome = await analyzePastedText(text);
+      if (outcome.requiresAuth) {
+        // Le serveur a refuse la session, ou aucune n'existe : on invite a se
+        // connecter plutot que d'afficher une erreur sans issue.
+        if (outcome.cause) capture(outcome.cause);
+        setAuthRequired(true);
+        return;
+      }
       if (outcome.error) {
         setError(outcome.error);
         return;
@@ -130,13 +150,24 @@ export default function ManualAnalysisScreen({ navigation, route }) {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Button
-        label="Analyser"
-        onPress={onAnalyze}
-        loading={loading}
-        icon={<IconGlyph name="shield" color={colors.white} size={16} />}
-        style={{ marginTop: 16 }}
-      />
+      {authRequired ? (
+        <AuthPrompt
+          navigation={navigation}
+          icon="shield"
+          prefer={prefer}
+          title="Vérification à distance"
+          body="Pour confirmer ce message, SafeDM doit envoyer son texte à notre serveur. Cette étape demande un compte : créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          note="Sans compte, l'analyse sur le téléphone reste possible, mais moins précise."
+        />
+      ) : (
+        <Button
+          label="Analyser"
+          onPress={onAnalyze}
+          loading={loading}
+          icon={<IconGlyph name="shield" color={colors.white} size={16} />}
+          style={{ marginTop: 16 }}
+        />
+      )}
     </Screen>
   );
 }

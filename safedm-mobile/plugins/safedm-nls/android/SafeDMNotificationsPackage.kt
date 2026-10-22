@@ -7,7 +7,10 @@ import com.facebook.react.uimanager.ViewManager
 
 class SafeDMNotificationsPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    return listOf(SafeDMNotificationsModule(reactContext))
+    return listOf(
+      SafeDMNotificationsModule(reactContext),
+      SafeDMNotifierModule(reactContext),
+    )
   }
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {

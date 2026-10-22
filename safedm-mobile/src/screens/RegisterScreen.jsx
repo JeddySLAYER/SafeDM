@@ -123,7 +123,7 @@ export default function RegisterScreen({ navigation }) {
 
       <Button label="Créer mon compte" onPress={onSubmit} loading={loading} />
 
-      <Pressable onPress={() => navigation.navigate("Login")} style={styles.footerWrap}>
+      <Pressable onPress={() => navigation.replace("Login")} style={styles.footerWrap}>
         <Text style={styles.footer}>
           Vous avez déjà un compte ?{" "}
           <Text style={styles.link}>Se connecter</Text>

@@ -9,14 +9,17 @@ import {
 import { ApiError } from "../api/client";
 import { analyzeUrl } from "../api/analysis";
 import { createReport } from "../api/reports";
+import AuthPrompt from "../components/AuthPrompt";
 import Button from "../components/Button";
 import { IconGlyph } from "../components/Icons";
 import LinkActions from "../components/LinkActions";
 import RiskBadge from "../components/RiskBadge";
 import Screen from "../components/Screen";
 import ScreenHeader from "../components/ScreenHeader";
+import useAuthGate from "../hooks/useAuthGate";
 import { confirmDialog } from "../services/appDialog";
 import { openUrlExternally } from "../services/notificationBridge";
+import { NOTIFICATION_TYPES, notify } from "../services/notifications";
 import { statusToLevel, vtLabel } from "../utils/risk";
 import { colors, radii } from "../theme/tokens";
 
@@ -31,6 +34,7 @@ function normalizeIncomingUrl(raw) {
 export default function LinkGateScreen({ navigation, route }) {
   const initialUrl = normalizeIncomingUrl(route?.params?.url);
   const [url] = useState(initialUrl);
+  const { requiresAuth, prefer, capture } = useAuthGate();
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -52,8 +56,20 @@ export default function LinkGateScreen({ navigation, route }) {
       if (data.decision === "ALLOW") {
         // Navigateur EXTERNE uniquement (évite boucle si SafeDM = défaut)
         await openUrlExternally(data.url || url);
+      } else if (data.decision === "BLOCK") {
+        // Le lien a ete bloque : on le signale, meme si l'utilisateur ne
+        // regarde pas l'ecran. L'URL est dans la notification — c'est elle que
+        // l'utilisateur a tente d'ouvrir, pas un contenu de message.
+        await notify(NOTIFICATION_TYPES.LINK_BLOCKED, {
+          title: "Lien dangereux bloqué",
+          body: `SafeDM a bloqué l’ouverture d’un lien à risque élevé.`,
+          data: { url: data.url || url },
+        });
       }
     } catch (err) {
+      // La verification d'un lien passe par le serveur : sans session, on
+      // propose de se connecter plutot que d'afficher une erreur morte.
+      if (capture(err)) return;
       setError(
         err instanceof ApiError
           ? err.message
@@ -62,7 +78,7 @@ export default function LinkGateScreen({ navigation, route }) {
     } finally {
       setLoading(false);
     }
-  }, [url]);
+  }, [url, capture]);
 
   useEffect(() => {
     runAnalysis();
@@ -111,6 +127,7 @@ export default function LinkGateScreen({ navigation, route }) {
       });
       setReportMsg("Lien signalé à la communauté.");
     } catch (err) {
+      if (capture(err)) return;
       setError(err instanceof ApiError ? err.message : "Signalement impossible.");
     } finally {
       setReporting(false);
@@ -136,16 +153,32 @@ export default function LinkGateScreen({ navigation, route }) {
 
   if (!result) {
     return (
-      <Screen>
+      <Screen scroll>
         <ScreenHeader title="Vérification du lien" onBack={() => navigation.goBack()} />
-        <Text style={styles.error}>{error || "Analyse impossible."}</Text>
-        <Button label="Réessayer" onPress={runAnalysis} style={{ marginTop: 16 }} />
-        <Button
-          label="Fermer"
-          variant="ghost"
-          onPress={() => navigation.goBack()}
-          style={{ marginTop: 8 }}
-        />
+        {requiresAuth ? (
+          <>
+            <Text style={styles.urlPreview}>{url}</Text>
+            <AuthPrompt
+              navigation={navigation}
+              icon="globe"
+              prefer={prefer}
+              title="Vérifier ce lien"
+              body="Le contrôle d'un lien passe par le serveur SafeDM : il demande un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+              note="Le lien n'a pas été ouvert. Vous pouvez le copier pour l'analyser plus tard."
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.error}>{error || "Analyse impossible."}</Text>
+            <Button label="Réessayer" onPress={runAnalysis} style={{ marginTop: 16 }} />
+            <Button
+              label="Fermer"
+              variant="ghost"
+              onPress={() => navigation.goBack()}
+              style={{ marginTop: 8 }}
+            />
+          </>
+        )}
       </Screen>
     );
   }
@@ -222,13 +255,23 @@ export default function LinkGateScreen({ navigation, route }) {
           onPress={() => navigation.goBack()}
           style={{ marginTop: 16 }}
         />
-        <Button
-          label="Signaler ce lien"
-          variant="outline"
-          onPress={onReport}
-          loading={reporting}
-          style={{ marginTop: 12 }}
-        />
+        {requiresAuth ? (
+          <AuthPrompt
+            navigation={navigation}
+            icon="flag"
+            prefer={prefer}
+            title="Signaler ce lien"
+            body="Le signalement est transmis à la communauté SafeDM : il demande un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          />
+        ) : (
+          <Button
+            label="Signaler ce lien"
+            variant="outline"
+            onPress={onReport}
+            loading={reporting}
+            style={{ marginTop: 12 }}
+          />
+        )}
       </Screen>
     );
   }
@@ -267,13 +310,23 @@ export default function LinkGateScreen({ navigation, route }) {
           onPress={() => navigation.goBack()}
           style={{ marginTop: 12 }}
         />
-        <Button
-          label="Signaler"
-          variant="ghost"
-          onPress={onReport}
-          loading={reporting}
-          style={{ marginTop: 8 }}
-        />
+        {requiresAuth ? (
+          <AuthPrompt
+            navigation={navigation}
+            icon="flag"
+            prefer={prefer}
+            title="Signaler ce lien"
+            body="Le signalement est transmis à la communauté SafeDM : il demande un compte. Créez-le en quelques secondes, ou connectez-vous si vous en avez déjà un."
+          />
+        ) : (
+          <Button
+            label="Signaler"
+            variant="ghost"
+            onPress={onReport}
+            loading={reporting}
+            style={{ marginTop: 8 }}
+          />
+        )}
       </Screen>
     );
   }

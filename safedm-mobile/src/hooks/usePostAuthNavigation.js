@@ -4,8 +4,11 @@ import { useAuth } from "../context/AuthContext";
 /**
  * Redirige l'utilisateur apres une connexion ou une inscription.
  *
- * - l'acceptation des documents reste a faire -> ecran "Politiques" ;
- * - sinon -> permissions (premier lancement) ou accueil.
+ * - retour a l'ecran d'origine : l'utilisateur a ete envoye ici depuis un
+ *   ecran qui attendait une session (signalements, guide, lien a verifier) ;
+ *   le remettre au debut de l'application l'enverrait ailleurs et lui ferait
+ *   perdre le contexte de son action ;
+ * - sinon -> policies (premier lancement), permissions ou accueil.
  *
  * La session peut expirer entre deux lancements : le hook attend donc
  * l'etat authentifie au lieu de se fier au retour de `login()`.
@@ -15,6 +18,10 @@ export default function usePostAuthNavigation(navigation) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+      return;
+    }
     navigation.reset({
       index: 0,
       routes: [

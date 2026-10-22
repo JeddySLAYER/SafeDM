@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import {
   Bell,
   BookOpen,
+  BatteryCharging,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -57,6 +58,7 @@ const ICONS = {
   doc: FileText,
   branch: GitBranch,
   clock: Clock,
+  battery: BatteryCharging,
 };
 
 export function IconGlyph({ name, color = colors.bluePrimary, size = 20, strokeWidth = 2 }) {

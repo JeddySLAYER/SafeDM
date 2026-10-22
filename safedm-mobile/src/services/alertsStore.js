@@ -1,9 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyzeMessage } from "../api/analysis";
-import { getCloudConsent, getToken } from "../utils/storage";
+import { getCloudConsent, getHideSensitivePreview, getToken } from "../utils/storage";
 import { statusToLevel } from "../utils/risk";
 import { emitAlertsChanged } from "./alertsEvents";
 import { classifyLocalFeatures } from "./localThreatClassifier";
+import { NOTIFICATION_TYPES, notify, notifyProtectionDegraded } from "./notifications";
 
 const KEY = "safedm_local_alerts";
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -192,6 +193,51 @@ function levelFromFeatures(features) {
   return "unknown";
 }
 
+/**
+ * Notification systeme pour une alerte.
+ *
+ * Trois garde-fous, dans cet ordre :
+ *  - on ne notifie que si une analyse LOCALE a tranche. Le repli lexical
+ *    (`guessLevel`) est trop bruyant : un simple lien dans un message normal
+ *    remonterait en « moyen » et notifierait sans raison. Le repli sur les
+ *    FEATURES (contrat V3) reste acceptable pour un risque eleve ;
+ *  - « moyen » exige une decision du modele, pas seulement des features ;
+ *  - le corps ne contient jamais le message si l'utilisateur a demande a
+ *    masquer le contenu des alertes.
+ */
+async function notifyAlert(alert) {
+  try {
+    const byModel =
+      alert.decisionSource === "local-tflite" || alert.decisionSource === "local-patch";
+    const byFeatures = alert.decisionSource === "feature-fallback";
+    if (!byModel && !byFeatures) return false;
+
+    const isHigh = alert.level === "high";
+    const isMedium = alert.level === "medium";
+    if (!isHigh && !isMedium) return false;
+    if (isMedium && !byModel) return false;
+
+    const hidePreview = await getHideSensitivePreview();
+    const source = alert.source || "une application";
+    const excerpt = hidePreview ? "" : ` Extrait : ${String(alert.preview || "").slice(0, 120)}`;
+    const body = isHigh
+      ? `Un message reçu sur ${source} a été classé dangereux.${excerpt}`
+      : `Un message reçu sur ${source} présente des signaux suspects.${excerpt}`;
+
+    return await notify(
+      isHigh ? NOTIFICATION_TYPES.THREAT_DETECTED : NOTIFICATION_TYPES.SUSPICIOUS_DETECTED,
+      {
+        title: isHigh ? "Menace détectée" : "Message suspect",
+        body,
+        data: { alertId: alert.id, level: alert.level },
+      },
+    );
+  } catch {
+    // Une notification qui echoue ne doit jamais faire echouer l'analyse.
+    return false;
+  }
+}
+
 export async function addAlertFromNotification(payload) {
   const text = [payload.title, payload.text].filter(Boolean).join(". ");
   if (!text.trim()) return null;
@@ -203,7 +249,11 @@ export async function addAlertFromNotification(payload) {
       localDecision = await classifyLocalFeatures(features);
     } catch {
       localDecision = null;
+      await notifyProtectionDegraded("le modèle local n’a pas pu s’exécuter");
     }
+  }
+  if (localDecision?.decision === "UNAVAILABLE") {
+    await notifyProtectionDegraded("le modèle local est indisponible");
   }
   const modelDecision =
     localDecision?.decision && localDecision.decision !== "UNAVAILABLE"
@@ -246,6 +296,10 @@ export async function addAlertFromNotification(payload) {
     items.unshift(alert);
     await writeAll(items.slice(0, MAX_ALERTS));
   });
+
+  // Notification immediate : elle part sur la decision locale, avant
+  // l'enrichissement cloud qui peut etre lent ou indisponible.
+  await notifyAlert(alert);
 
   // Enrichissement backend best-effort — ne bloque jamais le flux NLS.
   //

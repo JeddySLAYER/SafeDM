@@ -1,16 +1,7 @@
 import { FINGERPRINT_PUBLIC_KEY } from "../config";
+import { base64ToBytes, bytesToBase64 } from "../utils/base64";
 
 const AAD = new TextEncoder().encode("SafeDM-Fingerprint-v1");
-
-function bytesToBase64(bytes) {
-  const { Buffer } = require("react-native-quick-crypto");
-  return Buffer.from(bytes).toString("base64");
-}
-
-function base64ToBytes(value) {
-  const { Buffer } = require("react-native-quick-crypto");
-  return Uint8Array.from(Buffer.from(value, "base64"));
-}
 
 export function isFingerprintCryptoConfigured() {
   return Boolean(FINGERPRINT_PUBLIC_KEY);

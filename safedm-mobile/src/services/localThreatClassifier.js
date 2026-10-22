@@ -20,7 +20,7 @@ export async function runBundledTfliteFeatures(features) {
     });
   }
   const model = await bundledModelPromise;
-  const outputs = await model.run([createModelInput(features)]);
+  const outputs = await model.run([createModelInput(features, model.inputs?.[0])]);
   const scores = new Float32Array(outputs?.[0] || []);
   if (!scores.length) throw new Error("Le TFLite bundlé n’a produit aucune sortie");
   return { ...decideLocalThreat(scores[0]), modelSource: "tflite", rawProbability: scores[0] };
@@ -66,7 +66,7 @@ export async function classifyLocalFeatures(features) {
     return { decision: LOCAL_DECISION.UNAVAILABLE, confidence: null, riskScore: null };
   }
 
-  const outputs = await model.run([createModelInput(features)]);
+  const outputs = await model.run([createModelInput(features, model.inputs?.[0])]);
   if (!Array.isArray(outputs) || outputs.length < 1) {
     throw new Error("Le modèle local n'a produit aucune sortie");
   }

@@ -43,20 +43,95 @@ export function openNotificationListenerSettings() {
   SafeDMNotifications.openNotificationListenerSettings();
 }
 
-const ANDROID_PACKAGE = "com.safedmmobile";
+/**
+ * Etat systeme des autorisations, en un seul appel natif.
+ *
+ * L'ecran de permissions affiche ce que le systeme dit reellement, plutot que
+ * de supposer que l'utilisateur a fait ce qu'on lui a demande.
+ */
+export async function getPermissionState() {
+  if (Platform.OS !== "android" || !SafeDMNotifications?.getPermissionState) {
+    return {
+      notificationAccess: false,
+      batteryExempt: false,
+      sideloaded: false,
+      restrictedSettingsRequired: false,
+      sdkInt: 0,
+      manufacturer: "",
+    };
+  }
+  try {
+    const state = await SafeDMNotifications.getPermissionState();
+    return {
+      notificationAccess: Boolean(state?.notificationAccess),
+      batteryExempt: Boolean(state?.batteryExempt),
+      sideloaded: Boolean(state?.sideloaded),
+      restrictedSettingsRequired: Boolean(state?.restrictedSettingsRequired),
+      sdkInt: Number(state?.sdkInt) || 0,
+      manufacturer: String(state?.manufacturer || ""),
+    };
+  } catch {
+    return {
+      notificationAccess: false,
+      batteryExempt: false,
+      sideloaded: false,
+      restrictedSettingsRequired: false,
+      sdkInt: 0,
+      manufacturer: "",
+    };
+  }
+}
 
-/** Demande système « ignorer l'optimisation de batterie » pour ce package. */
+/** Ouvre la fiche de l'application dans les reglages systeme. */
+export function openAppDetailsSettings() {
+  if (Platform.OS !== "android" || !SafeDMNotifications?.openAppDetailsSettings) {
+    return;
+  }
+  SafeDMNotifications.openAppDetailsSettings();
+}
+
+/**
+ * Demande l'exemption d'optimisation de batterie.
+ *
+ * Renvoie `false` quand le dialogue systeme n'est pas disponible : l'appelant
+ * bascule alors sur la fiche de l'application.
+ */
+export async function requestBatteryExemption() {
+  if (
+    Platform.OS !== "android" ||
+    !SafeDMNotifications?.requestBatteryExemption
+  ) {
+    return false;
+  }
+  try {
+    return Boolean(await SafeDMNotifications.requestBatteryExemption());
+  } catch {
+    return false;
+  }
+}
+
+/** Liste systeme des applications soumises a l'optimisation de batterie. */
+export function openBatteryOptimizationList() {
+  if (
+    Platform.OS !== "android" ||
+    !SafeDMNotifications?.openBatteryOptimizationList
+  ) {
+    return;
+  }
+  SafeDMNotifications.openBatteryOptimizationList();
+}
+
+/** Demande systeme « ignorer l'optimisation de batterie » pour ce package. */
 export async function openIgnoreBatteryOptimizations() {
   if (Platform.OS !== "android") {
     await Linking.openSettings();
     return;
   }
-  const intent = `intent:#Intent;action=android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;data=package:${ANDROID_PACKAGE};end`;
-  try {
-    await Linking.openURL(intent);
-  } catch {
-    await Linking.openSettings();
-  }
+  const granted = await requestBatteryExemption();
+  if (granted) return;
+  // Dialogue systeme indisponible (constructeur restrictif, permission non
+  // declaree) : la fiche de l'application expose "Sans restriction".
+  openAppDetailsSettings();
 }
 
 export async function syncMonitoredPackages(packageNames) {
