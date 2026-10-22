@@ -1,4 +1,4 @@
-"""Fusion Jev + VirusTotal + communauté -> score final.
+"""Fusion analyse sémantique + VirusTotal + communauté -> score final.
 
 Les seuils de décision sont lus dans la configuration (env) et non codes en dur :
 ils sont de la politique produit, appeles a bouger apres le benchmark, et un
@@ -95,7 +95,7 @@ def fuse_analysis(
     severity = ThreatSeverity.LOW
     threat_type = ThreatType.NONE
     providers = {
-        "jev": {
+        "semantic": {
             "available": semantic.available,
             "error": semantic.error,
             "confidence": semantic.confidence,
@@ -129,9 +129,10 @@ def fuse_analysis(
         reasons.extend(semantic.reasons)
         recommendations.extend(semantic.recommendations)
     else:
-        reasons.append("Analyse sémantique indisponible (Jev)")
+        reasons.append("Analyse sémantique indisponible")
 
-    # Routage par confiance (V2). Jev expose une probabilite d'incertitude reelle :
+    # Routage par confiance (V2). Le moteur semantique expose une probabilite
+    # d'incertitude reelle :
     # `confidence` resume la dispersion de la distribution du verdict.
     # Un juge peu sur de lui ne doit jamais produire un SAFE affirmatif.
     # La politique tenant peut surcharger le plancher d'incertitude via
@@ -142,7 +143,8 @@ def fuse_analysis(
         if semantic.confidence < uncertainty_floor:
             semantic_uncertain = True
             reasons.append(
-                f"Jev peu confiant sur ce message (confiance {semantic.confidence:.2f}) "
+                f"Analyse sémantique peu confiante sur ce message "
+                f"(confiance {semantic.confidence:.2f}) "
                 f"– vérification recommandée"
             )
 

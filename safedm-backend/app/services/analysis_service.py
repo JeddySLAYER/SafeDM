@@ -155,7 +155,7 @@ class AnalysisService:
                     raw_hash=raw_hash,
                     normalized_hash=normalized_hash,
                 ),
-                providers={"jev": {"skipped": True}, "virustotal": {"skipped": True}},
+                providers={"semantic": {"skipped": True}, "virustotal": {"skipped": True}},
                 raw_hash=raw_hash,
                 normalized_hash=normalized_hash,
                 analyzed_at=datetime.now(timezone.utc),
@@ -344,7 +344,7 @@ class AnalysisService:
             urls=[],
             community=community,
             providers={
-                "jev": {"skipped": True, "reason": reason},
+                "semantic": {"skipped": True, "reason": reason},
                 "virustotal": {"skipped": True, "reason": reason},
             },
             raw_hash=raw_hash,
@@ -416,7 +416,7 @@ class AnalysisService:
                 urls=[],
                 community=community,
                 providers={
-                    "jev": {"skipped": True, "reason": "consentement non fourni"},
+                    "semantic": {"skipped": True, "reason": "consentement non fourni"},
                     "virustotal": {
                         "skipped": True,
                         "reason": "consentement non fourni",

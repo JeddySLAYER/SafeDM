@@ -93,9 +93,9 @@ def test_no_consent_reports_the_skipped_providers() -> None:
 
     result = service.analyze(AnalysisRequest(content="Bonjour, comment vas-tu ?"))
 
-    assert result.providers["jev"]["skipped"] is True
+    assert result.providers["semantic"]["skipped"] is True
     assert result.providers["virustotal"]["skipped"] is True
-    assert "consentement" in result.providers["jev"]["reason"].lower()
+    assert "consentement" in result.providers["semantic"]["reason"].lower()
 
 
 def test_no_consent_still_warns_about_detected_links() -> None:

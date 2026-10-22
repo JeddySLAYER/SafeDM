@@ -315,5 +315,66 @@ def test_confidence_is_exposed_in_providers():
 
     fused = _fuse(semantic)
 
-    assert fused["providers"]["jev"]["confidence"] == pytest.approx(0.77)
+    assert fused["providers"]["semantic"]["confidence"] == pytest.approx(0.77)
     assert "gemini" not in fused["providers"]
+
+
+# ------------------------------------------- absence de marque dans le texte
+
+
+def test_no_provider_brand_leaks_in_user_facing_text():
+    """Aucune raison ni recommandation ne doit nommer un fournisseur.
+
+    Le nom interne du service (Jev) reste dans le code et les logs, mais il
+    ne doit jamais atteindre l'utilisateur : la ou il apparait, c'est la
+    technique, pas le produit.
+    """
+    service, _ = _service(
+        response=_response(
+            verdict=_choice(
+                "phishing",
+                {"phishing": 0.95, "social_engineering": 0.02, "scam_financial": 0.01,
+                 "legitimate": 0.01, "benign_marketing": 0.005, "none": 0.005},
+                confidence=0.93,
+            ),
+            urgency=_score(4),
+            credential_request=_noul(0.99),
+            sensitive_data_request=_noul(0.71),
+            link_deception=_noul(0.94),
+        )
+    )
+
+    semantic = service.analyze(PHISHING_MESSAGE, ["http://bit.ly/3xKm9p"])
+    fused = _fuse(semantic)
+
+    user_facing = [*fused["reasons"], *fused["recommendations"]]
+    assert user_facing
+    for text in user_facing:
+        assert "jev" not in text.lower()
+
+
+def test_no_provider_brand_leaks_when_the_semantic_engine_is_unavailable():
+    """Le message de repli ne doit pas nommer le fournisseur non plus."""
+    semantic = SemanticResult(
+        available=False,
+        risk_score=0,
+        confidence=None,
+        threat_type=ThreatType.NONE,
+        error="timeout",
+    )
+
+    fused = _fuse(semantic)
+
+    assert "Analyse sémantique indisponible" in fused["reasons"]
+    for text in [*fused["reasons"], *fused["recommendations"]]:
+        assert "jev" not in text.lower()
+
+
+def test_the_semantic_provider_key_is_not_branded():
+    """La cle de provider est un identifiant technique, pas un nom de marque."""
+    semantic = SemanticResult(available=True, risk_score=10, confidence=0.77)
+
+    fused = _fuse(semantic)
+
+    assert "jev" not in fused["providers"]
+    assert "semantic" in fused["providers"]

@@ -310,7 +310,7 @@ class JevService:
                 "social_engineering": "Manipulation par ingénierie sociale",
                 "scam_financial": "Arnaque financière",
             }.get(verdict_name, "Contenu suspect")
-            reasons.append(f"Jev identifie un risque de type {label} ({risk_score}/100)")
+            reasons.append(f"Risque de type {label} identifié ({risk_score}/100)")
 
         urgency = answers.get("urgency")
         if urgency is not None and int(getattr(urgency, "score", 0)) >= 2:
