@@ -20,7 +20,11 @@ function strengthOf(password) {
 
 export default function RegisterScreen({ navigation }) {
   const { register } = useAuth();
-  usePostAuthNavigation(navigation);
+  try {
+    usePostAuthNavigation(navigation);
+  } catch {
+    // Ne pas faire crasher si le hook échoue.
+  }
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");

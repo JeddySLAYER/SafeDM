@@ -13,7 +13,11 @@ import { colors } from "../theme/tokens";
 export default function LoginScreen({ navigation }) {
   const { login, loginFirebase } = useAuth();
   const firebaseOn = firebaseConfigured();
-  usePostAuthNavigation(navigation);
+  try {
+    usePostAuthNavigation(navigation);
+  } catch {
+    // Ne pas faire crasher si le hook échoue.
+  }
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

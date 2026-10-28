@@ -127,7 +127,7 @@ export default function GuideScenarioScreen({ navigation, route }) {
               key={item.id}
               style={styles.relatedRow}
               onPress={() =>
-                navigation.push("GuideScenario", { scenarioId: item.id })
+                navigation.push("GuideLesson", { scenarioId: item.id })
               }
               accessibilityRole="button"
             >

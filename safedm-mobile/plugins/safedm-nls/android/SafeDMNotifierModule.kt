@@ -113,6 +113,7 @@ class SafeDMNotifierModule(
       }
       builder
         .setSmallIcon(R.mipmap.ic_launcher)
+        .setColor(0xFF1F6BFF.toInt())
         .setContentTitle(title)
         .setContentText(body)
         .setStyle(Notification.BigTextStyle().bigText(body))

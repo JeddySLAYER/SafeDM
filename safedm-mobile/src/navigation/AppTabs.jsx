@@ -12,6 +12,7 @@ import DiagnosticsScreen from "../screens/DiagnosticsScreen";
 import DirectReportScreen from "../screens/DirectReportScreen";
 import GuideArticleScreen from "../screens/GuideArticleScreen";
 import GuideChecklistScreen from "../screens/GuideChecklistScreen";
+import GuideLessonScreen from "../screens/GuideLessonScreen";
 import GuideQuizScreen from "../screens/GuideQuizScreen";
 import GuideScenarioScreen from "../screens/GuideScenarioScreen";
 import GuideScreen from "../screens/GuideScreen";
@@ -154,6 +155,7 @@ export default function AppStack() {
       <Stack.Screen name="Community" component={CommunityScreen} />
       <Stack.Screen name="Guide" component={GuideScreen} />
       <Stack.Screen name="GuideArticle" component={GuideArticleScreen} />
+      <Stack.Screen name="GuideLesson" component={GuideLessonScreen} />
       <Stack.Screen name="GuideScenario" component={GuideScenarioScreen} />
       <Stack.Screen name="GuideChecklist" component={GuideChecklistScreen} />
       <Stack.Screen name="GuideQuiz" component={GuideQuizScreen} />

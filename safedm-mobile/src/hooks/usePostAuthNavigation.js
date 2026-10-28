@@ -18,19 +18,27 @@ export default function usePostAuthNavigation(navigation) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (navigation.canGoBack?.()) {
-      navigation.goBack();
-      return;
+    try {
+      if (navigation?.canGoBack?.()) {
+        navigation.goBack();
+        return;
+      }
+    } catch {
+      // Ignorer et retomber sur le reset.
     }
-    navigation.reset({
-      index: 0,
-      routes: [
-        !policiesOk
-          ? { name: "Policies" }
-          : needsSetup
-            ? { name: "Permissions", params: { onboarding: true } }
-            : { name: "MainTabs" },
-      ],
-    });
+    try {
+      navigation?.reset?.({
+        index: 0,
+        routes: [
+          !policiesOk
+            ? { name: "Policies" }
+            : needsSetup
+              ? { name: "Permissions", params: { onboarding: true } }
+              : { name: "MainTabs" },
+        ],
+      });
+    } catch {
+      // Ne pas faire crasher l'application si la navigation n'est pas prête.
+    }
   }, [isAuthenticated, policiesOk, needsSetup, navigation]);
 }

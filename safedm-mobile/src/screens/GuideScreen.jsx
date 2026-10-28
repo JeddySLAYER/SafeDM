@@ -138,7 +138,7 @@ export default function GuideScreen({ navigation }) {
           key={scenario.id}
           style={styles.scenarioRow}
           onPress={() =>
-            navigation.navigate("GuideScenario", { scenarioId: scenario.id })
+            navigation.navigate("GuideLesson", { scenarioId: scenario.id })
           }
           accessibilityRole="button"
           accessibilityLabel={`${scenario.title}. ${scenario.tagline}`}
@@ -174,6 +174,7 @@ export default function GuideScreen({ navigation }) {
                   <Text style={styles.articleCategory}>{article.category}</Text>
                 ) : null}
                 <Text style={styles.articleTitle}>{article.title}</Text>
+                <Text style={styles.articleSubtitle}>Lire en glissant</Text>
               </View>
               <IconGlyph name="chevron" color={colors.textMuted} size={22} />
             </Pressable>
@@ -308,11 +309,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     marginBottom: 3,
   },
-  articleTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    lineHeight: 20,
+  articleSubtitle: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 4,
   },
   error: { color: colors.danger, marginBottom: 12 },
   offlineNote: {
