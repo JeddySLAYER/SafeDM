@@ -89,10 +89,10 @@ export default function GuideArticleScreen({ navigation, route }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!loading && article ? (
         slides.length === 1 ? (
-          <View style={[styles.singlePage, { width }]}>
+          <View style={[styles.singlePage, { width, paddingBottom: 40 }]}>
             <Text style={styles.articleTitle}>{article.title}</Text>
             <Text style={styles.content}>{slides[0]}</Text>
-            <Text style={styles.swipeHint}>Glisser pour parcourir</Text>
+            <Text style={styles.swipeHint}>Glisser pour parcourir →</Text>
           </View>
         ) : (
           <FlatList

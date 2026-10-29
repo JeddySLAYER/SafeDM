@@ -28,7 +28,7 @@ function LessonCard({ item, index, total, onAction, navigation }) {
           <Text style={styles.introTagline}>{item.tagline}</Text>
           <Text style={styles.introBody}>{item.situation}</Text>
         </View>
-        <Text style={styles.swipeHint}>Swipe pour continuer</Text>
+        <Text style={styles.swipeHint}>Glisser pour continuer →</Text>
       </View>
     );
   }
@@ -248,12 +248,12 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: 8, backgroundColor: colors.bluePrimary },
   progressText: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
-  page: { flex: 1, paddingTop: 12 },
+  page: { flex: 1, paddingTop: 20, paddingBottom: 32 },
   introCard: {
     marginHorizontal: 16,
     backgroundColor: colors.blueSoft,
     borderRadius: radii.lg,
-    padding: 24,
+    padding: 28,
     alignItems: "center",
   },
   introTitle: {
