@@ -55,6 +55,31 @@ export function friendlyAnalysisError(err) {
 }
 
 function resultFromLocal(local) {
+  const isDangerous = local.decision === "DANGEROUS";
+  const isUncertain = local.decision === "UNCERTAIN";
+  const riskScore = local.riskScore;
+  let reasons = [];
+  if (isDangerous) {
+    reasons = [
+      riskScore != null
+        ? `Score de risque local élevé (${riskScore}%)`
+        : "Indicateurs de menace détectés par le modèle local",
+      "Urgence artificielle, demande de code/mot de passe ou lien suspect à surveiller",
+    ];
+  } else if (isUncertain) {
+    reasons = [
+      riskScore != null
+        ? `Score de risque intermédiaire (${riskScore}%)`
+        : "Signaux ambigus détectés par le modèle local",
+      "Vérification recommandée avant d'agir",
+    ];
+  } else {
+    reasons = [
+      riskScore != null
+        ? `Analyse locale - faible risque (${riskScore}%)`
+        : "Aucun indicateur fort de menace détecté sur l'appareil",
+    ];
+  }
   return {
     status:
       local.decision === "DANGEROUS"
@@ -69,13 +94,21 @@ function resultFromLocal(local) {
         : local.decision === "UNCERTAIN"
           ? "MEDIUM"
           : "LOW",
-    reasons: ["Contrôle effectué sur le téléphone"],
+    reasons,
     recommendations:
       local.decision === "UNCERTAIN"
-        ? ["Le résultat n'est pas certain. Méfiez-vous des liens et des demandes d'argent."]
-        : [],
+        ? [
+            "Méfiez-vous des liens, codes reçus par SMS ou demandes d'argent",
+            "Ouvrez les sites/applications officiels directement (sans cliquer sur le lien)",
+          ]
+        : local.decision === "DANGEROUS"
+          ? [
+              "Ne cliquez pas sur le lien ni ne répondez avec des informations sensibles",
+              "Vérifiez par un canal officiel et signalez le message",
+            ]
+          : ["Si vous avez un doute, analysez le lien ou signalez le message"],
     urls: [],
-    providers: { local: { available: true } },
+    providers: { local: { available: true, model: local.modelSource || "local" } },
     model_source: local.modelSource || "local",
     content_stored: false,
   };

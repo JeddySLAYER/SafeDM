@@ -19,11 +19,7 @@ import { listLegalDocuments } from "../api/legal";
 import { alertDialog, confirmDialog } from "../services/appDialog";
 import {
   areNotificationsEnabled,
-  getNotificationPreferences,
-  NOTIFICATION_TYPE_DETAILS,
   openNotificationSettings,
-  requestNotificationPermission,
-  setNotificationEnabled,
 } from "../services/notifications";
 import { showPolicyConsent } from "../services/policyConsent";
 import { APP_VERSION } from "../config";
@@ -40,7 +36,6 @@ export default function SettingsScreen({ navigation }) {
   const [cloudConsent, setConsent] = useState(false);
   const [consentLoaded, setConsentLoaded] = useState(false);
   const [hidePreview, setHidePreview] = useState(false);
-  const [notifPrefs, setNotifPrefs] = useState({});
   const [systemNotifs, setSystemNotifs] = useState(false);
 
   useEffect(() => {
@@ -55,13 +50,10 @@ export default function SettingsScreen({ navigation }) {
 
   useEffect(() => {
     let active = true;
-    Promise.all([getNotificationPreferences(), areNotificationsEnabled()]).then(
-      ([prefs, enabled]) => {
-        if (!active) return;
-        setNotifPrefs(prefs);
-        setSystemNotifs(enabled);
-      },
-    );
+    areNotificationsEnabled().then((enabled) => {
+      if (!active) return;
+      setSystemNotifs(enabled);
+    });
     return () => {
       active = false;
     };
@@ -205,30 +197,22 @@ export default function SettingsScreen({ navigation }) {
       </Text>
 
       <Text style={styles.section}>Notifications</Text>
+      <SettingRow
+        icon="bell"
+        title="Gérer les notifications"
+        subtitle={systemNotifs ? "Actives" : "Désactivées ou à autoriser"}
+        onPress={() => navigation.navigate("NotificationsSettings")}
+        showChevron
+      />
       {!systemNotifs ? (
         <SettingRow
           icon="bell"
           title="Notifications bloquées par Android"
-          subtitle="SafeDM ne peut rien afficher tant que l'autorisation n'est pas accordée"
+          subtitle="Appuyer pour ouvrir les réglages système"
           onPress={openNotificationSettings}
           showChevron
         />
       ) : null}
-      {Object.entries(NOTIFICATION_TYPE_DETAILS).map(([type, spec]) => (
-        <SettingRow
-          key={type}
-          icon={spec.channel === "info" ? "shield" : "bell"}
-          title={spec.label}
-          subtitle={spec.description}
-          switchValue={Boolean(notifPrefs[type])}
-          onSwitchChange={(next) => toggleNotification(type, next)}
-        />
-      ))}
-      <Text style={styles.privacyNote}>
-        Le contenu d’un message n’apparaît jamais dans une notification, sauf
-        si vous avez laissé l’aperçu visible. Les canaux se règlent aussi dans
-        les réglages Android.
-      </Text>
 
       <Text style={styles.section}>Protection</Text>
       <SettingRow

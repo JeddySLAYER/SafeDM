@@ -22,6 +22,7 @@ import LinkProtectionScreen from "../screens/LinkProtectionScreen";
 import LoginScreen from "../screens/LoginScreen";
 import ManualAnalysisScreen from "../screens/ManualAnalysisScreen";
 import ModelDiagnosticsScreen from "../screens/ModelDiagnosticsScreen";
+import NotificationsSettingsScreen from "../screens/NotificationsSettingsScreen";
 import AlertDetailScreen from "../screens/AlertDetailScreen";
 import PermissionsScreen from "../screens/PermissionsScreen";
 import PoliciesScreen from "../screens/PoliciesScreen";
@@ -142,6 +143,7 @@ export default function AppStack() {
       />
       <Stack.Screen name="Diagnostics" component={DiagnosticsScreen} />
       <Stack.Screen name="ModelDiagnostics" component={ModelDiagnosticsScreen} />
+      <Stack.Screen name="NotificationsSettings" component={NotificationsSettingsScreen} />
       <Stack.Screen name="ManualAnalysis" component={ManualAnalysisScreen} />
       <Stack.Screen name="DirectReport" component={DirectReportScreen} />
       <Stack.Screen name="AnalysisResult" component={AnalysisResultScreen} />
