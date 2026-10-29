@@ -34,7 +34,7 @@ export default function UpdateBanner() {
   return (
     <View
       style={[styles.wrapper, { backgroundColor: bg }]}
-      accessibilityRole={status.state === "error" ? "alert" : "status"}
+      accessibilityRole={status.state === "error" ? "none" : "status"}
     >
       <Text style={[styles.text, { color: fg }]}>{status.message}</Text>
       {status.state === "ready" || status.state === "error" ? (

@@ -26,7 +26,7 @@ export default function OfflineBanner() {
   if (!offline) return null;
 
   return (
-    <View style={styles.banner} accessibilityRole="alert">
+    <View style={styles.banner} accessibilityRole="none">
       <Text style={styles.text}>
         Hors ligne. L'analyse sur le téléphone reste active.
       </Text>

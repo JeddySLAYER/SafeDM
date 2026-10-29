@@ -83,7 +83,7 @@ export default function GuideChecklistScreen({ navigation }) {
             key={reflex.id}
             style={[styles.row, isChecked && styles.rowChecked]}
             onPress={() => toggle(reflex.id)}
-            accessibilityRole="checkbox"
+            accessibilityRole="button"
             accessibilityState={{ checked: isChecked }}
             accessibilityLabel={reflex.title}
           >

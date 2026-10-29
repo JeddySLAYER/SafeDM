@@ -96,7 +96,7 @@ export default function DiagnosticsScreen({ navigation }) {
       </Text>
       <View
         accessible
-        accessibilityRole="summary"
+        accessibilityRole="button"
         accessibilityLabel={`État de la protection : ${health}`}
         style={[styles.summaryCard, failedChecks.length ? styles.summaryWarning : styles.summaryGood]}
       >

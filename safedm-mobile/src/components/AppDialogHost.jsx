@@ -25,7 +25,7 @@ export default function AppDialogHost() {
       onRequestClose={() => choose(false)}
     >
       <Pressable style={styles.backdrop} onPress={() => choose(false)}>
-        <Pressable style={styles.card} onPress={() => {}} accessibilityRole="alertdialog">
+        <Pressable style={styles.card} onPress={() => {}} accessibilityRole="none">
           <Text style={styles.title}>{dialog?.title}</Text>
           {dialog?.message ? (
             <Text style={styles.message}>{dialog.message}</Text>
